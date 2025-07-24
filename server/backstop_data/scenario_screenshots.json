@@ -1,0 +1,133 @@
+{
+  "Footer_desktop": {
+    "scenario": "Footer",
+    "viewport": "desktop",
+    "screenshots": [
+      {
+        "filename": "unknown_unknown_1753360515208_Footer Top (1).png",
+        "originalName": "Footer Top (1).png",
+        "path": "C:\\Users\\abhishekshar\\Desktop\\workspace\\PixelPilot\\server\\uploads\\unknown_unknown_1753360515208_Footer Top (1).png",
+        "uploadedAt": "2025-07-24T12:35:15.227Z",
+        "size": 27798,
+        "isReference": true
+      }
+    ],
+    "referenceScreenshot": {
+      "filename": "unknown_unknown_1753360515208_Footer Top (1).png",
+      "originalName": "Footer Top (1).png",
+      "path": "C:\\Users\\abhishekshar\\Desktop\\workspace\\PixelPilot\\server\\uploads\\unknown_unknown_1753360515208_Footer Top (1).png",
+      "uploadedAt": "2025-07-24T12:35:15.227Z",
+      "size": 27798,
+      "isReference": true
+    }
+  },
+  "Footer-1024_desktop": {
+    "scenario": "Footer-1024",
+    "viewport": "desktop",
+    "screenshots": [
+      {
+        "filename": "unknown_unknown_1753194630608_Footer Top.png",
+        "originalName": "Footer Top.png",
+        "path": "C:\\Users\\abhishekshar\\Desktop\\workspace\\PixelPilot\\server\\uploads\\unknown_unknown_1753194630608_Footer Top.png",
+        "uploadedAt": "2025-07-22T14:30:30.620Z",
+        "size": 27381,
+        "isReference": false
+      }
+    ],
+    "referenceScreenshot": null
+  },
+  "Footer-bottom_desktop": {
+    "scenario": "Footer-bottom",
+    "viewport": "desktop",
+    "screenshots": [
+      {
+        "filename": "unknown_unknown_1753274411295_Middle Footer.png",
+        "originalName": "Middle Footer.png",
+        "path": "C:\\Users\\abhishekshar\\Desktop\\workspace\\PixelPilot\\server\\uploads\\unknown_unknown_1753274411295_Middle Footer.png",
+        "uploadedAt": "2025-07-23T12:40:11.315Z",
+        "size": 39106,
+        "isReference": true
+      }
+    ],
+    "referenceScreenshot": {
+      "filename": "unknown_unknown_1753274411295_Middle Footer.png",
+      "originalName": "Middle Footer.png",
+      "path": "C:\\Users\\abhishekshar\\Desktop\\workspace\\PixelPilot\\server\\uploads\\unknown_unknown_1753274411295_Middle Footer.png",
+      "uploadedAt": "2025-07-23T12:40:11.315Z",
+      "size": 39106,
+      "isReference": true
+    }
+  },
+  "Footer_desktop-sm": {
+    "scenario": "Footer",
+    "viewport": "desktop-sm",
+    "screenshots": [
+      {
+        "filename": "unknown_unknown_1753360502460_Footer Top (2).png",
+        "originalName": "Footer Top (2).png",
+        "path": "C:\\Users\\abhishekshar\\Desktop\\workspace\\PixelPilot\\server\\uploads\\unknown_unknown_1753360502460_Footer Top (2).png",
+        "uploadedAt": "2025-07-24T12:35:02.468Z",
+        "size": 27614,
+        "isReference": true
+      }
+    ],
+    "referenceScreenshot": {
+      "filename": "unknown_unknown_1753360502460_Footer Top (2).png",
+      "originalName": "Footer Top (2).png",
+      "path": "C:\\Users\\abhishekshar\\Desktop\\workspace\\PixelPilot\\server\\uploads\\unknown_unknown_1753360502460_Footer Top (2).png",
+      "uploadedAt": "2025-07-24T12:35:02.468Z",
+      "size": 27614,
+      "isReference": true
+    }
+  },
+  "Footer_tablet": {
+    "scenario": "Footer",
+    "viewport": "tablet",
+    "screenshots": [
+      {
+        "filename": "unknown_unknown_1753290770492_Footer Top.png",
+        "originalName": "Footer Top.png",
+        "path": "C:\\Users\\abhishekshar\\Desktop\\workspace\\PixelPilot\\server\\uploads\\unknown_unknown_1753290770492_Footer Top.png",
+        "uploadedAt": "2025-07-23T17:12:50.511Z",
+        "size": 27381,
+        "isReference": true
+      }
+    ],
+    "referenceScreenshot": {
+      "filename": "unknown_unknown_1753290770492_Footer Top.png",
+      "originalName": "Footer Top.png",
+      "path": "C:\\Users\\abhishekshar\\Desktop\\workspace\\PixelPilot\\server\\uploads\\unknown_unknown_1753290770492_Footer Top.png",
+      "uploadedAt": "2025-07-23T17:12:50.511Z",
+      "size": 27381,
+      "isReference": true
+    }
+  },
+  "Footer_phone": {
+    "scenario": "Footer",
+    "viewport": "phone",
+    "screenshots": [
+      {
+        "filename": "unknown_unknown_1753360493379_Footer Top (5).png",
+        "originalName": "Footer Top (5).png",
+        "path": "C:\\Users\\abhishekshar\\Desktop\\workspace\\PixelPilot\\server\\uploads\\unknown_unknown_1753360493379_Footer Top (5).png",
+        "uploadedAt": "2025-07-24T12:34:53.419Z",
+        "size": 26592,
+        "isReference": true
+      }
+    ],
+    "referenceScreenshot": {
+      "filename": "unknown_unknown_1753360493379_Footer Top (5).png",
+      "originalName": "Footer Top (5).png",
+      "path": "C:\\Users\\abhishekshar\\Desktop\\workspace\\PixelPilot\\server\\uploads\\unknown_unknown_1753360493379_Footer Top (5).png",
+      "uploadedAt": "2025-07-24T12:34:53.419Z",
+      "size": 26592,
+      "isReference": true
+    }
+  },
+  "Footer_new-viewport": {
+    "scenario": "Footer",
+    "viewport": "new-viewport",
+    "screenshots": [],
+    "referenceScreenshot": null
+  }
+}

@@ -1,0 +1,61 @@
+{
+  "id": "backstop_default",
+  "viewports": [
+    {
+      "label": "phone",
+      "width": 375,
+      "height": 480
+    },
+    {
+      "label": "desktop-sm",
+      "width": 1024,
+      "height": 768
+    },
+    {
+      "label": "desktop",
+      "width": 1440,
+      "height": 768
+    }
+  ],
+  "scenarios": [
+    {
+      "label": "Footer",
+      "url": "http://localhost:3000/customer/login",
+      "selectors": [
+        ".footer-subscription"
+      ],
+      "delay": 0,
+      "misMatchThreshold": 0.1,
+      "requireSameDimensions": true,
+      "removeSelectors": [],
+      "onReadyScript": "puppet/onReady_Footer.js",
+      "onBeforeScript": "puppet/onBefore_Footer.js",
+      "customScript": "sessionStorage.setItem('has-shown-login-prompt', 'true');",
+      "customBeforeScript": "sessionStorage.setItem('has-shown-login-prompt', 'true');",
+      "id": "existing-0-1753362656250",
+      "hideSelectors": [
+        ".header-wrapper"
+      ]
+    }
+  ],
+  "paths": {
+    "bitmaps_reference": "backstop_data/bitmaps_reference",
+    "bitmaps_test": "backstop_data/bitmaps_test",
+    "engine_scripts": "backstop_data/engine_scripts",
+    "html_report": "backstop_data/html_report",
+    "ci_report": "backstop_data/ci_report"
+  },
+  "report": [
+    "browser"
+  ],
+  "engine": "puppeteer",
+  "engineOptions": {
+    "args": [
+      "--no-sandbox"
+    ]
+  },
+  "asyncCaptureLimit": 5,
+  "asyncCompareLimit": 50,
+  "debug": false,
+  "debugWindow": false
+}

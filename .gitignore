@@ -1,0 +1,70 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+node_modules
+dist
+dist-ssr
+*.local
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Environment variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# BackstopJS generated files
+server/backstop_data/bitmaps_test/
+server/backstop_data/html_report/
+server/backstop_data/json_report/
+server/bitmaps_test/
+server/html_report/
+
+# Uploaded screenshots (you may want to uncomment this)
+# server/uploads/
+
+# OS generated files
+Thumbs.db
+ehthumbs.db
+.Spotlight-V100
+.Trashes
+
+# Coverage reports
+coverage/
+*.lcov
+
+# Runtime data
+pids/
+*.pid
+*.seed
+*.pid.lock
+
+# Cache directories
+.npm
+.eslintcache
+.cache
+.parcel-cache
+
+# Temporary files
+tmp/
+temp/
+
+# Build outputs
+*.tsbuildinfo

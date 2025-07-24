@@ -1,0 +1,439 @@
+import { useState, useEffect } from 'react'
+import axios from 'axios'
+import {
+  Box,
+  Typography,
+  Card,
+  CardContent,
+  Button,
+  Alert,
+  Grid,
+  Paper,
+  MenuItem,
+  Stack,
+  CircularProgress,
+  Chip,
+  Avatar,
+  Select,
+  FormControl,
+  InputLabel,
+  CardMedia
+} from '@mui/material'
+import {
+  CloudUpload,
+  Visibility,
+  Delete,
+  CheckCircle,
+  Image as ImageIcon,
+  Sync,
+  SyncProblem,
+  Warning
+} from '@mui/icons-material'
+
+const API_BASE = 'http://localhost:5000/api'
+
+function ScreenshotUploader() {
+  const [config, setConfig] = useState(null)
+  const [selectedScenario, setSelectedScenario] = useState('')
+  const [uploading, setUploading] = useState({})
+  const [syncing, setSyncing] = useState({})
+  const [syncStatus, setSyncStatus] = useState({})
+  const [message, setMessage] = useState('')
+  const [viewportData, setViewportData] = useState({})
+
+  useEffect(() => {
+    loadConfig()
+  }, [])
+
+  const loadConfig = async () => {
+    try {
+      const response = await axios.get(`${API_BASE}/config`)
+      setConfig(response.data)
+    } catch (error) {
+      setMessage(`Error loading config: ${error.message}`)
+    }
+  }
+
+  const loadViewportData = async () => {
+    if (!selectedScenario || !config?.viewports) return
+    
+    try {
+      const data = {}
+      for (const viewport of config.viewports) {
+        try {
+          const response = await axios.get(`${API_BASE}/scenario-screenshots/${encodeURIComponent(selectedScenario)}/${encodeURIComponent(viewport.label)}`)
+          data[viewport.label] = response.data
+        } catch {
+          data[viewport.label] = { screenshots: [] }
+        }
+      }
+      setViewportData(data)
+    } catch (error) {
+      console.error('Error loading viewport data:', error)
+    }
+  }
+
+  useEffect(() => {
+    if (selectedScenario && config?.viewports) {
+      loadViewportData()
+      checkSyncStatus()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedScenario, config])
+
+  const handleFileSelect = (viewportLabel, file) => {
+    if (file && file.type.startsWith('image/')) {
+      uploadScreenshot(viewportLabel, file)
+    } else {
+      setMessage('Please select a valid image file')
+    }
+  }
+
+  const uploadScreenshot = async (viewportLabel, file) => {
+    if (!file || !selectedScenario || !viewportLabel) {
+      setMessage('Please select a file and scenario')
+      return
+    }
+
+    // Check if there's already a screenshot for this configuration
+    if (viewportData[viewportLabel]?.screenshots?.length > 0) {
+      setMessage(`A screenshot already exists for ${viewportLabel}. Please delete it first.`)
+      return
+    }
+
+    setUploading(prev => ({ ...prev, [viewportLabel]: true }))
+    
+    try {
+      const formData = new FormData()
+      formData.append('screenshot', file)
+      formData.append('scenario', selectedScenario)
+      formData.append('viewport', viewportLabel)
+      formData.append('isReference', 'true') // Always set as reference
+
+      await axios.post(`${API_BASE}/upload-screenshot`, formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data'
+        }
+      })
+
+      setMessage(`✅ Reference screenshot uploaded and synced successfully for ${viewportLabel}!`)
+      
+      // Reload viewport data and check sync status
+      await loadViewportData()
+      await checkSyncStatus(viewportLabel)
+      
+    } catch (error) {
+      setMessage(`Error uploading screenshot: ${error.message}`)
+    } finally {
+      setUploading(prev => ({ ...prev, [viewportLabel]: false }))
+    }
+  }
+
+  const checkSyncStatus = async (viewportLabel = null) => {
+    if (!selectedScenario) return
+
+    try {
+      const viewportsToCheck = viewportLabel ? [viewportLabel] : config?.viewports?.map(v => v.label) || []
+      
+      for (const viewport of viewportsToCheck) {
+        const response = await axios.get(`${API_BASE}/sync-status/${encodeURIComponent(selectedScenario)}/${encodeURIComponent(viewport)}`)
+        setSyncStatus(prev => ({
+          ...prev,
+          [`${selectedScenario}_${viewport}`]: response.data
+        }))
+      }
+    } catch (error) {
+      console.error('Error checking sync status:', error)
+    }
+  }
+
+  const manualSync = async (viewportLabel) => {
+    if (!selectedScenario || !viewportLabel) return
+
+    setSyncing(prev => ({ ...prev, [viewportLabel]: true }))
+    
+    try {
+      const response = await axios.post(`${API_BASE}/sync-reference`, {
+        scenario: selectedScenario,
+        viewport: viewportLabel
+      })
+
+      setMessage(`✅ Manual sync completed for ${viewportLabel}: ${response.data.message}`)
+      await checkSyncStatus(viewportLabel)
+      
+    } catch (error) {
+      setMessage(`❌ Sync failed for ${viewportLabel}: ${error.response?.data?.error || error.message}`)
+    } finally {
+      setSyncing(prev => ({ ...prev, [viewportLabel]: false }))
+    }
+  }
+
+  const getSyncStatusIcon = (viewportLabel) => {
+    const statusKey = `${selectedScenario}_${viewportLabel}`
+    const status = syncStatus[statusKey]
+    
+    if (!status) return null
+    
+    if (status.synced) {
+      return <CheckCircle color="success" fontSize="small" />
+    } else if (status.hasReference) {
+      return <Warning color="warning" fontSize="small" />
+    } else {
+      return <SyncProblem color="error" fontSize="small" />
+    }
+  }
+
+  const getSyncStatusText = (viewportLabel) => {
+    const statusKey = `${selectedScenario}_${viewportLabel}`
+    const status = syncStatus[statusKey]
+    
+    if (!status) return 'Unknown'
+    
+    if (status.synced) {
+      return 'Synced to BackstopJS'
+    } else if (status.hasReference) {
+      return 'Not synced to BackstopJS'
+    } else {
+      return 'No reference image'
+    }
+  }
+
+  const deleteScreenshot = async (viewportLabel, filename) => {
+    try {
+      await axios.delete(`${API_BASE}/scenario-screenshots/${encodeURIComponent(selectedScenario)}/${encodeURIComponent(viewportLabel)}/${filename}`)
+      setMessage(`Screenshot and synced reference image deleted successfully for ${viewportLabel}`)
+      await loadViewportData()
+      await checkSyncStatus(viewportLabel)
+    } catch (error) {
+      setMessage(`Error deleting screenshot: ${error.message}`)
+    }
+  }
+
+  if (!config) {
+    return (
+      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '200px' }}>
+        <CircularProgress />
+        <Typography variant="h6" sx={{ ml: 2 }}>
+          Loading configuration...
+        </Typography>
+      </Box>
+    )
+  }
+
+  return (
+    <Box sx={{ p: 3 }}>
+      <Typography variant="h4" gutterBottom>
+        Screenshot Upload
+      </Typography>
+      
+      {message && (
+        <Alert 
+          severity={message.includes('Error') ? 'error' : 'success'}
+          sx={{ mb: 3 }}
+          onClose={() => setMessage('')}
+        >
+          {message}
+        </Alert>
+      )}
+
+      {/* Scenario Selection */}
+      <Card sx={{ mb: 3 }}>
+        <CardContent>
+          <Typography variant="h6" gutterBottom>
+            Select Scenario
+          </Typography>
+          <Alert severity="info" sx={{ mb: 2 }}>
+            <Typography variant="body2">
+              <strong>Auto-Reference Mode:</strong> All uploaded images are automatically saved as reference screenshots for the selected viewport and synced with BackstopJS for visual regression testing.
+            </Typography>
+          </Alert>
+          
+          <FormControl fullWidth>
+            <InputLabel>Scenario</InputLabel>
+            <Select
+              value={selectedScenario}
+              label="Scenario"
+              onChange={(e) => setSelectedScenario(e.target.value)}
+            >
+              {config?.scenarios?.map((scenario, index) => (
+                <MenuItem key={index} value={scenario.label}>
+                  {scenario.label}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+        </CardContent>
+      </Card>
+
+      {/* Viewports Grid */}
+      {selectedScenario && config?.viewports && (
+        <Grid container spacing={3}>
+          {config.viewports.map((viewport, index) => {
+            const viewportScreenshots = viewportData[viewport.label]?.screenshots || []
+            const hasScreenshot = viewportScreenshots.length > 0
+            const isUploading = uploading[viewport.label]
+
+            return (
+              <Grid item xs={12} md={6} lg={4} key={index}>
+                <Card>
+                  <CardContent>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                      <Typography variant="h6">
+                        {viewport.label}
+                      </Typography>
+                      <Chip 
+                        label={`${viewport.width}×${viewport.height}`}
+                        size="small"
+                        variant="outlined"
+                      />
+                    </Box>
+
+                    {/* Existing Screenshot */}
+                    {hasScreenshot && (
+                      <Box sx={{ mb: 2 }}>
+                        <Card variant="outlined" sx={{ border: viewportScreenshots[0].isReference ? 2 : 1, borderColor: viewportScreenshots[0].isReference ? 'success.main' : 'divider' }}>
+                          <CardMedia
+                            component="img"
+                            height="150"
+                            image={`http://localhost:5000/uploads/${viewportScreenshots[0].filename}`}
+                            alt={viewportScreenshots[0].originalName}
+                            sx={{ objectFit: 'contain' }}
+                          />
+                          <CardContent sx={{ p: 2 }}>
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+                              <Typography variant="subtitle2" fontWeight="bold" noWrap>
+                                {viewportScreenshots[0].originalName}
+                              </Typography>
+                              {viewportScreenshots[0].isReference && (
+                                <Chip label="Reference" color="success" size="small" />
+                              )}
+                            </Box>
+                            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                              {new Date(viewportScreenshots[0].uploadedAt).toLocaleDateString()}
+                            </Typography>
+                            <Stack direction="row" spacing={1}>
+                              <Button
+                                variant="outlined"
+                                color="error"
+                                startIcon={<Delete />}
+                                onClick={() => deleteScreenshot(viewport.label, viewportScreenshots[0].filename)}
+                                size="small"
+                                fullWidth
+                              >
+                                Delete
+                              </Button>
+                              <Button
+                                variant="outlined"
+                                startIcon={<Visibility />}
+                                onClick={() => window.open(`http://localhost:5000/uploads/${viewportScreenshots[0].filename}`, '_blank')}
+                                size="small"
+                                fullWidth
+                              >
+                                View
+                              </Button>
+                            </Stack>
+
+                            {/* Sync Status and Manual Sync */}
+                            <Box sx={{ mt: 2, p: 1, bgcolor: 'grey.50', borderRadius: 1 }}>
+                              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                  {getSyncStatusIcon(viewport.label)}
+                                  <Typography variant="caption" color="text.secondary">
+                                    {getSyncStatusText(viewport.label)}
+                                  </Typography>
+                                </Box>
+                              </Box>
+                              <Button
+                                variant="outlined"
+                                size="small"
+                                startIcon={syncing[viewport.label] ? <CircularProgress size={16} /> : <Sync />}
+                                onClick={() => manualSync(viewport.label)}
+                                disabled={syncing[viewport.label]}
+                                fullWidth
+                                sx={{ fontSize: '0.75rem' }}
+                              >
+                                {syncing[viewport.label] ? 'Syncing...' : 'Manual Sync to BackstopJS'}
+                              </Button>
+                            </Box>
+                          </CardContent>
+                        </Card>
+                      </Box>
+                    )}
+
+                    {/* Upload Section */}
+                    {!hasScreenshot && (
+                      <Box>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={(e) => {
+                            const file = e.target.files[0]
+                            if (file) {
+                              handleFileSelect(viewport.label, file)
+                            }
+                          }}
+                          style={{ display: 'none' }}
+                          id={`file-input-${viewport.label}`}
+                        />
+                        
+                        <Paper
+                          sx={{
+                            border: '2px dashed',
+                            borderColor: 'grey.300',
+                            borderRadius: 2,
+                            p: 3,
+                            textAlign: 'center',
+                            cursor: 'pointer',
+                            transition: 'all 0.3s ease',
+                            '&:hover': {
+                              borderColor: 'primary.main',
+                              bgcolor: 'action.hover'
+                            }
+                          }}
+                          onClick={() => document.getElementById(`file-input-${viewport.label}`).click()}
+                        >
+                          <Stack alignItems="center" spacing={2}>
+                            <Avatar sx={{ bgcolor: 'primary.main', width: 48, height: 48 }}>
+                              {isUploading ? <CircularProgress size={24} color="inherit" /> : <CloudUpload />}
+                            </Avatar>
+                            <Typography variant="h6">
+                              {isUploading ? 'Uploading...' : 'Upload Reference Image'}
+                            </Typography>
+                            <Typography variant="body2" color="text.secondary">
+                              Click to select image for {viewport.label} viewport
+                            </Typography>
+                            <Typography variant="caption" color="primary" sx={{ fontWeight: 'bold' }}>
+                              Auto-syncs as BackstopJS reference
+                            </Typography>
+                          </Stack>
+                        </Paper>
+                      </Box>
+                    )}
+
+                    {/* Status Information */}
+                    {hasScreenshot && (
+                      <Alert severity="info" sx={{ mt: 2 }}>
+                        <Typography variant="body2">
+                          <strong>Current Reference:</strong> One reference screenshot is active for this viewport. 
+                          Delete it to upload a new reference image that will automatically sync with BackstopJS.
+                        </Typography>
+                      </Alert>
+                    )}
+                  </CardContent>
+                </Card>
+              </Grid>
+            )
+          })}
+        </Grid>
+      )}
+
+      {!selectedScenario && (
+        <Alert severity="info" sx={{ mt: 3 }}>
+          Please select a scenario to view viewport upload options.
+        </Alert>
+      )}
+    </Box>
+  )
+}
+
+export default ScreenshotUploader
