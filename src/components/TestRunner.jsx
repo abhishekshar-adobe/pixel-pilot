@@ -39,7 +39,8 @@ import {
   ExpandMore,
   SelectAll,
   Clear,
-  SyncAlt
+  SyncAlt,
+  CheckCircle
 } from '@mui/icons-material'
 
 const API_BASE = 'http://localhost:5000/api'
@@ -47,6 +48,7 @@ const API_BASE = 'http://localhost:5000/api'
 function TestRunner() {
   const [testRunning, setTestRunning] = useState(false)
   const [referenceRunning, setReferenceRunning] = useState(false)
+  const [approveRunning, setApproveRunning] = useState(false)
   const [message, setMessage] = useState('')
   const [testResult, setTestResult] = useState(null)
   const [reportAvailable, setReportAvailable] = useState(false)
@@ -109,6 +111,25 @@ function TestRunner() {
       setMessage(`Error generating reference: ${error.response?.data?.error || error.message}`)
     } finally {
       setReferenceRunning(false)
+    }
+  }
+
+  const runApprove = async () => {
+    setApproveRunning(true)
+    setMessage('')
+    setTestResult(null)
+    
+    try {
+      const filter = runAllScenarios ? undefined : selectedScenarios.join('|')
+      const response = await axios.post(`${API_BASE}/approve`, { filter })
+      setMessage('✅ Test images approved as new references! All failing tests are now passing.')
+      setTestResult(response.data)
+      await checkReportStatus()
+      await fetchReferenceScreenshots() // Fetch updated reference screenshots
+    } catch (error) {
+      setMessage(`Error approving tests: ${error.response?.data?.error || error.message}`)
+    } finally {
+      setApproveRunning(false)
     }
   }
 
@@ -317,7 +338,7 @@ function TestRunner() {
                   size="large"
                   startIcon={referenceRunning ? <LinearProgress sx={{ width: 20 }} /> : <PhotoCamera />}
                   onClick={runReference}
-                  disabled={referenceRunning || testRunning || !canRunTest}
+                  disabled={referenceRunning || testRunning || approveRunning || !canRunTest}
                   fullWidth
                 >
                   {referenceRunning ? 'Generating References...' : 'Generate Reference Screenshots'}
@@ -328,7 +349,7 @@ function TestRunner() {
                   size="large"
                   startIcon={<SyncAlt />}
                   onClick={syncReferences}
-                  disabled={referenceRunning || testRunning}
+                  disabled={referenceRunning || testRunning || approveRunning}
                   fullWidth
                   color="info"
                 >
@@ -340,10 +361,26 @@ function TestRunner() {
                   size="large"
                   startIcon={testRunning ? <LinearProgress sx={{ width: 20 }} /> : <PlayArrow />}
                   onClick={runTest}
-                  disabled={testRunning || referenceRunning || !canRunTest}
+                  disabled={testRunning || referenceRunning || approveRunning || !canRunTest}
                   fullWidth
                 >
                   {testRunning ? 'Running Test...' : 'Run Visual Regression Test'}
+                </Button>
+
+                <Button
+                  variant="contained"
+                  size="large"
+                  startIcon={approveRunning ? <LinearProgress sx={{ width: 20 }} /> : <CheckCircle />}
+                  onClick={runApprove}
+                  disabled={testRunning || referenceRunning || approveRunning || !canRunTest}
+                  fullWidth
+                  color="success"
+                  sx={{ 
+                    backgroundColor: 'success.main',
+                    '&:hover': { backgroundColor: 'success.dark' }
+                  }}
+                >
+                  {approveRunning ? 'Approving Tests...' : 'Approve Test Results as References'}
                 </Button>
 
                 {reportAvailable && (
@@ -395,12 +432,22 @@ function TestRunner() {
                     <ListItemIcon sx={{ minWidth: 32 }}>
                       <Typography variant="body2" fontWeight={600}>4.</Typography>
                     </ListItemIcon>
+                    <ListItemText primary="Approve Test Results: When changes are intentional, approve test images as new references" />
+                  </ListItem>
+                  <ListItem sx={{ pl: 0 }}>
+                    <ListItemIcon sx={{ minWidth: 32 }}>
+                      <Typography variant="body2" fontWeight={600}>5.</Typography>
+                    </ListItemIcon>
                     <ListItemText primary="Open Report: View detailed diff screenshots and results" />
                   </ListItem>
                 </List>
                 <Typography variant="body2" sx={{ mt: 1 }}>
                   <strong>Note:</strong> Make sure you have configured scenarios and viewports before running tests.
                   The BackstopJS HTML report will show diff screenshots when visual differences are detected.
+                </Typography>
+                <Typography variant="body2" sx={{ mt: 1 }}>
+                  <strong>💡 Tip:</strong> Use "Approve Test Results" when visual changes are intentional (e.g., after design updates). 
+                  This promotes the current test images to become the new reference baselines.
                 </Typography>
               </Alert>
             </CardContent>

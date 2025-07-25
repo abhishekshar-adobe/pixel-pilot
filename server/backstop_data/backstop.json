@@ -24,10 +24,12 @@
       "selectors": [
         ".footer-subscription"
       ],
-      "delay": 0,
+      "delay": 100,
       "misMatchThreshold": 0.1,
       "requireSameDimensions": true,
-      "removeSelectors": [],
+      "removeSelectors": [
+        ".header-wrapper"
+      ],
       "onReadyScript": "puppet/onReady_Footer.js",
       "onBeforeScript": "puppet/onBefore_Footer.js",
       "customScript": "sessionStorage.setItem('has-shown-login-prompt', 'true');",
@@ -35,7 +37,8 @@
       "id": "existing-0-1753362656250",
       "hideSelectors": [
         ".header-wrapper"
-      ]
+      ],
+      "clickSelector": ".close-button"
     }
   ],
   "paths": {

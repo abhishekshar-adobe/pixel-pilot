@@ -626,6 +626,30 @@ app.post('/api/reference', async (req, res) => {
   }
 });
 
+// Run BackstopJS approve (update reference images with test results)
+app.post('/api/approve', async (req, res) => {
+  try {
+    const configPath = path.join(configDir, 'backstop.json');
+    const config = await fs.readJson(configPath);
+    
+    // Ensure reference paths exist
+    await fs.ensureDir(path.join(configDir, config.paths.bitmaps_reference));
+    
+    const result = await backstop('approve', { 
+      config: configPath,
+      filter: req.body.filter || undefined
+    });
+    
+    res.json({ 
+      success: true, 
+      result,
+      message: 'Reference screenshots updated successfully - test images approved as new references'
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Serve BackstopJS HTML report
 app.use('/report', express.static(path.join(configDir, 'html_report')));
 
