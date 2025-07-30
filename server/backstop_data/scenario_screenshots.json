@@ -409,21 +409,45 @@
         "uploadedAt": "2025-07-29T16:54:25.436Z",
         "size": 156121,
         "isReference": true
+      },
+      {
+        "filename": "unknown_unknown_1753872636419_Departments_2_153.png",
+        "originalName": "Departments_2_153.png",
+        "path": "C:\\Users\\abhishekshar\\Desktop\\workspace\\PixelPilot\\server\\uploads\\unknown_unknown_1753872636419_Departments_2_153.png",
+        "uploadedAt": "2025-07-30T10:50:36.436Z",
+        "size": 267791,
+        "isReference": true
       }
     ],
     "referenceScreenshot": {
-      "filename": "unknown_unknown_1753808065388_Faqs.jpg",
-      "originalName": "Faqs.jpg",
-      "path": "C:\\Users\\abhishekshar\\Desktop\\workspace\\PixelPilot\\server\\uploads\\unknown_unknown_1753808065388_Faqs.jpg",
-      "uploadedAt": "2025-07-29T16:54:25.436Z",
-      "size": 156121,
+      "filename": "unknown_unknown_1753872636419_Departments_2_153.png",
+      "originalName": "Departments_2_153.png",
+      "path": "C:\\Users\\abhishekshar\\Desktop\\workspace\\PixelPilot\\server\\uploads\\unknown_unknown_1753872636419_Departments_2_153.png",
+      "uploadedAt": "2025-07-30T10:50:36.436Z",
+      "size": 267791,
       "isReference": true
     }
   },
   "Newsletter_Insove": {
     "scenario": "Newsletter",
     "viewport": "Insove",
-    "screenshots": [],
-    "referenceScreenshot": null
+    "screenshots": [
+      {
+        "filename": "unknown_unknown_1753872548492_Billboard_2_348.png",
+        "originalName": "Billboard_2_348.png",
+        "path": "C:\\Users\\abhishekshar\\Desktop\\workspace\\PixelPilot\\server\\uploads\\unknown_unknown_1753872548492_Billboard_2_348.png",
+        "uploadedAt": "2025-07-30T10:49:08.543Z",
+        "size": 1078502,
+        "isReference": true
+      }
+    ],
+    "referenceScreenshot": {
+      "filename": "unknown_unknown_1753872548492_Billboard_2_348.png",
+      "originalName": "Billboard_2_348.png",
+      "path": "C:\\Users\\abhishekshar\\Desktop\\workspace\\PixelPilot\\server\\uploads\\unknown_unknown_1753872548492_Billboard_2_348.png",
+      "uploadedAt": "2025-07-30T10:49:08.543Z",
+      "size": 1078502,
+      "isReference": true
+    }
   }
 }

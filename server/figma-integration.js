@@ -56,6 +56,7 @@ class FigmaAPIClient {
    * screenshot comparison and design review.
    * 
    * @param {Object} options - Filtering options
+   * @param {string} options.pageId - Specific page ID to filter by (optional)
    * @param {number} options.minWidth - Minimum width in pixels (default: 100)
    * @param {number} options.minHeight - Minimum height in pixels (default: 100) 
    * @param {boolean} options.includeInvisible - Include invisible layers (default: false)
@@ -68,73 +69,90 @@ class FigmaAPIClient {
       const mainLayers = [];
       
       const {
+        pageId = null,
         minWidth = 100,
         minHeight = 100,
         includeInvisible = false,
         includeTypes = ['FRAME', 'COMPONENT', 'INSTANCE']
       } = options;
 
+      console.log('🔍 Filtering main layers with options:', { pageId, minWidth, minHeight, includeInvisible, includeTypes });
+
       // Process each page (Canvas) in the document
       if (fileData.document && fileData.document.children) {
         fileData.document.children.forEach(page => {
-          if (page.type === 'CANVAS' && page.children) {
-            // Process direct children of the page (Canvas)
-            page.children.forEach(child => {
-              // Apply filtering criteria
-              const shouldInclude = (
-                // Type filter: Only FRAME, COMPONENT, INSTANCE
-                includeTypes.includes(child.type) &&
+          if (page.type === 'CANVAS') {
+            // If pageId is specified, only process that specific page
+            if (pageId && page.id !== pageId) {
+              console.log(`⏭️ Skipping page "${page.name}" (${page.id}) - not matching ${pageId}`);
+              return;
+            }
+            
+            console.log(`📄 Processing page "${page.name}" (${page.id}), children: ${page.children ? page.children.length : 0}`);
+            
+            if (page.children) {
+              // Process direct children of the page (Canvas)
+              page.children.forEach(child => {
+                console.log(`🔍 Checking layer "${child.name}" (${child.type}), bounds:`, child.absoluteBoundingBox);
                 
-                // Visibility filter: Skip invisible layers unless explicitly included
-                (includeInvisible || child.visible !== false) &&
-                
-                // Size filter: Ignore layers that are too small
-                child.absoluteBoundingBox &&
-                child.absoluteBoundingBox.width >= minWidth &&
-                child.absoluteBoundingBox.height >= minHeight
-              );
+                // Apply filtering criteria
+                const shouldInclude = (
+                  // Type filter: Only FRAME, COMPONENT, INSTANCE
+                  includeTypes.includes(child.type) &&
+                  
+                  // Visibility filter: Skip invisible layers unless explicitly included
+                  (includeInvisible || child.visible !== false) &&
+                  
+                  // Size filter: Ignore layers that are too small
+                  child.absoluteBoundingBox &&
+                  child.absoluteBoundingBox.width >= minWidth &&
+                  child.absoluteBoundingBox.height >= minHeight
+                );
 
-              if (shouldInclude) {
-                const layer = {
-                  id: child.id,
-                  name: child.name,
-                  type: child.type,
-                  pageName: page.name,
-                  path: `${page.name} > ${child.name}`,
-                  depth: 1, // Direct child of page
-                  visible: child.visible !== false,
-                  locked: child.locked === true,
-                  hasChildren: child.children && child.children.length > 0,
-                  bounds: child.absoluteBoundingBox,
-                  // Extract width and height from bounds for easy access
-                  width: child.absoluteBoundingBox ? child.absoluteBoundingBox.width : 0,
-                  height: child.absoluteBoundingBox ? child.absoluteBoundingBox.height : 0,
-                  // Add styling information if available
-                  fills: child.fills,
-                  strokes: child.strokes,
-                  effects: child.effects,
-                  cornerRadius: child.cornerRadius,
-                  opacity: child.opacity,
-                  // Text-specific properties
-                  characters: child.characters,
-                  style: child.style,
-                  // Component properties
-                  componentId: child.componentId,
-                  componentSetId: child.componentSetId,
-                  // Additional metadata
-                  isMainLayer: true,
-                  filterCriteria: {
-                    meetsTypeFilter: includeTypes.includes(child.type),
-                    meetsVisibilityFilter: includeInvisible || child.visible !== false,
-                    meetsSizeFilter: child.absoluteBoundingBox && 
-                                   child.absoluteBoundingBox.width >= minWidth && 
-                                   child.absoluteBoundingBox.height >= minHeight
-                  }
-                };
+                console.log(`🎯 Layer "${child.name}" - Include: ${shouldInclude}, Type: ${child.type}, Visible: ${child.visible !== false}, Size: ${child.absoluteBoundingBox ? `${child.absoluteBoundingBox.width}x${child.absoluteBoundingBox.height}` : 'no bounds'}`);
 
-                mainLayers.push(layer);
-              }
-            });
+                if (shouldInclude) {
+                  const layer = {
+                    id: child.id,
+                    name: child.name,
+                    type: child.type,
+                    pageName: page.name,
+                    path: `${page.name} > ${child.name}`,
+                    depth: 1, // Direct child of page
+                    visible: child.visible !== false,
+                    locked: child.locked === true,
+                    hasChildren: child.children && child.children.length > 0,
+                    bounds: child.absoluteBoundingBox,
+                    // Extract width and height from bounds for easy access
+                    width: child.absoluteBoundingBox ? child.absoluteBoundingBox.width : 0,
+                    height: child.absoluteBoundingBox ? child.absoluteBoundingBox.height : 0,
+                    // Add styling information if available
+                    fills: child.fills,
+                    strokes: child.strokes,
+                    effects: child.effects,
+                    cornerRadius: child.cornerRadius,
+                    opacity: child.opacity,
+                    // Text-specific properties
+                    characters: child.characters,
+                    style: child.style,
+                    // Component properties
+                    componentId: child.componentId,
+                    componentSetId: child.componentSetId,
+                    // Additional metadata
+                    isMainLayer: true,
+                    filterCriteria: {
+                      meetsTypeFilter: includeTypes.includes(child.type),
+                      meetsVisibilityFilter: includeInvisible || child.visible !== false,
+                      meetsSizeFilter: child.absoluteBoundingBox && 
+                                     child.absoluteBoundingBox.width >= minWidth && 
+                                     child.absoluteBoundingBox.height >= minHeight
+                    }
+                  };
+
+                  mainLayers.push(layer);
+                }
+              });
+            }
           }
         });
       }
@@ -155,13 +173,16 @@ class FigmaAPIClient {
 
   /**
    * Get all layers from Figma file with hierarchical structure
+   * @param {string} pageId - Optional page ID to filter by
    */
-  async getLayersList() {
+  async getLayersList(pageId = null) {
     try {
       const fileData = await this.getFile();
       const layers = [];
 
-      const traverseNodes = (node, path = [], depth = 0) => {
+      console.log('🔍 Getting all layers, pageId filter:', pageId);
+
+      const traverseNodes = (node, path = [], depth = 0, pageName = '') => {
         if (!node) return;
 
         // Create layer entry
@@ -175,6 +196,7 @@ class FigmaAPIClient {
           locked: node.locked === true,
           hasChildren: node.children && node.children.length > 0,
           bounds: node.absoluteBoundingBox,
+          pageName: pageName,
           // Extract width and height from bounds for easy access
           width: node.absoluteBoundingBox ? node.absoluteBoundingBox.width : 0,
           height: node.absoluteBoundingBox ? node.absoluteBoundingBox.height : 0,
@@ -197,7 +219,7 @@ class FigmaAPIClient {
         // Recursively process children
         if (node.children) {
           node.children.forEach(child => {
-            traverseNodes(child, [...path, node.name], depth + 1);
+            traverseNodes(child, [...path, node.name], depth + 1, pageName);
           });
         }
       };
@@ -205,10 +227,18 @@ class FigmaAPIClient {
       // Start traversing from the document root
       if (fileData.document && fileData.document.children) {
         fileData.document.children.forEach(page => {
-          traverseNodes(page, [], 0);
+          // If pageId is specified, only process that specific page
+          if (pageId && page.id !== pageId) {
+            console.log(`⏭️ Skipping page "${page.name}" (${page.id}) - not matching ${pageId}`);
+            return;
+          }
+          
+          console.log(`📄 Processing all layers in page "${page.name}" (${page.id})`);
+          traverseNodes(page, [], 0, page.name);
         });
       }
 
+      console.log(`✅ Found ${layers.length} total layers` + (pageId ? ` for page ${pageId}` : ''));
       return layers;
     } catch (error) {
       console.error('Error fetching Figma layers:', error.message);

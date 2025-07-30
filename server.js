@@ -4,6 +4,7 @@ import multer from 'multer';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
+import fetch from 'node-fetch';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -165,56 +166,204 @@ app.get('/api/sync-status/:scenario/:viewport', (req, res) => {
   });
 });
 
-// Figma Design Import Integration API
-app.get('/api/design-comparison/layers', (req, res) => {
-  const { fileId, mainOnly, minWidth, minHeight, includeInvisible } = req.query;
+// Figma Design Import Integration API - Get Pages
+app.get('/api/design-comparison/pages', async (req, res) => {
+  const { fileId } = req.query;
+  const figmaToken = req.headers['x-figma-token'];
   
-  console.log(`🎨 Figma layers requested for file: ${fileId}`);
+  console.log(`📄 Figma pages requested for file: ${fileId}`);
+  
+  if (!figmaToken) {
+    return res.status(401).json({ error: 'Figma token is required' });
+  }
+
+  if (!fileId) {
+    return res.status(400).json({ error: 'File ID is required' });
+  }
+
+  try {
+    // Make actual Figma API call to get file data
+    const figmaResponse = await fetch(`https://api.figma.com/v1/files/${fileId}`, {
+      headers: {
+        'X-Figma-Token': figmaToken
+      }
+    });
+
+    if (!figmaResponse.ok) {
+      console.error(`❌ Figma API error: ${figmaResponse.status} ${figmaResponse.statusText}`);
+      return res.status(figmaResponse.status).json({ 
+        error: `Figma API error: ${figmaResponse.statusText}` 
+      });
+    }
+
+    const figmaData = await figmaResponse.json();
+    const document = figmaData.document;
+
+    if (!document || !document.children) {
+      return res.status(500).json({ error: 'Invalid Figma file structure' });
+    }
+
+    // Extract pages from Figma document
+    const pages = document.children.map(page => ({
+      id: page.id,
+      name: page.name,
+      type: page.type,
+      backgroundColor: page.backgroundColor || { r: 0.95, g: 0.95, b: 0.95, a: 1 },
+      flowStartingPoints: page.flowStartingPoints || [],
+      prototypeDevice: page.prototypeDevice || null,
+      visible: page.visible !== false,
+      locked: page.locked || false,
+      children: page.children ? page.children.length : 0
+    }));
+
+    console.log(`✅ Found ${pages.length} pages in Figma file`);
+
+    res.json({
+      pages: pages,
+      summary: { 
+        total: pages.length,
+        canvasCount: pages.filter(p => p.type === 'CANVAS').length,
+        frameCount: pages.filter(p => p.type === 'FRAME').length
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Error fetching Figma pages:', error);
+    res.status(500).json({ 
+      error: 'Failed to fetch pages from Figma',
+      details: error.message 
+    });
+  }
+});
+
+// Figma Design Import Integration API - Get Layers for a specific page
+app.get('/api/design-comparison/layers', (req, res) => {
+  const { fileId, pageId, mainOnly, minWidth, minHeight, includeInvisible } = req.query;
+  
+  console.log(`🎨 Figma layers requested for file: ${fileId}, page: ${pageId}`);
   console.log(`📋 Filter params - mainOnly: ${mainOnly}, minWidth: ${minWidth}, minHeight: ${minHeight}, includeInvisible: ${includeInvisible}`);
   
-  // Mock Figma layers response
-  const mockLayers = [
-    {
-      id: 'frame-header',
-      name: 'Navigation Header',
-      type: 'FRAME',
-      absoluteBoundingBox: { x: 0, y: 0, width: 1280, height: 80 },
-      bounds: { x: 0, y: 0, width: 1280, height: 80 },
-      visible: true,
-      pageName: 'Homepage',
-      description: 'Main navigation header with logo and menu items'
-    },
-    {
-      id: 'comp-hero',
-      name: 'Hero Banner Section',
-      type: 'COMPONENT',
-      absoluteBoundingBox: { x: 0, y: 80, width: 1280, height: 600 },
-      bounds: { x: 0, y: 80, width: 1280, height: 600 },
-      visible: true,
-      pageName: 'Homepage',
-      description: 'Main hero section with call-to-action button'
-    },
-    {
-      id: 'frame-products',
-      name: 'Product Grid Layout',
-      type: 'FRAME',
-      absoluteBoundingBox: { x: 0, y: 680, width: 1280, height: 400 },
-      bounds: { x: 0, y: 680, width: 1280, height: 400 },
-      visible: true,
-      pageName: 'Products',
-      description: 'Responsive grid layout showcasing featured products'
-    },
-    {
-      id: 'comp-footer',
-      name: 'Site Footer',
-      type: 'COMPONENT',
-      absoluteBoundingBox: { x: 0, y: 1080, width: 1280, height: 200 },
-      bounds: { x: 0, y: 1080, width: 1280, height: 200 },
-      visible: true,
-      pageName: 'Global',
-      description: 'Footer with links, contact info, and social media'
-    }
-  ];
+  // Mock Figma layers response based on page
+  const layersByPage = {
+    'page-home': [
+      {
+        id: 'frame-header',
+        name: 'Navigation Header',
+        type: 'FRAME',
+        absoluteBoundingBox: { x: 0, y: 0, width: 1280, height: 80 },
+        bounds: { x: 0, y: 0, width: 1280, height: 80 },
+        visible: true,
+        pageName: 'Homepage Design',
+        description: 'Main navigation header with logo and menu items',
+        hasChildren: true,
+        childCount: 5
+      },
+      {
+        id: 'comp-hero',
+        name: 'Hero Banner Section',
+        type: 'COMPONENT',
+        absoluteBoundingBox: { x: 0, y: 80, width: 1280, height: 600 },
+        bounds: { x: 0, y: 80, width: 1280, height: 600 },
+        visible: true,
+        pageName: 'Homepage Design',
+        description: 'Main hero section with call-to-action button',
+        hasChildren: true,
+        childCount: 8
+      },
+      {
+        id: 'frame-features',
+        name: 'Features Section',
+        type: 'FRAME',
+        absoluteBoundingBox: { x: 0, y: 680, width: 1280, height: 400 },
+        bounds: { x: 0, y: 680, width: 1280, height: 400 },
+        visible: true,
+        pageName: 'Homepage Design',
+        description: 'Three-column feature showcase',
+        hasChildren: true,
+        childCount: 12
+      }
+    ],
+    'page-products': [
+      {
+        id: 'frame-product-grid',
+        name: 'Product Grid Layout',
+        type: 'FRAME',
+        absoluteBoundingBox: { x: 0, y: 0, width: 1280, height: 800 },
+        bounds: { x: 0, y: 0, width: 1280, height: 800 },
+        visible: true,
+        pageName: 'Product Pages',
+        description: 'Responsive grid layout showcasing featured products',
+        hasChildren: true,
+        childCount: 15
+      },
+      {
+        id: 'comp-product-card',
+        name: 'Product Card Component',
+        type: 'COMPONENT',
+        absoluteBoundingBox: { x: 40, y: 40, width: 300, height: 400 },
+        bounds: { x: 40, y: 40, width: 300, height: 400 },
+        visible: true,
+        pageName: 'Product Pages',
+        description: 'Reusable product card with image, title, and price',
+        hasChildren: true,
+        childCount: 6
+      }
+    ],
+    'page-mobile': [
+      {
+        id: 'frame-mobile-nav',
+        name: 'Mobile Navigation',
+        type: 'FRAME',
+        absoluteBoundingBox: { x: 0, y: 0, width: 375, height: 60 },
+        bounds: { x: 0, y: 0, width: 375, height: 60 },
+        visible: true,
+        pageName: 'Mobile Views',
+        description: 'Responsive mobile navigation bar',
+        hasChildren: true,
+        childCount: 4
+      },
+      {
+        id: 'frame-mobile-content',
+        name: 'Mobile Content Area',
+        type: 'FRAME',
+        absoluteBoundingBox: { x: 0, y: 60, width: 375, height: 600 },
+        bounds: { x: 0, y: 60, width: 375, height: 600 },
+        visible: true,
+        pageName: 'Mobile Views',
+        description: 'Main content area optimized for mobile',
+        hasChildren: true,
+        childCount: 10
+      }
+    ],
+    'page-components': [
+      {
+        id: 'comp-button-primary',
+        name: 'Primary Button',
+        type: 'COMPONENT',
+        absoluteBoundingBox: { x: 100, y: 100, width: 200, height: 48 },
+        bounds: { x: 100, y: 100, width: 200, height: 48 },
+        visible: true,
+        pageName: 'Design System',
+        description: 'Primary action button component',
+        hasChildren: true,
+        childCount: 3
+      },
+      {
+        id: 'comp-input-field',
+        name: 'Input Field',
+        type: 'COMPONENT',
+        absoluteBoundingBox: { x: 100, y: 200, width: 300, height: 56 },
+        bounds: { x: 100, y: 200, width: 300, height: 56 },
+        visible: true,
+        pageName: 'Design System',
+        description: 'Standard form input field',
+        hasChildren: true,
+        childCount: 4
+      }
+    ]
+  };
+
+  const mockLayers = layersByPage[pageId] || [];
 
   res.json({
     layers: mockLayers,
@@ -222,7 +371,106 @@ app.get('/api/design-comparison/layers', (req, res) => {
       total: mockLayers.length, 
       filtered: mockLayers.length,
       filterStrategy: 'size_and_visibility',
-      appliedFilters: [`minWidth: ${minWidth}`, `minHeight: ${minHeight}`, `mainOnly: ${mainOnly}`, `includeInvisible: ${includeInvisible}`]
+      appliedFilters: [`minWidth: ${minWidth}`, `minHeight: ${minHeight}`, `mainOnly: ${mainOnly}`, `includeInvisible: ${includeInvisible}`],
+      pageId: pageId
+    }
+  });
+});
+
+// Figma Layer Elements API - Get elements within a layer
+app.get('/api/design-comparison/layer-elements', (req, res) => {
+  const { fileId, layerId } = req.query;
+  
+  console.log(`🔍 Figma layer elements requested for layer: ${layerId} in file: ${fileId}`);
+  
+  // Mock layer elements based on layer type
+  const elementsByLayer = {
+    'frame-header': [
+      {
+        id: 'logo-element',
+        name: 'Company Logo',
+        type: 'INSTANCE',
+        absoluteBoundingBox: { x: 40, y: 20, width: 120, height: 40 },
+        bounds: { x: 40, y: 20, width: 120, height: 40 },
+        visible: true,
+        description: 'Main company logo'
+      },
+      {
+        id: 'nav-menu',
+        name: 'Navigation Menu',
+        type: 'GROUP',
+        absoluteBoundingBox: { x: 500, y: 25, width: 400, height: 30 },
+        bounds: { x: 500, y: 25, width: 400, height: 30 },
+        visible: true,
+        description: 'Main navigation menu items'
+      },
+      {
+        id: 'search-box',
+        name: 'Search Input',
+        type: 'INSTANCE',
+        absoluteBoundingBox: { x: 950, y: 20, width: 200, height: 40 },
+        bounds: { x: 950, y: 20, width: 200, height: 40 },
+        visible: true,
+        description: 'Global search input field'
+      },
+      {
+        id: 'user-avatar',
+        name: 'User Profile',
+        type: 'INSTANCE',
+        absoluteBoundingBox: { x: 1200, y: 20, width: 40, height: 40 },
+        bounds: { x: 1200, y: 20, width: 40, height: 40 },
+        visible: true,
+        description: 'User profile avatar'
+      }
+    ],
+    'comp-hero': [
+      {
+        id: 'hero-title',
+        name: 'Main Headline',
+        type: 'TEXT',
+        absoluteBoundingBox: { x: 100, y: 180, width: 600, height: 80 },
+        bounds: { x: 100, y: 180, width: 600, height: 80 },
+        visible: true,
+        description: 'Primary headline text'
+      },
+      {
+        id: 'hero-subtitle',
+        name: 'Subtitle Text',
+        type: 'TEXT',
+        absoluteBoundingBox: { x: 100, y: 280, width: 500, height: 60 },
+        bounds: { x: 100, y: 280, width: 500, height: 60 },
+        visible: true,
+        description: 'Supporting subtitle text'
+      },
+      {
+        id: 'hero-cta',
+        name: 'Call to Action Button',
+        type: 'INSTANCE',
+        absoluteBoundingBox: { x: 100, y: 380, width: 200, height: 56 },
+        bounds: { x: 100, y: 380, width: 200, height: 56 },
+        visible: true,
+        description: 'Primary call-to-action button'
+      },
+      {
+        id: 'hero-image',
+        name: 'Hero Background',
+        type: 'RECTANGLE',
+        absoluteBoundingBox: { x: 700, y: 120, width: 500, height: 400 },
+        bounds: { x: 700, y: 120, width: 500, height: 400 },
+        visible: true,
+        description: 'Hero section background image'
+      }
+    ]
+  };
+
+  const mockElements = elementsByLayer[layerId] || [];
+
+  res.json({
+    elements: mockElements,
+    summary: { 
+      total: mockElements.length,
+      layerId: layerId,
+      parentLayer: layerId
     }
   });
 });

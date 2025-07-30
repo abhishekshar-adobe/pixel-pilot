@@ -1675,12 +1675,67 @@ app.get('/api/design-comparison/backstop-script', async (req, res) => {
   }
 });
 
+// Get Figma pages list
+app.get('/api/design-comparison/pages', async (req, res) => {
+  try {
+    const { fileId } = req.query;
+    const figmaToken = req.headers['x-figma-token'];
+    
+    console.log(`📄 Figma pages requested for file: ${fileId}`);
+    
+    if (!figmaToken) {
+      return res.status(401).json({ error: 'Figma token is required' });
+    }
+
+    if (!fileId) {
+      return res.status(400).json({ error: 'File ID is required' });
+    }
+    
+    const { FigmaAPIClient } = require('./figma-integration');
+    const figmaClient = new FigmaAPIClient({ 
+      accessToken: figmaToken, 
+      fileKey: fileId 
+    });
+
+    const fileData = await figmaClient.getFile();
+    const document = fileData.document;
+
+    if (!document || !document.children) {
+      return res.status(500).json({ error: 'Invalid Figma file structure' });
+    }
+
+    // Extract pages from Figma document
+    const pages = document.children.map(page => ({
+      id: page.id,
+      name: page.name,
+      type: page.type,
+      backgroundColor: page.backgroundColor || { r: 0.95, g: 0.95, b: 0.95, a: 1 },
+      flowStartingPoints: page.flowStartingPoints || [],
+      prototypeDevice: page.prototypeDevice || null,
+      visible: page.visible !== false,
+      locked: page.locked || false,
+      children: page.children ? page.children.length : 0
+    }));
+
+    console.log(`✅ Found ${pages.length} pages in Figma file`);
+    res.json({ pages });
+
+  } catch (error) {
+    console.error('❌ Error fetching Figma pages:', error.message);
+    res.status(500).json({ 
+      error: 'Failed to fetch Figma pages', 
+      details: error.message 
+    });
+  }
+});
+
 // Get Figma layers list with refined filtering strategy
 app.get('/api/design-comparison/layers', async (req, res) => {
   try {
     const figmaToken = req.headers['x-figma-token'];
     const { 
       fileId, 
+      pageId,
       type, 
       search, 
       mainOnly = 'true',
@@ -1688,6 +1743,9 @@ app.get('/api/design-comparison/layers', async (req, res) => {
       minHeight = '100',
       includeInvisible = 'false'
     } = req.query;
+
+    console.log('🎨 Figma layers requested for file:', fileId, pageId ? `, page: ${pageId}` : '');
+    console.log('📋 Filter params - mainOnly:', mainOnly, ', minWidth:', minWidth, ', minHeight:', minHeight, ', includeInvisible:', includeInvisible);
 
     if (!figmaToken || !fileId) {
       return res.status(400).json({ 
@@ -1707,6 +1765,7 @@ app.get('/api/design-comparison/layers', async (req, res) => {
     // Use refined filtering strategy for main layers by default
     if (mainOnly === 'true') {
       const filterOptions = {
+        pageId: pageId,
         minWidth: parseInt(minWidth, 10),
         minHeight: parseInt(minHeight, 10),
         includeInvisible: includeInvisible === 'true',
@@ -1716,13 +1775,18 @@ app.get('/api/design-comparison/layers', async (req, res) => {
       layers = await figmaClient.getMainLayersList(filterOptions);
     } else {
       // Fallback to all layers for backward compatibility
-      layers = await figmaClient.getLayersList();
+      layers = await figmaClient.getLayersList(pageId);
       
       // Apply legacy filters
       if (type) {
         const types = type.split(',');
         layers = figmaClient.filterLayersByType(layers, types);
       }
+    }
+
+    console.log(`✅ Found ${layers.length} layers after filtering`);
+    if (layers.length > 0) {
+      console.log('📄 Sample layers:', layers.slice(0, 2).map(l => ({ name: l.name, type: l.type, page: l.pageName })));
     }
 
     // Search by name if specified (works for both main and all layers)

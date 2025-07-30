@@ -67,10 +67,16 @@ const ScreenshotUploader = () => {
   const [figmaToken, setFigmaToken] = useState('')
   const [figmaFileKey, setFigmaFileKey] = useState('')
   const [tabValue, setTabValue] = useState(0)
+  const [figmaPages, setFigmaPages] = useState([])
+  const [selectedPage, setSelectedPage] = useState(null)
   const [figmaLayers, setFigmaLayers] = useState([])
   const [filteredLayers, setFilteredLayers] = useState([])
   const [selectedLayer, setSelectedLayer] = useState(null)
+  const [layerElements, setLayerElements] = useState([])
+  const [selectedElement, setSelectedElement] = useState(null)
+  const [loadingPages, setLoadingPages] = useState(false)
   const [loadingLayers, setLoadingLayers] = useState(false)
+  const [loadingElements, setLoadingElements] = useState(false)
   const [loadingThumbnails, setLoadingThumbnails] = useState({}) // Changed to object for individual loading states
   const [layerThumbnails, setLayerThumbnails] = useState({})
   const [searchTerm, setSearchTerm] = useState('')
@@ -89,15 +95,6 @@ const ScreenshotUploader = () => {
     if (savedFileKey) setFigmaFileKey(savedFileKey)
   }, [])
 
-  // Load viewport data when scenario changes
-  useEffect(() => {
-    if (selectedScenario && viewports.length > 0) {
-      viewports.forEach(viewport => {
-        loadViewportData(viewport.label)
-      })
-    }
-  }, [selectedScenario, viewports])
-
   const loadConfiguration = async () => {
     try {
       const response = await axios.get(`${API_BASE}/config`)
@@ -112,7 +109,7 @@ const ScreenshotUploader = () => {
     }
   }
 
-  const loadViewportData = async (viewportLabel) => {
+  const loadViewportData = React.useCallback(async (viewportLabel) => {
     if (!selectedScenario) return
     
     try {
@@ -123,11 +120,24 @@ const ScreenshotUploader = () => {
       }))
       
       // Check sync status
-      await checkSyncStatus(viewportLabel)
+      const syncResponse = await axios.get(`${API_BASE}/sync-status/${selectedScenario}/${viewportLabel}`)
+      setSyncStatus(prev => ({
+        ...prev,
+        [viewportLabel]: syncResponse.data.status
+      }))
     } catch (error) {
       console.error(`Error loading data for ${viewportLabel}:`, error)
     }
-  }
+  }, [selectedScenario])
+
+  // Load viewport data when scenario changes
+  useEffect(() => {
+    if (selectedScenario && viewports.length > 0) {
+      viewports.forEach(viewport => {
+        loadViewportData(viewport.label)
+      })
+    }
+  }, [selectedScenario, viewports, loadViewportData])
 
   const checkSyncStatus = async (viewportLabel) => {
     if (!selectedScenario) return
@@ -235,8 +245,36 @@ const ScreenshotUploader = () => {
     window.open(screenshotUrl, '_blank')
   }
 
-  const loadFigmaLayers = async () => {
+  const loadFigmaPages = async () => {
     if (!figmaToken || !figmaFileKey) return
+
+    setLoadingPages(true)
+    try {
+      const response = await axios.get(`${API_BASE}/design-comparison/pages`, {
+        headers: {
+          'X-Figma-Token': figmaToken
+        },
+        params: {
+          fileId: figmaFileKey
+        }
+      })
+      
+      const pagesData = response.data.pages || []
+      setFigmaPages(pagesData)
+      
+      // Auto-select first page if available
+      if (pagesData.length > 0) {
+        setSelectedPage(pagesData[0])
+      }
+    } catch (error) {
+      setMessage(`Error loading Figma pages: ${error.message}`)
+    } finally {
+      setLoadingPages(false)
+    }
+  }
+
+  const loadFigmaLayers = async (pageId) => {
+    if (!figmaToken || !figmaFileKey || !pageId) return
 
     setLoadingLayers(true)
     try {
@@ -246,6 +284,7 @@ const ScreenshotUploader = () => {
         },
         params: {
           fileId: figmaFileKey,
+          pageId: pageId,
           mainOnly: 'false',
           minWidth: '100',
           minHeight: '100',
@@ -264,10 +303,42 @@ const ScreenshotUploader = () => {
       setFigmaLayers(layersData)
       setFilteredLayers(layersData)
       setLayerFilterSummary(summary)
+      
+      // Clear previous selections
+      setSelectedLayer(null)
+      setLayerElements([])
+      setSelectedElement(null)
     } catch (error) {
       setMessage(`Error loading Figma layers: ${error.message}`)
     } finally {
       setLoadingLayers(false)
+    }
+  }
+
+  const loadLayerElements = async (layerId) => {
+    if (!figmaToken || !figmaFileKey || !layerId) return
+
+    setLoadingElements(true)
+    try {
+      const response = await axios.get(`${API_BASE}/design-comparison/layer-elements`, {
+        headers: {
+          'X-Figma-Token': figmaToken
+        },
+        params: {
+          fileId: figmaFileKey,
+          layerId: layerId
+        }
+      })
+      
+      const elementsData = response.data.elements || []
+      setLayerElements(elementsData)
+      
+      // Clear previous element selection
+      setSelectedElement(null)
+    } catch (error) {
+      setMessage(`Error loading layer elements: ${error.message}`)
+    } finally {
+      setLoadingElements(false)
     }
   }
 
@@ -306,7 +377,7 @@ const ScreenshotUploader = () => {
     }
   }
 
-  const filterLayers = () => {
+  const filterLayers = React.useCallback(() => {
     let filtered = [...figmaLayers]
 
     if (searchTerm) {
@@ -330,22 +401,23 @@ const ScreenshotUploader = () => {
     })
 
     setFilteredLayers(filtered)
-  }
+  }, [searchTerm, layerTypeFilter, showFramesOnly, figmaLayers])
 
   useEffect(() => {
     filterLayers()
-  }, [searchTerm, layerTypeFilter, showFramesOnly, figmaLayers])
+  }, [filterLayers])
 
-  const selectFigmaLayer = async () => {
-    if (!selectedLayer || !currentViewport) return
+  const selectFigmaLayer = async (itemToImport = null) => {
+    const item = itemToImport || selectedLayer || selectedElement
+    if (!item || !currentViewport) return
 
     setUploading(prev => ({ ...prev, [currentViewport.label]: true }))
     
     try {
-      // First, download the Figma layer as image data
+      // First, download the Figma layer/element as image data
       const downloadResponse = await axios.post(`${API_BASE}/design-comparison/download-figma-layer`, {
-        layerId: selectedLayer.id,
-        layerName: selectedLayer.name,
+        layerId: item.id,
+        layerName: item.name,
         fileId: figmaFileKey
       }, {
         headers: {
@@ -354,7 +426,7 @@ const ScreenshotUploader = () => {
       })
       
       if (!downloadResponse.data.success) {
-        throw new Error(downloadResponse.data.error || 'Failed to download Figma layer')
+        throw new Error(downloadResponse.data.error || 'Failed to download Figma item')
       }
       
       // Convert base64 image data to file
@@ -376,7 +448,8 @@ const ScreenshotUploader = () => {
 
       await axios.post(`${API_BASE}/upload-screenshot`, formData)
       
-      setMessage(`✅ Figma layer "${selectedLayer.name}" uploaded successfully for ${currentViewport.label}!`)
+      const itemType = tabValue === 3 ? 'element' : 'layer'
+      setMessage(`✅ Figma ${itemType} "${item.name}" uploaded successfully for ${currentViewport.label}!`)
       setFigmaDialogOpen(false)
       
       // Reload viewport data
@@ -825,7 +898,9 @@ const ScreenshotUploader = () => {
         <DialogContent sx={{ p: 0 }}>
           <Tabs value={tabValue} onChange={(e, newValue) => setTabValue(newValue)}>
             <Tab label="Connect" />
-            <Tab label="Browse Layers" disabled={!figmaToken || !figmaFileKey} />
+            <Tab label="Select Page" disabled={!figmaToken || !figmaFileKey} />
+            <Tab label="Browse Layers" disabled={!selectedPage} />
+            <Tab label="Layer Elements" disabled={!selectedLayer} />
           </Tabs>
           
           {tabValue === 0 && (
@@ -854,8 +929,156 @@ const ScreenshotUploader = () => {
               </Stack>
             </Box>
           )}
-          
+
           {tabValue === 1 && (
+            <Box sx={{ p: 3, height: 'calc(100vh - 300px)', overflow: 'auto' }}>
+              <Typography variant="h6" sx={{ mb: 3, fontWeight: 600 }}>
+                Select a Page to Browse
+              </Typography>
+              
+              {loadingPages ? (
+                <Grid container spacing={2}>
+                  {[...Array(4)].map((_, i) => (
+                    <Grid item xs={12} sm={6} key={i}>
+                      <Card sx={{ borderRadius: 2 }}>
+                        <Skeleton variant="rectangular" height={120} />
+                        <CardContent>
+                          <Skeleton variant="text" width="80%" />
+                          <Skeleton variant="text" width="60%" />
+                        </CardContent>
+                      </Card>
+                    </Grid>
+                  ))}
+                </Grid>
+              ) : (
+                <Grid container spacing={2}>
+                  {figmaPages.map((page) => (
+                    <Grid item xs={12} sm={6} key={page.id}>
+                      <Card 
+                        sx={{ 
+                          borderRadius: 2,
+                          cursor: 'pointer',
+                          border: selectedPage?.id === page.id ? '2px solid' : '1px solid',
+                          borderColor: selectedPage?.id === page.id ? 'primary.main' : 'divider',
+                          transition: 'all 0.2s ease',
+                          '&:hover': {
+                            transform: 'translateY(-2px)',
+                            boxShadow: 3
+                          }
+                        }}
+                        onClick={() => {
+                          setSelectedPage(page)
+                          loadFigmaLayers(page.id)
+                        }}
+                      >
+                        {/* Page Preview */}
+                        <Box sx={{ 
+                          height: 120, 
+                          bgcolor: page.backgroundColor ? 
+                            `rgba(${Math.round(page.backgroundColor.r * 255)}, ${Math.round(page.backgroundColor.g * 255)}, ${Math.round(page.backgroundColor.b * 255)}, ${page.backgroundColor.a})` :
+                            'grey.100',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          position: 'relative',
+                          overflow: 'hidden'
+                        }}>
+                          <Avatar sx={{ width: 64, height: 64, bgcolor: 'primary.main' }}>
+                            <Web sx={{ fontSize: 32 }} />
+                          </Avatar>
+                          
+                          {/* Device Type Badge */}
+                          {page.prototypeDevice && page.prototypeDevice.type && (
+                            <Chip
+                              label={page.prototypeDevice.type}
+                              size="small"
+                              sx={{
+                                position: 'absolute',
+                                top: 8,
+                                right: 8,
+                                bgcolor: 'rgba(255,255,255,0.9)',
+                                fontSize: '0.65rem'
+                              }}
+                            />
+                          )}
+
+                          {/* Selection Indicator */}
+                          {selectedPage?.id === page.id && (
+                            <Box sx={{
+                              position: 'absolute',
+                              top: 8,
+                              left: 8,
+                              bgcolor: 'primary.main',
+                              color: 'white',
+                              borderRadius: '50%',
+                              width: 24,
+                              height: 24,
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center'
+                            }}>
+                              ✓
+                            </Box>
+                          )}
+                        </Box>
+
+                        {/* Page Info */}
+                        <CardContent sx={{ p: 2 }}>
+                          <Typography variant="subtitle1" fontWeight="bold" noWrap title={page.name}>
+                            {page.name}
+                          </Typography>
+                          
+                          <Stack spacing={0.5} sx={{ mt: 1 }}>
+                            <Typography variant="caption" color="text.secondary">
+                              <strong>Type:</strong> {page.type}
+                            </Typography>
+                            {page.prototypeDevice && page.prototypeDevice.size && (
+                              <Typography variant="caption" color="text.secondary">
+                                <strong>Device:</strong> {page.prototypeDevice.size.width} × {page.prototypeDevice.size.height}
+                              </Typography>
+                            )}
+                            {page.prototypeDevice && !page.prototypeDevice.size && (
+                              <Typography variant="caption" color="text.secondary">
+                                <strong>Device:</strong> {page.prototypeDevice.type || 'Unknown'}
+                              </Typography>
+                            )}
+                            {page.flowStartingPoints && page.flowStartingPoints.length > 0 && (
+                              <Typography variant="caption" color="success.main">
+                                <strong>Has Flows:</strong> {page.flowStartingPoints.length} flow(s)
+                              </Typography>
+                            )}
+                            {page.children !== undefined && (
+                              <Typography variant="caption" color="info.main">
+                                <strong>Children:</strong> {page.children} layer(s)
+                              </Typography>
+                            )}
+                          </Stack>
+                        </CardContent>
+                      </Card>
+                    </Grid>
+                  ))}
+                  
+                  {figmaPages.length === 0 && (
+                    <Grid item xs={12}>
+                      <Box sx={{ textAlign: 'center', py: 6 }}>
+                        <Avatar sx={{ mx: 'auto', mb: 2, bgcolor: 'grey.300', width: 64, height: 64 }}>
+                          <Web />
+                        </Avatar>
+                        <Typography variant="h6" color="text.secondary" gutterBottom>
+                          No pages found
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary">
+                          Connect to Figma to browse available pages
+                        </Typography>
+                      </Box>
+                    </Grid>
+                  )}
+                </Grid>
+              )}
+            </Box>
+          )}
+          
+          {tabValue === 2 && selectedPage && (
             <Box sx={{ p: 3, height: 'calc(100vh - 300px)', overflow: 'auto' }}>
               {/* Search and Filter Controls */}
               <Stack spacing={2} sx={{ mb: 3, position: 'sticky', top: 0, bgcolor: 'background.paper', zIndex: 1, pb: 2 }}>
@@ -975,113 +1198,128 @@ const ScreenshotUploader = () => {
                               boxShadow: 3
                             }
                           }}
-                          onClick={() => setSelectedLayer(layer)}
-                        >
-                        {/* Layer Thumbnail */}
-                        <Box sx={{ 
-                          height: 150, 
-                          bgcolor: 'grey.100',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          position: 'relative',
-                          overflow: 'hidden'
-                        }}>
-                          {layerThumbnails[layer.id] ? (
-                            <img
-                              src={layerThumbnails[layer.id]}
-                              alt={layer.name}
-                              style={{
-                                maxWidth: '100%',
-                                maxHeight: '100%',
-                                objectFit: 'contain'
-                              }}
-                            />
-                          ) : (
-                            <Stack alignItems="center" spacing={1}>
-                              <Avatar sx={{ bgcolor: 'grey.300', width: 48, height: 48 }}>
-                                <Layers />
-                              </Avatar>
-                              <Button
-                                size="small"
-                                variant="outlined"
-                                onClick={(e) => {
-                                  e.stopPropagation()
-                                  loadSingleThumbnail(layer.id)
-                                }}
-                                disabled={loadingThumbnails[layer.id]}
-                              >
-                                {loadingThumbnails[layer.id] ? <CircularProgress size={16} /> : 'Load Preview'}
-                              </Button>
-                            </Stack>
-                          )}
-                          
-                          {/* Layer Type Badge */}
-                          <Stack
-                            direction="row"
-                            spacing={0.5}
-                            sx={{
-                              position: 'absolute',
-                              top: 8,
-                              right: 8
+                        onClick={() => setSelectedLayer(layer)}
+                      >
+                      {/* Layer Thumbnail */}
+                      <Box sx={{ 
+                        height: 150, 
+                        bgcolor: 'grey.100',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        position: 'relative',
+                        overflow: 'hidden'
+                      }}>
+                        {layerThumbnails[layer.id] ? (
+                          <img
+                            src={layerThumbnails[layer.id]}
+                            alt={layer.name}
+                            style={{
+                              maxWidth: '100%',
+                              maxHeight: '100%',
+                              objectFit: 'contain'
                             }}
-                          >
-                            {/* Layer Type */}
+                          />
+                        ) : (
+                          <Stack alignItems="center" spacing={1}>
+                            <Avatar sx={{ bgcolor: 'grey.300', width: 48, height: 48 }}>
+                              <Layers />
+                            </Avatar>
+                            <Button
+                              size="small"
+                              variant="outlined"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                loadSingleThumbnail(layer.id)
+                              }}
+                              disabled={loadingThumbnails[layer.id]}
+                            >
+                              {loadingThumbnails[layer.id] ? <CircularProgress size={16} /> : 'Load Preview'}
+                            </Button>
+                          </Stack>
+                        )}
+                        
+                        {/* Layer Type Badge */}
+                        <Stack
+                          direction="row"
+                          spacing={0.5}
+                          sx={{
+                            position: 'absolute',
+                            top: 8,
+                            right: 8
+                          }}
+                        >
+                          {/* Layer Type */}
+                          <Chip
+                            label={layer.type}
+                            size="small"
+                            sx={{
+                              bgcolor: 'rgba(255,255,255,0.95)',
+                              fontSize: '0.65rem',
+                              height: 20,
+                              color: layer.type === 'FRAME' ? 'primary.main' : 
+                                     layer.type === 'COMPONENT' ? 'success.main' :
+                                     layer.type === 'INSTANCE' ? 'warning.main' : 'text.secondary'
+                            }}
+                          />
+                          
+                          {/* Child Count Badge */}
+                          {layer.hasChildren && layer.childCount && (
                             <Chip
-                              label={layer.type}
+                              label={`${layer.childCount} items`}
                               size="small"
                               sx={{
                                 bgcolor: 'rgba(255,255,255,0.95)',
-                                fontSize: '0.65rem',
+                                fontSize: '0.6rem',
                                 height: 20,
-                                color: layer.type === 'FRAME' ? 'primary.main' : 
-                                       layer.type === 'COMPONENT' ? 'success.main' :
-                                       layer.type === 'INSTANCE' ? 'warning.main' : 'text.secondary'
+                                color: 'info.main'
                               }}
                             />
-                            
-                            {/* Dimensions Badge */}
-                            {layer.bounds && (
-                              <Chip
-                                label={`${Math.round(layer.bounds.width)}×${Math.round(layer.bounds.height)}`}
-                                size="small"
-                                sx={{
-                                  bgcolor: 'rgba(255,255,255,0.95)',
-                                  fontSize: '0.6rem',
-                                  height: 20,
-                                  color: 'text.secondary'
-                                }}
-                              />
-                            )}
-                          </Stack>
-
-                          {/* Selection Indicator */}
-                          {selectedLayer?.id === layer.id && (
-                            <Box sx={{
-                              position: 'absolute',
-                              top: 8,
-                              left: 8,
-                              bgcolor: 'primary.main',
-                              color: 'white',
-                              borderRadius: '50%',
-                              width: 24,
-                              height: 24,
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center'
-                            }}>
-                              ✓
-                            </Box>
                           )}
-                        </Box>
+                        </Stack>
 
-                        {/* Layer Info */}
-                        <CardContent sx={{ p: 2 }}>
-                          <Typography variant="subtitle2" fontWeight="bold" noWrap title={layer.name}>
+                        {/* Selection Indicator */}
+                        {selectedLayer?.id === layer.id && (
+                          <Box sx={{
+                            position: 'absolute',
+                            top: 8,
+                            left: 8,
+                            bgcolor: 'primary.main',
+                            color: 'white',
+                            borderRadius: '50%',
+                            width: 24,
+                            height: 24,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center'
+                          }}>
+                            ✓
+                          </Box>
+                        )}
+                      </Box>
+
+                      {/* Layer Info */}
+                      <CardContent sx={{ p: 2 }}>
+                        <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1 }}>
+                          <Typography variant="subtitle2" fontWeight="bold" noWrap title={layer.name} sx={{ flex: 1 }}>
                             {layer.name}
                           </Typography>
-                          
-                          {/* Layer Details Grid */}
+                          {layer.hasChildren && (
+                            <Button
+                              size="small"
+                              variant="text"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                setSelectedLayer(layer)
+                                loadLayerElements(layer.id)
+                                setTabValue(3) // Go to elements tab
+                              }}
+                              sx={{ minWidth: 'auto', p: 0.5 }}
+                            >
+                              <Visibility sx={{ fontSize: 16 }} />
+                            </Button>
+                          )}
+                        </Stack>                          {/* Layer Details Grid */}
                           <Box sx={{ mt: 1, mb: 1 }}>
                             <Stack spacing={0.5}>
                               {/* Dimensions */}
@@ -1190,6 +1428,192 @@ const ScreenshotUploader = () => {
               )}
             </Box>
           )}
+
+          {tabValue === 3 && selectedLayer && (
+            <Box sx={{ p: 3, height: 'calc(100vh - 300px)', overflow: 'auto' }}>
+              <Box sx={{ mb: 3 }}>
+                <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                  Elements in "{selectedLayer.name}"
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  Select individual elements within this layer
+                </Typography>
+                
+                <Stack direction="row" spacing={1} sx={{ mt: 2 }}>
+                  <Button
+                    variant="outlined"
+                    size="small"
+                    onClick={() => setTabValue(2)}
+                    startIcon={<Layers />}
+                  >
+                    Back to Layers
+                  </Button>
+                  <Button
+                    variant="text"
+                    size="small"
+                    onClick={() => loadLayerElements(selectedLayer.id)}
+                    disabled={loadingElements}
+                    startIcon={loadingElements ? <CircularProgress size={16} /> : <SyncAlt />}
+                  >
+                    Refresh Elements
+                  </Button>
+                </Stack>
+              </Box>
+
+              {loadingElements ? (
+                <Grid container spacing={2}>
+                  {[...Array(6)].map((_, i) => (
+                    <Grid item xs={12} sm={6} md={4} key={i}>
+                      <Card sx={{ borderRadius: 2 }}>
+                        <Skeleton variant="rectangular" height={100} />
+                        <CardContent>
+                          <Skeleton variant="text" width="80%" />
+                          <Skeleton variant="text" width="60%" />
+                        </CardContent>
+                      </Card>
+                    </Grid>
+                  ))}
+                </Grid>
+              ) : (
+                <Grid container spacing={2}>
+                  {layerElements.map((element) => (
+                    <Grid item xs={12} sm={6} md={4} key={element.id}>
+                      <Card 
+                        sx={{ 
+                          borderRadius: 2,
+                          cursor: 'pointer',
+                          border: selectedElement?.id === element.id ? '2px solid' : '1px solid',
+                          borderColor: selectedElement?.id === element.id ? 'primary.main' : 'divider',
+                          transition: 'all 0.2s ease',
+                          '&:hover': {
+                            transform: 'translateY(-2px)',
+                            boxShadow: 3
+                          }
+                        }}
+                        onClick={() => setSelectedElement(element)}
+                      >
+                        {/* Element Preview */}
+                        <Box sx={{ 
+                          height: 100, 
+                          bgcolor: 'grey.50',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          position: 'relative',
+                          overflow: 'hidden',
+                          borderBottom: '1px solid',
+                          borderColor: 'divider'
+                        }}>
+                          <Avatar sx={{ 
+                            bgcolor: element.type === 'TEXT' ? 'info.light' :
+                                     element.type === 'INSTANCE' ? 'success.light' :
+                                     element.type === 'GROUP' ? 'warning.light' :
+                                     element.type === 'RECTANGLE' ? 'secondary.light' : 'grey.400',
+                            width: 40, 
+                            height: 40 
+                          }}>
+                            {element.type === 'TEXT' ? '🔤' :
+                             element.type === 'INSTANCE' ? '🔧' :
+                             element.type === 'GROUP' ? '📦' :
+                             element.type === 'RECTANGLE' ? '⬛' : '🎨'}
+                          </Avatar>
+                          
+                          {/* Element Type Badge */}
+                          <Chip
+                            label={element.type}
+                            size="small"
+                            sx={{
+                              position: 'absolute',
+                              top: 8,
+                              right: 8,
+                              bgcolor: 'rgba(255,255,255,0.95)',
+                              fontSize: '0.65rem',
+                              height: 18
+                            }}
+                          />
+
+                          {/* Selection Indicator */}
+                          {selectedElement?.id === element.id && (
+                            <Box sx={{
+                              position: 'absolute',
+                              top: 8,
+                              left: 8,
+                              bgcolor: 'primary.main',
+                              color: 'white',
+                              borderRadius: '50%',
+                              width: 20,
+                              height: 20,
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              fontSize: '12px'
+                            }}>
+                              ✓
+                            </Box>
+                          )}
+                        </Box>
+
+                        {/* Element Info */}
+                        <CardContent sx={{ p: 2 }}>
+                          <Typography variant="subtitle2" fontWeight="bold" noWrap title={element.name}>
+                            {element.name}
+                          </Typography>
+                          
+                          <Stack spacing={0.5} sx={{ mt: 1 }}>
+                            <Typography variant="caption" color="text.secondary" display="flex" alignItems="center" gap={1}>
+                              <Box component="span" sx={{ fontWeight: 'bold', minWidth: '50px' }}>Size:</Box>
+                              {Math.round(element.bounds?.width || 0)} × {Math.round(element.bounds?.height || 0)}
+                            </Typography>
+                            
+                            <Typography variant="caption" color="text.secondary" display="flex" alignItems="center" gap={1}>
+                              <Box component="span" sx={{ fontWeight: 'bold', minWidth: '50px' }}>Pos:</Box>
+                              x:{Math.round(element.bounds?.x || 0)}, y:{Math.round(element.bounds?.y || 0)}
+                            </Typography>
+                            
+                            <Typography variant="caption" color="text.secondary" display="flex" alignItems="center" gap={1}>
+                              <Box component="span" sx={{ fontWeight: 'bold', minWidth: '50px' }}>Type:</Box>
+                              {element.type}
+                            </Typography>
+                            
+                            {element.visible !== undefined && (
+                              <Typography variant="caption" color={element.visible ? "success.main" : "warning.main"} display="flex" alignItems="center" gap={1}>
+                                <Box component="span" sx={{ fontWeight: 'bold', minWidth: '50px' }}>Status:</Box>
+                                {element.visible ? 'Visible' : 'Hidden'}
+                              </Typography>
+                            )}
+                          </Stack>
+                          
+                          {element.description && (
+                            <Box sx={{ mt: 1, p: 1, bgcolor: 'grey.50', borderRadius: 1 }}>
+                              <Typography variant="caption" color="text.secondary" sx={{ fontStyle: 'italic' }}>
+                                {element.description}
+                              </Typography>
+                            </Box>
+                          )}
+                        </CardContent>
+                      </Card>
+                    </Grid>
+                  ))}
+                  
+                  {layerElements.length === 0 && !loadingElements && (
+                    <Grid item xs={12}>
+                      <Box sx={{ textAlign: 'center', py: 6 }}>
+                        <Avatar sx={{ mx: 'auto', mb: 2, bgcolor: 'grey.300', width: 64, height: 64 }}>
+                          <Layers />
+                        </Avatar>
+                        <Typography variant="h6" color="text.secondary" gutterBottom>
+                          No elements found
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary">
+                          This layer may not have child elements or they are not accessible
+                        </Typography>
+                      </Box>
+                    </Grid>
+                  )}
+                </Grid>
+              )}
+            </Box>
+          )}
         </DialogContent>
         
         <DialogActions sx={{ 
@@ -1211,33 +1635,89 @@ const ScreenshotUploader = () => {
               onClick={async () => {
                 localStorage.setItem('figmaToken', figmaToken)
                 localStorage.setItem('figmaFileKey', figmaFileKey)
-                await loadFigmaLayers()
+                await loadFigmaPages()
                 setTabValue(1)
               }}
               variant="contained"
-              disabled={!figmaToken || !figmaFileKey || loadingLayers}
+              disabled={!figmaToken || !figmaFileKey || loadingPages}
               sx={{
                 borderRadius: 2,
                 background: 'linear-gradient(135deg, #2196f3 0%, #1565c0 100%)'
               }}
             >
-              {loadingLayers ? 'Connecting...' : 'Connect & Browse'}
+              {loadingPages ? 'Connecting...' : 'Connect & Browse Pages'}
             </Button>
           )}
           
-          {tabValue === 1 && selectedLayer && (
+          {tabValue === 1 && selectedPage && (
             <Button
+              onClick={() => {
+                loadFigmaLayers(selectedPage.id)
+                setTabValue(2)
+              }}
               variant="contained"
-              onClick={selectFigmaLayer}
-              disabled={!selectedLayer || uploading[currentViewport?.label]}
-              startIcon={uploading[currentViewport?.label] ? <CircularProgress size={16} /> : <GetApp />}
+              disabled={loadingLayers}
               sx={{
                 borderRadius: 2,
                 background: 'linear-gradient(135deg, #2196f3 0%, #1565c0 100%)'
               }}
             >
-              {uploading[currentViewport?.label] ? 'Importing...' : 'Import Selected Layer'}
+              {loadingLayers ? 'Loading...' : 'Browse Layers'}
             </Button>
+          )}
+          
+          {tabValue === 2 && selectedLayer && (
+            <Stack direction="row" spacing={2}>
+              {selectedLayer.hasChildren && (
+                <Button
+                  variant="outlined"
+                  onClick={() => {
+                    loadLayerElements(selectedLayer.id)
+                    setTabValue(3)
+                  }}
+                  disabled={loadingElements}
+                  sx={{ borderRadius: 2 }}
+                >
+                  {loadingElements ? 'Loading...' : 'View Elements'}
+                </Button>
+              )}
+              <Button
+                variant="contained"
+                onClick={() => selectFigmaLayer(selectedLayer)}
+                disabled={!selectedLayer || uploading[currentViewport?.label]}
+                startIcon={uploading[currentViewport?.label] ? <CircularProgress size={16} /> : <GetApp />}
+                sx={{
+                  borderRadius: 2,
+                  background: 'linear-gradient(135deg, #2196f3 0%, #1565c0 100%)'
+                }}
+              >
+                {uploading[currentViewport?.label] ? 'Importing...' : 'Import Layer'}
+              </Button>
+            </Stack>
+          )}
+          
+          {tabValue === 3 && selectedElement && (
+            <Stack direction="row" spacing={2}>
+              <Button
+                variant="outlined"
+                onClick={() => setTabValue(2)}
+                sx={{ borderRadius: 2 }}
+              >
+                Back to Layer
+              </Button>
+              <Button
+                variant="contained"
+                onClick={() => selectFigmaLayer(selectedElement)}
+                disabled={!selectedElement || uploading[currentViewport?.label]}
+                startIcon={uploading[currentViewport?.label] ? <CircularProgress size={16} /> : <GetApp />}
+                sx={{
+                  borderRadius: 2,
+                  background: 'linear-gradient(135deg, #2196f3 0%, #1565c0 100%)'
+                }}
+              >
+                {uploading[currentViewport?.label] ? 'Importing...' : 'Import Element'}
+              </Button>
+            </Stack>
           )}
         </DialogActions>
       </Dialog>
