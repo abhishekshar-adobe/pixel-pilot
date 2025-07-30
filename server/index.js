@@ -1678,10 +1678,10 @@ app.get('/api/design-comparison/backstop-script', async (req, res) => {
 // Get Figma pages list
 app.get('/api/design-comparison/pages', async (req, res) => {
   try {
-    const { fileId } = req.query;
+    const { fileId, page = 1, limit = 20 } = req.query;
     const figmaToken = req.headers['x-figma-token'];
     
-    console.log(`📄 Figma pages requested for file: ${fileId}`);
+    console.log(`📄 Figma pages requested for file: ${fileId}, page: ${page}, limit: ${limit}`);
     
     if (!figmaToken) {
       return res.status(401).json({ error: 'Figma token is required' });
@@ -1704,8 +1704,8 @@ app.get('/api/design-comparison/pages', async (req, res) => {
       return res.status(500).json({ error: 'Invalid Figma file structure' });
     }
 
-    // Extract pages from Figma document
-    const pages = document.children.map(page => ({
+    // Extract all pages from Figma document
+    const allPages = document.children.map(page => ({
       id: page.id,
       name: page.name,
       type: page.type,
@@ -1717,8 +1717,24 @@ app.get('/api/design-comparison/pages', async (req, res) => {
       children: page.children ? page.children.length : 0
     }));
 
-    console.log(`✅ Found ${pages.length} pages in Figma file`);
-    res.json({ pages });
+    // Apply pagination
+    const pageNum = parseInt(page, 10);
+    const limitNum = parseInt(limit, 10);
+    const startIndex = (pageNum - 1) * limitNum;
+    const endIndex = startIndex + limitNum;
+    
+    const paginatedPages = allPages.slice(startIndex, endIndex);
+    const hasMore = endIndex < allPages.length;
+    const total = allPages.length;
+
+    console.log(`✅ Found ${total} total pages, returning ${paginatedPages.length} for page ${pageNum}`);
+    res.json({ 
+      pages: paginatedPages,
+      total,
+      hasMore,
+      currentPage: pageNum,
+      totalPages: Math.ceil(total / limitNum)
+    });
 
   } catch (error) {
     console.error('❌ Error fetching Figma pages:', error.message);
@@ -1741,11 +1757,14 @@ app.get('/api/design-comparison/layers', async (req, res) => {
       mainOnly = 'true',
       minWidth = '100',
       minHeight = '100',
-      includeInvisible = 'false'
+      includeInvisible = 'false',
+      page = 1,
+      limit = 30
     } = req.query;
 
     console.log('🎨 Figma layers requested for file:', fileId, pageId ? `, page: ${pageId}` : '');
     console.log('📋 Filter params - mainOnly:', mainOnly, ', minWidth:', minWidth, ', minHeight:', minHeight, ', includeInvisible:', includeInvisible);
+    console.log('📄 Pagination - page:', page, ', limit:', limit);
 
     if (!figmaToken || !fileId) {
       return res.status(400).json({ 
@@ -1794,6 +1813,15 @@ app.get('/api/design-comparison/layers', async (req, res) => {
       layers = figmaClient.searchLayers(layers, search);
     }
 
+    // Store total count before pagination
+    const totalLayers = layers.length;
+
+    // Apply pagination
+    const startIndex = (page - 1) * limit;
+    const endIndex = startIndex + limit;
+    const paginatedLayers = layers.slice(startIndex, endIndex);
+    const hasMore = endIndex < totalLayers;
+
     // Add summary information to response
     const allLayersForStats = mainOnly === 'true' ? 
       await figmaClient.getLayersList() : // Get all layers for comparison stats
@@ -1803,8 +1831,8 @@ app.get('/api/design-comparison/layers', async (req, res) => {
     const allStats = mainOnly === 'true' ? figmaClient.getLayerStats(allLayersForStats) : stats;
 
     const summary = {
-      totalLayers: layers.length,
-      totalAllLayers: mainOnly === 'true' ? allLayersForStats.length : layers.length,
+      totalLayers: totalLayers,
+      totalAllLayers: mainOnly === 'true' ? allLayersForStats.length : totalLayers,
       filterStrategy: mainOnly === 'true' ? 'main-layers' : 'all-layers',
       appliedFilters: {
         types: type ? type.split(',') : (mainOnly === 'true' ? ['FRAME', 'COMPONENT', 'INSTANCE'] : 'all'),
@@ -1828,7 +1856,11 @@ app.get('/api/design-comparison/layers', async (req, res) => {
     };
 
     res.json({
-      layers,
+      layers: paginatedLayers,
+      total: totalLayers,
+      page: page,
+      limit: limit,
+      hasMore: hasMore,
       summary
     });
 
@@ -1864,6 +1896,67 @@ app.get('/api/design-comparison/layers/:layerId', async (req, res) => {
 
   } catch (error) {
     console.error('Error getting layer details:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get layer elements with pagination
+app.get('/api/design-comparison/layer-elements', async (req, res) => {
+  try {
+    const figmaToken = req.headers['x-figma-token'];
+    const { fileId, layerId, page = 1, limit = 30 } = req.query;
+
+    if (!figmaToken || !fileId || !layerId) {
+      return res.status(400).json({ 
+        error: 'X-Figma-Token header, fileId, and layerId parameters are required' 
+      });
+    }
+
+    // Parse pagination parameters
+    const pageNum = parseInt(page, 10) || 1;
+    const limitNum = parseInt(limit, 10) || 30;
+
+    console.log(`🔧 Figma layer elements requested for layer: ${layerId}, page: ${pageNum}, limit: ${limitNum}`);
+
+    // Initialize Figma client for this request
+    const { FigmaAPIClient } = require('./figma-integration');
+    const figmaClient = new FigmaAPIClient({
+      accessToken: figmaToken,
+      fileKey: fileId
+    });
+
+    // Get layer details which should include child elements
+    const layerDetails = await figmaClient.getLayerDetails(layerId);
+    
+    // Extract elements/children from the layer
+    let elements = [];
+    if (layerDetails && layerDetails.children) {
+      elements = layerDetails.children;
+    } else if (layerDetails && layerDetails.elements) {
+      elements = layerDetails.elements;
+    }
+
+    // Store total count before pagination
+    const totalElements = elements.length;
+
+    // Apply pagination
+    const startIndex = (pageNum - 1) * limitNum;
+    const endIndex = startIndex + limitNum;
+    const paginatedElements = elements.slice(startIndex, endIndex);
+    const hasMore = endIndex < totalElements;
+
+    console.log(`✅ Found ${totalElements} elements, returning ${paginatedElements.length} (page ${pageNum})`);
+
+    res.json({
+      elements: paginatedElements,
+      total: totalElements,
+      page: pageNum,
+      limit: limitNum,
+      hasMore: hasMore
+    });
+
+  } catch (error) {
+    console.error('Error getting layer elements:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -2186,6 +2279,68 @@ app.post('/api/design-comparison/layer-thumbnails', async (req, res) => {
 
   } catch (error) {
     console.error('Error generating thumbnails:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get bulk layer thumbnails using GET with query params
+app.get('/api/design-comparison/bulk-thumbnails', async (req, res) => {
+  try {
+    const figmaToken = req.headers['x-figma-token'];
+    const { fileId, ids, scale = 0.5 } = req.query;
+
+    if (!figmaToken || !fileId || !ids) {
+      return res.status(400).json({ 
+        error: 'X-Figma-Token header, fileId, and ids query parameters are required' 
+      });
+    }
+
+    // Parse the comma-separated layer IDs
+    const layerIds = ids.split(',').map(id => id.trim()).filter(Boolean);
+    
+    if (layerIds.length === 0) {
+      return res.status(400).json({ 
+        error: 'At least one layer ID is required' 
+      });
+    }
+
+    // Limit the number of thumbnails to prevent overloading
+    const maxThumbnails = 50; // Reduced for GET requests
+    if (layerIds.length > maxThumbnails) {
+      return res.status(400).json({
+        error: `Too many layer IDs requested. Maximum allowed: ${maxThumbnails}, requested: ${layerIds.length}`
+      });
+    }
+
+    console.log(`📸 Bulk thumbnails requested for ${layerIds.length} layers in file: ${fileId}`);
+
+    // Initialize Figma client for this request
+    const { FigmaAPIClient } = require('./figma-integration');
+    const figmaClient = new FigmaAPIClient({
+      accessToken: figmaToken,
+      fileKey: fileId
+    });
+
+    // Use Figma's bulk image export API: /images/{file_id}?ids=ID1,ID2,ID3
+    const scaleValue = parseFloat(scale) || 0.5;
+    const images = await figmaClient.getImages(layerIds, 'png', scaleValue);
+    
+    if (!images || !images.images) {
+      throw new Error('Failed to get images from Figma API');
+    }
+
+    console.log(`✅ Retrieved ${Object.keys(images.images).length} thumbnail URLs from Figma`);
+
+    // Return the thumbnail URLs mapped by layer ID
+    res.json({
+      thumbnails: images.images,
+      total: Object.keys(images.images).length,
+      requested: layerIds.length,
+      scale: scaleValue
+    });
+
+  } catch (error) {
+    console.error('Error getting bulk thumbnails:', error);
     res.status(500).json({ error: error.message });
   }
 });

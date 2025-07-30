@@ -379,38 +379,6 @@
     "viewport": "Insove",
     "screenshots": [
       {
-        "filename": "unknown_unknown_1753805484521_Faqs.jpg",
-        "originalName": "Faqs.jpg",
-        "path": "C:\\Users\\abhishekshar\\Desktop\\workspace\\PixelPilot\\server\\uploads\\unknown_unknown_1753805484521_Faqs.jpg",
-        "uploadedAt": "2025-07-29T16:11:24.528Z",
-        "size": 156121,
-        "isReference": false
-      },
-      {
-        "filename": "unknown_unknown_1753805810649_Faqs.jpg",
-        "originalName": "Faqs.jpg",
-        "path": "C:\\Users\\abhishekshar\\Desktop\\workspace\\PixelPilot\\server\\uploads\\unknown_unknown_1753805810649_Faqs.jpg",
-        "uploadedAt": "2025-07-29T16:16:50.671Z",
-        "size": 156121,
-        "isReference": true
-      },
-      {
-        "filename": "unknown_unknown_1753805900463_Faqs.jpg",
-        "originalName": "Faqs.jpg",
-        "path": "C:\\Users\\abhishekshar\\Desktop\\workspace\\PixelPilot\\server\\uploads\\unknown_unknown_1753805900463_Faqs.jpg",
-        "uploadedAt": "2025-07-29T16:18:20.471Z",
-        "size": 156121,
-        "isReference": true
-      },
-      {
-        "filename": "unknown_unknown_1753808065388_Faqs.jpg",
-        "originalName": "Faqs.jpg",
-        "path": "C:\\Users\\abhishekshar\\Desktop\\workspace\\PixelPilot\\server\\uploads\\unknown_unknown_1753808065388_Faqs.jpg",
-        "uploadedAt": "2025-07-29T16:54:25.436Z",
-        "size": 156121,
-        "isReference": true
-      },
-      {
         "filename": "unknown_unknown_1753872636419_Departments_2_153.png",
         "originalName": "Departments_2_153.png",
         "path": "C:\\Users\\abhishekshar\\Desktop\\workspace\\PixelPilot\\server\\uploads\\unknown_unknown_1753872636419_Departments_2_153.png",
@@ -433,20 +401,20 @@
     "viewport": "Insove",
     "screenshots": [
       {
-        "filename": "unknown_unknown_1753872548492_Billboard_2_348.png",
-        "originalName": "Billboard_2_348.png",
-        "path": "C:\\Users\\abhishekshar\\Desktop\\workspace\\PixelPilot\\server\\uploads\\unknown_unknown_1753872548492_Billboard_2_348.png",
-        "uploadedAt": "2025-07-30T10:49:08.543Z",
-        "size": 1078502,
+        "filename": "unknown_unknown_1753897838582_Insove_2_19.png",
+        "originalName": "Insove_2_19.png",
+        "path": "C:\\Users\\abhishekshar\\Desktop\\workspace\\PixelPilot\\server\\uploads\\unknown_unknown_1753897838582_Insove_2_19.png",
+        "uploadedAt": "2025-07-30T17:50:38.633Z",
+        "size": 4112428,
         "isReference": true
       }
     ],
     "referenceScreenshot": {
-      "filename": "unknown_unknown_1753872548492_Billboard_2_348.png",
-      "originalName": "Billboard_2_348.png",
-      "path": "C:\\Users\\abhishekshar\\Desktop\\workspace\\PixelPilot\\server\\uploads\\unknown_unknown_1753872548492_Billboard_2_348.png",
-      "uploadedAt": "2025-07-30T10:49:08.543Z",
-      "size": 1078502,
+      "filename": "unknown_unknown_1753897838582_Insove_2_19.png",
+      "originalName": "Insove_2_19.png",
+      "path": "C:\\Users\\abhishekshar\\Desktop\\workspace\\PixelPilot\\server\\uploads\\unknown_unknown_1753897838582_Insove_2_19.png",
+      "uploadedAt": "2025-07-30T17:50:38.633Z",
+      "size": 4112428,
       "isReference": true
     }
   }

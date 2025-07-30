@@ -83,6 +83,29 @@ const ScreenshotUploader = () => {
   const [layerTypeFilter, setLayerTypeFilter] = useState('all')
   const [showFramesOnly, setShowFramesOnly] = useState(false)
   const [layerFilterSummary, setLayerFilterSummary] = useState(null)
+  
+  // Pagination state for infinite scroll
+  const [pagesPagination, setPagesPagination] = useState({
+    currentPage: 1,
+    itemsPerPage: 20,
+    hasMore: true,
+    totalItems: 0
+  })
+  const [layersPagination, setLayersPagination] = useState({
+    currentPage: 1,
+    itemsPerPage: 30,
+    hasMore: true,
+    totalItems: 0
+  })
+  const [elementsPagination, setElementsPagination] = useState({
+    currentPage: 1,
+    itemsPerPage: 30,
+    hasMore: true,
+    totalItems: 0
+  })
+  const [loadingMorePages, setLoadingMorePages] = useState(false)
+  const [loadingMoreLayers, setLoadingMoreLayers] = useState(false)
+  const [loadingMoreElements, setLoadingMoreElements] = useState(false)
 
   // Load initial data
   useEffect(() => {
@@ -245,38 +268,142 @@ const ScreenshotUploader = () => {
     window.open(screenshotUrl, '_blank')
   }
 
-  const loadFigmaPages = async () => {
+  const loadFigmaPages = React.useCallback(async (loadMore = false) => {
     if (!figmaToken || !figmaFileKey) return
 
-    setLoadingPages(true)
+    const isLoadingMore = loadMore && pagesPagination.hasMore
+    
+    if (isLoadingMore) {
+      setLoadingMorePages(true)
+    } else {
+      setLoadingPages(true)
+      // Reset pagination for fresh load
+      setPagesPagination({
+        currentPage: 1,
+        itemsPerPage: 20,
+        hasMore: true,
+        totalItems: 0
+      })
+    }
+
     try {
       const response = await axios.get(`${API_BASE}/design-comparison/pages`, {
         headers: {
           'X-Figma-Token': figmaToken
         },
         params: {
-          fileId: figmaFileKey
+          fileId: figmaFileKey,
+          page: isLoadingMore ? pagesPagination.currentPage + 1 : 1,
+          limit: pagesPagination.itemsPerPage
         }
       })
       
       const pagesData = response.data.pages || []
-      setFigmaPages(pagesData)
-      
-      // Auto-select first page if available
-      if (pagesData.length > 0) {
-        setSelectedPage(pagesData[0])
+      const totalItems = response.data.total || pagesData.length
+      const hasMore = response.data.hasMore !== undefined ? 
+        response.data.hasMore : 
+        (pagesData.length === pagesPagination.itemsPerPage)
+
+      if (isLoadingMore) {
+        // Append new pages to existing ones
+        setFigmaPages(prev => [...prev, ...pagesData])
+        setPagesPagination(prev => ({
+          ...prev,
+          currentPage: prev.currentPage + 1,
+          hasMore,
+          totalItems
+        }))
+      } else {
+        // Replace pages for fresh load
+        setFigmaPages(pagesData)
+        setPagesPagination(prev => ({
+          ...prev,
+          currentPage: 1,
+          hasMore,
+          totalItems
+        }))
+        
+        // Auto-select first page if available and no page is selected
+        if (pagesData.length > 0 && !selectedPage) {
+          setSelectedPage(pagesData[0])
+        }
       }
     } catch (error) {
       setMessage(`Error loading Figma pages: ${error.message}`)
     } finally {
-      setLoadingPages(false)
+      if (isLoadingMore) {
+        setLoadingMorePages(false)
+      } else {
+        setLoadingPages(false)
+      }
     }
+  }, [figmaToken, figmaFileKey, pagesPagination, selectedPage, setMessage])
+
+  const loadBulkThumbnails = React.useCallback(async (layerIds) => {
+    if (!figmaToken || !figmaFileKey || !layerIds || layerIds.length === 0) return
+    
+    // Filter out layers that already have thumbnails or are loading
+    const layersToLoad = layerIds.filter(id => !layerThumbnails[id] && !loadingThumbnails[id])
+    if (layersToLoad.length === 0) return
+
+    // Mark all layers as loading
+    setLoadingThumbnails(prev => {
+      const updated = { ...prev }
+      layersToLoad.forEach(id => { updated[id] = true })
+      return updated
+    })
+    
+    try {
+      const response = await axios.get(`${API_BASE}/design-comparison/bulk-thumbnails`, {
+        headers: { 'X-Figma-Token': figmaToken },
+        params: { 
+          fileId: figmaFileKey, 
+          ids: layersToLoad.join(','),
+          scale: 0.5
+        }
+      })
+      
+      if (response.data.thumbnails) {
+        setLayerThumbnails(prev => ({
+          ...prev,
+          ...response.data.thumbnails
+        }))
+      }
+    } catch (error) {
+      console.error(`Failed to load bulk thumbnails:`, error)
+    } finally {
+      // Clear loading state for all requested layers
+      setLoadingThumbnails(prev => {
+        const updated = { ...prev }
+        layersToLoad.forEach(id => { delete updated[id] })
+        return updated
+      })
+    }
+  }, [figmaToken, figmaFileKey, layerThumbnails, loadingThumbnails])
+
+  const loadSingleThumbnail = async (layerId) => {
+    // Use bulk loading for single thumbnails too
+    await loadBulkThumbnails([layerId])
   }
 
-  const loadFigmaLayers = async (pageId) => {
+  const loadFigmaLayers = React.useCallback(async (pageId, loadMore = false) => {
     if (!figmaToken || !figmaFileKey || !pageId) return
 
-    setLoadingLayers(true)
+    const isLoadingMore = loadMore && layersPagination.hasMore
+    
+    if (isLoadingMore) {
+      setLoadingMoreLayers(true)
+    } else {
+      setLoadingLayers(true)
+      // Reset pagination for fresh load
+      setLayersPagination({
+        currentPage: 1,
+        itemsPerPage: 30,
+        hasMore: true,
+        totalItems: 0
+      })
+    }
+
     try {
       const response = await axios.get(`${API_BASE}/design-comparison/layers`, {
         headers: {
@@ -288,37 +415,91 @@ const ScreenshotUploader = () => {
           mainOnly: 'false',
           minWidth: '100',
           minHeight: '100',
-          includeInvisible: 'false'
+          includeInvisible: 'false',
+          page: isLoadingMore ? layersPagination.currentPage + 1 : 1,
+          limit: layersPagination.itemsPerPage
         }
       })
       
       const layersData = response.data.layers || []
+      const totalItems = response.data.total || layersData.length
+      const hasMore = response.data.hasMore !== undefined ? 
+        response.data.hasMore : 
+        (layersData.length === layersPagination.itemsPerPage)
+      
       const summary = response.data.summary || {
-        total: layersData.length,
+        total: totalItems,
         filtered: layersData.length,
         filterStrategy: 'none',
         appliedFilters: []
       }
 
-      setFigmaLayers(layersData)
-      setFilteredLayers(layersData)
+      if (isLoadingMore) {
+        // Append new layers to existing ones
+        setFigmaLayers(prev => [...prev, ...layersData])
+        setFilteredLayers(prev => [...prev, ...layersData])
+        setLayersPagination(prev => ({
+          ...prev,
+          currentPage: prev.currentPage + 1,
+          hasMore,
+          totalItems
+        }))
+      } else {
+        // Replace layers for fresh load
+        setFigmaLayers(layersData)
+        setFilteredLayers(layersData)
+        setLayersPagination(prev => ({
+          ...prev,
+          currentPage: 1,
+          hasMore,
+          totalItems
+        }))
+        
+        // Clear previous selections
+        setSelectedLayer(null)
+        setLayerElements([])
+        setSelectedElement(null)
+      }
+      
       setLayerFilterSummary(summary)
       
-      // Clear previous selections
-      setSelectedLayer(null)
-      setLayerElements([])
-      setSelectedElement(null)
+      // Load thumbnails for the current batch of layers
+      const layerIds = layersData.map(layer => layer.id).filter(Boolean)
+      if (layerIds.length > 0) {
+        // Load thumbnails asynchronously without blocking the UI
+        loadBulkThumbnails(layerIds).catch(error => {
+          console.error('Failed to load thumbnails for layers:', error)
+        })
+      }
     } catch (error) {
       setMessage(`Error loading Figma layers: ${error.message}`)
     } finally {
-      setLoadingLayers(false)
+      if (isLoadingMore) {
+        setLoadingMoreLayers(false)
+      } else {
+        setLoadingLayers(false)
+      }
     }
-  }
+  }, [figmaToken, figmaFileKey, layersPagination, setMessage, loadBulkThumbnails])
 
-  const loadLayerElements = async (layerId) => {
+  const loadLayerElements = React.useCallback(async (layerId, loadMore = false) => {
     if (!figmaToken || !figmaFileKey || !layerId) return
 
-    setLoadingElements(true)
+    const isLoadingMore = loadMore && elementsPagination.hasMore
+    
+    if (isLoadingMore) {
+      setLoadingMoreElements(true)
+    } else {
+      setLoadingElements(true)
+      // Reset pagination for fresh load
+      setElementsPagination({
+        currentPage: 1,
+        itemsPerPage: 30,
+        hasMore: true,
+        totalItems: 0
+      })
+    }
+
     try {
       const response = await axios.get(`${API_BASE}/design-comparison/layer-elements`, {
         headers: {
@@ -326,56 +507,50 @@ const ScreenshotUploader = () => {
         },
         params: {
           fileId: figmaFileKey,
-          layerId: layerId
+          layerId: layerId,
+          page: isLoadingMore ? elementsPagination.currentPage + 1 : 1,
+          limit: elementsPagination.itemsPerPage
         }
       })
       
       const elementsData = response.data.elements || []
-      setLayerElements(elementsData)
-      
-      // Clear previous element selection
-      setSelectedElement(null)
+      const totalItems = response.data.total || elementsData.length
+      const hasMore = response.data.hasMore !== undefined ? 
+        response.data.hasMore : 
+        (elementsData.length === elementsPagination.itemsPerPage)
+
+      if (isLoadingMore) {
+        // Append new elements to existing ones
+        setLayerElements(prev => [...prev, ...elementsData])
+        setElementsPagination(prev => ({
+          ...prev,
+          currentPage: prev.currentPage + 1,
+          hasMore,
+          totalItems
+        }))
+      } else {
+        // Replace elements for fresh load
+        setLayerElements(elementsData)
+        setElementsPagination(prev => ({
+          ...prev,
+          currentPage: 1,
+          hasMore,
+          totalItems
+        }))
+        
+        // Clear previous element selection
+        setSelectedElement(null)
+      }
     } catch (error) {
       setMessage(`Error loading layer elements: ${error.message}`)
     } finally {
-      setLoadingElements(false)
-    }
-  }
-
-  const loadSingleThumbnail = async (layerId) => {
-    // Prevent duplicate requests
-    if (loadingThumbnails[layerId] || layerThumbnails[layerId]) {
-      return
-    }
-
-    setLoadingThumbnails(prev => ({ ...prev, [layerId]: true }))
-    
-    try {
-      const response = await axios.get(`${API_BASE}/design-comparison/layer-thumbnail`, {
-        headers: { 'X-Figma-Token': figmaToken },
-        params: { 
-          fileId: figmaFileKey, 
-          layerId: layerId,
-          scale: 0.5
-        }
-      })
-      
-      if (response.data.thumbnailUrl) {
-        setLayerThumbnails(prev => ({
-          ...prev,
-          [layerId]: response.data.thumbnailUrl
-        }))
+      if (isLoadingMore) {
+        setLoadingMoreElements(false)
+      } else {
+        setLoadingElements(false)
       }
-    } catch (error) {
-      console.error(`Failed to load thumbnail for layer ${layerId}:`, error)
-    } finally {
-      setLoadingThumbnails(prev => {
-        const updated = { ...prev }
-        delete updated[layerId]
-        return updated
-      })
     }
-  }
+  }, [figmaToken, figmaFileKey, elementsPagination, setMessage])
 
   const filterLayers = React.useCallback(() => {
     let filtered = [...figmaLayers]
@@ -406,6 +581,56 @@ const ScreenshotUploader = () => {
   useEffect(() => {
     filterLayers()
   }, [filterLayers])
+
+  // Scroll detection for infinite loading
+  const handleScroll = React.useCallback((event, type) => {
+    const { scrollTop, scrollHeight, clientHeight } = event.target
+    const isNearBottom = scrollTop + clientHeight >= scrollHeight - 200 // Load more when 200px from bottom
+
+    if (!isNearBottom) return
+
+    switch (type) {
+      case 'pages':
+        if (pagesPagination.hasMore && !loadingMorePages && !loadingPages) {
+          loadFigmaPages(true)
+        }
+        break
+      case 'layers':
+        if (layersPagination.hasMore && !loadingMoreLayers && !loadingLayers && selectedPage) {
+          loadFigmaLayers(selectedPage.id, true)
+        }
+        break
+      case 'elements':
+        if (elementsPagination.hasMore && !loadingMoreElements && !loadingElements && selectedLayer) {
+          loadLayerElements(selectedLayer.id, true)
+        }
+        break
+    }
+  }, [pagesPagination, layersPagination, elementsPagination, loadingMorePages, loadingMoreLayers, loadingMoreElements, loadingPages, loadingLayers, loadingElements, selectedPage, selectedLayer, loadFigmaPages, loadFigmaLayers, loadLayerElements])
+
+  // Reset pagination when dialog opens
+  useEffect(() => {
+    if (figmaDialogOpen) {
+      setPagesPagination({
+        currentPage: 1,
+        itemsPerPage: 20,
+        hasMore: true,
+        totalItems: 0
+      })
+      setLayersPagination({
+        currentPage: 1,
+        itemsPerPage: 30,
+        hasMore: true,
+        totalItems: 0
+      })
+      setElementsPagination({
+        currentPage: 1,
+        itemsPerPage: 30,
+        hasMore: true,
+        totalItems: 0
+      })
+    }
+  }, [figmaDialogOpen])
 
   const selectFigmaLayer = async (itemToImport = null) => {
     const item = itemToImport || selectedLayer || selectedElement
@@ -931,10 +1156,20 @@ const ScreenshotUploader = () => {
           )}
 
           {tabValue === 1 && (
-            <Box sx={{ p: 3, height: 'calc(100vh - 300px)', overflow: 'auto' }}>
-              <Typography variant="h6" sx={{ mb: 3, fontWeight: 600 }}>
-                Select a Page to Browse
-              </Typography>
+            <Box 
+              sx={{ p: 3, height: 'calc(100vh - 300px)', overflow: 'auto' }}
+              onScroll={(e) => handleScroll(e, 'pages')}
+            >
+              <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 3 }}>
+                <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                  Select a Page to Browse
+                </Typography>
+                {pagesPagination.totalItems > 0 && (
+                  <Typography variant="caption" color="text.secondary">
+                    Showing {figmaPages.length} of {pagesPagination.totalItems} pages
+                  </Typography>
+                )}
+              </Stack>
               
               {loadingPages ? (
                 <Grid container spacing={2}>
@@ -951,26 +1186,27 @@ const ScreenshotUploader = () => {
                   ))}
                 </Grid>
               ) : (
-                <Grid container spacing={2}>
-                  {figmaPages.map((page) => (
-                    <Grid item xs={12} sm={6} key={page.id}>
-                      <Card 
-                        sx={{ 
-                          borderRadius: 2,
-                          cursor: 'pointer',
-                          border: selectedPage?.id === page.id ? '2px solid' : '1px solid',
-                          borderColor: selectedPage?.id === page.id ? 'primary.main' : 'divider',
-                          transition: 'all 0.2s ease',
-                          '&:hover': {
-                            transform: 'translateY(-2px)',
-                            boxShadow: 3
-                          }
-                        }}
-                        onClick={() => {
-                          setSelectedPage(page)
-                          loadFigmaLayers(page.id)
-                        }}
-                      >
+                <>
+                  <Grid container spacing={2}>
+                    {figmaPages.map((page) => (
+                      <Grid item xs={12} sm={6} key={page.id}>
+                        <Card 
+                          sx={{ 
+                            borderRadius: 2,
+                            cursor: 'pointer',
+                            border: selectedPage?.id === page.id ? '2px solid' : '1px solid',
+                            borderColor: selectedPage?.id === page.id ? 'primary.main' : 'divider',
+                            transition: 'all 0.2s ease',
+                            '&:hover': {
+                              transform: 'translateY(-2px)',
+                              boxShadow: 3
+                            }
+                          }}
+                          onClick={() => {
+                            setSelectedPage(page)
+                            loadFigmaLayers(page.id)
+                          }}
+                        >
                         {/* Page Preview */}
                         <Box sx={{ 
                           height: 120, 
@@ -1074,12 +1310,36 @@ const ScreenshotUploader = () => {
                     </Grid>
                   )}
                 </Grid>
+                
+                {/* Load More Indicator for Pages */}
+                {loadingMorePages && (
+                  <Box sx={{ display: 'flex', justifyContent: 'center', mt: 3 }}>
+                    <Stack alignItems="center" spacing={1}>
+                      <CircularProgress size={24} />
+                      <Typography variant="caption" color="text.secondary">
+                        Loading more pages...
+                      </Typography>
+                    </Stack>
+                  </Box>
+                )}
+                
+                {!pagesPagination.hasMore && figmaPages.length > 0 && (
+                  <Box sx={{ textAlign: 'center', mt: 3, py: 2 }}>
+                    <Typography variant="caption" color="text.secondary">
+                      No more pages to load
+                    </Typography>
+                  </Box>
+                )}
+              </>
               )}
             </Box>
           )}
           
           {tabValue === 2 && selectedPage && (
-            <Box sx={{ p: 3, height: 'calc(100vh - 300px)', overflow: 'auto' }}>
+            <Box 
+              sx={{ p: 3, height: 'calc(100vh - 300px)', overflow: 'auto' }}
+              onScroll={(e) => handleScroll(e, 'layers')}
+            >
               {/* Search and Filter Controls */}
               <Stack spacing={2} sx={{ mb: 3, position: 'sticky', top: 0, bgcolor: 'background.paper', zIndex: 1, pb: 2 }}>
                 <TextField
@@ -1144,8 +1404,9 @@ const ScreenshotUploader = () => {
                   ))}
                 </Grid>
               ) : (
-                <Grid container spacing={2}>
-                  {filteredLayers.map((layer) => (
+                <>
+                  <Grid container spacing={2}>
+                    {filteredLayers.map((layer) => (
                     <Grid item xs={12} sm={6} md={4} key={layer.id}>
                       <Tooltip
                         title={
@@ -1425,12 +1686,37 @@ const ScreenshotUploader = () => {
                     </Grid>
                   )}
                 </Grid>
+                  <>
+                    {/* Load More Indicator for Layers */}
+                    {loadingMoreLayers && (
+                      <Box sx={{ display: 'flex', justifyContent: 'center', mt: 3 }}>
+                        <Stack alignItems="center" spacing={1}>
+                          <CircularProgress size={24} />
+                          <Typography variant="caption" color="text.secondary">
+                            Loading more layers...
+                          </Typography>
+                        </Stack>
+                      </Box>
+                    )}
+                    
+                    {!layersPagination.hasMore && filteredLayers.length > 0 && (
+                      <Box sx={{ textAlign: 'center', mt: 3, py: 2 }}>
+                        <Typography variant="caption" color="text.secondary">
+                          No more layers to load
+                        </Typography>
+                      </Box>
+                    )}
+                  </>
+                </>
               )}
             </Box>
           )}
 
           {tabValue === 3 && selectedLayer && (
-            <Box sx={{ p: 3, height: 'calc(100vh - 300px)', overflow: 'auto' }}>
+            <Box 
+              sx={{ p: 3, height: 'calc(100vh - 300px)', overflow: 'auto' }}
+              onScroll={(e) => handleScroll(e, 'elements')}
+            >
               <Box sx={{ mb: 3 }}>
                 <Typography variant="h6" sx={{ fontWeight: 600 }}>
                   Elements in "{selectedLayer.name}"
@@ -1475,8 +1761,9 @@ const ScreenshotUploader = () => {
                   ))}
                 </Grid>
               ) : (
-                <Grid container spacing={2}>
-                  {layerElements.map((element) => (
+                <>
+                  <Grid container spacing={2}>
+                    {layerElements.map((element) => (
                     <Grid item xs={12} sm={6} md={4} key={element.id}>
                       <Card 
                         sx={{ 
@@ -1611,6 +1898,27 @@ const ScreenshotUploader = () => {
                     </Grid>
                   )}
                 </Grid>
+                
+                {/* Load More Indicator for Elements */}
+                {loadingMoreElements && (
+                  <Box sx={{ display: 'flex', justifyContent: 'center', mt: 3 }}>
+                    <Stack alignItems="center" spacing={1}>
+                      <CircularProgress size={24} />
+                      <Typography variant="caption" color="text.secondary">
+                        Loading more elements...
+                      </Typography>
+                    </Stack>
+                  </Box>
+                )}
+                
+                {!elementsPagination.hasMore && layerElements.length > 0 && (
+                  <Box sx={{ textAlign: 'center', mt: 3, py: 2 }}>
+                    <Typography variant="caption" color="text.secondary">
+                      No more elements to load
+                    </Typography>
+                  </Box>
+                )}
+                </>
               )}
             </Box>
           )}
