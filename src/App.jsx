@@ -1,12 +1,13 @@
 import { BrowserRouter as Router, Routes, Route, useLocation, useNavigate } from 'react-router-dom'
 import { ThemeProvider } from '@mui/material/styles'
 import { CssBaseline, Container, AppBar, Toolbar, Typography, Tabs, Tab, Box } from '@mui/material'
-import { PhotoCameraOutlined, SettingsOutlined, PlayArrowOutlined, UploadFileOutlined, BugReportOutlined } from '@mui/icons-material'
+import { PhotoCameraOutlined, SettingsOutlined, PlayArrowOutlined, UploadFileOutlined, CompareArrowsOutlined } from '@mui/icons-material'
 import ConfigEditor from './components/ConfigEditor'
 import ScenarioManager from './components/ScenarioManager'
 import ScreenshotUploader from './components/ScreenshotUploader'
 import TestRunner from './components/TestRunner'
-import CSSIssueAnalyzer from './components/CSSIssueAnalyzer'
+import DesignComparison from './components/DesignComparison'
+import Footer from './components/Footer'
 import pixelPilotTheme from './theme/theme'
 
 function AppContent() {
@@ -19,18 +20,18 @@ function AppContent() {
       case '/scenarios': return 1
       case '/upload': return 2
       case '/test': return 3
-      case '/analyze': return 4
+      case '/design-comparison': return 4
       default: return 0
     }
   }
 
   const handleTabChange = (event, newValue) => {
-    const routes = ['/', '/scenarios', '/upload', '/test', '/analyze']
+    const routes = ['/', '/scenarios', '/upload', '/test', '/design-comparison']
     navigate(routes[newValue])
   }
 
   return (
-    <Box sx={{ flexGrow: 1 }}>
+    <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
       <AppBar position="static" elevation={0} sx={{ 
         backgroundColor: 'background.paper', 
         borderBottom: 1, 
@@ -94,8 +95,8 @@ function AppContent() {
               sx={{ textTransform: 'none', fontWeight: 500, minHeight: 64 }}
             />
             <Tab 
-              icon={<BugReportOutlined />} 
-              label="CSS Issues" 
+              icon={<CompareArrowsOutlined />} 
+              label="Design Comparison" 
               iconPosition="start"
               sx={{ textTransform: 'none', fontWeight: 500, minHeight: 64 }}
             />
@@ -103,15 +104,17 @@ function AppContent() {
         </Container>
       </AppBar>
 
-      <Container maxWidth="xl" sx={{ px: 3 }}>
+      <Container maxWidth="xl" sx={{ px: 3, flex: 1 }}>
         <Routes>
           <Route path="/" element={<ConfigEditor />} />
           <Route path="/scenarios" element={<ScenarioManager />} />
           <Route path="/upload" element={<ScreenshotUploader />} />
           <Route path="/test" element={<TestRunner />} />
-          <Route path="/analyze" element={<CSSIssueAnalyzer />} />
+          <Route path="/design-comparison" element={<DesignComparison />} />
         </Routes>
       </Container>
+
+      <Footer />
     </Box>
   )
 }

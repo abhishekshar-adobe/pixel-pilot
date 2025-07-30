@@ -18,7 +18,24 @@ import {
   CircularProgress,
   Accordion,
   AccordionSummary,
-  AccordionDetails
+  AccordionDetails,
+  Avatar,
+  Badge,
+  Chip,
+  MenuItem,
+  Tooltip,
+  LinearProgress,
+  Fade,
+  Collapse,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  List,
+  ListItem,
+  ListItemText,
+  ListItemIcon,
+  ListItemSecondaryAction
 } from '@mui/material'
 import {
   Save,
@@ -27,7 +44,23 @@ import {
   Settings,
   Devices,
   Code,
-  ExpandMore
+  ExpandMore,
+  Tune,
+  MonitorOutlined,
+  PhoneAndroidOutlined,
+  TabletAndroidOutlined,
+  LaptopOutlined,
+  DesktopWindowsOutlined,
+  EditOutlined,
+  CheckCircleOutlined,
+  InfoOutlined,
+  SecurityOutlined,
+  SpeedOutlined,
+  BugReportOutlined,
+  AutoAwesomeOutlined,
+  RestoreOutlined,
+  PreviewOutlined,
+  WarningAmberOutlined
 } from '@mui/icons-material'
 
 const API_BASE = 'http://localhost:5000/api'
@@ -35,7 +68,19 @@ const API_BASE = 'http://localhost:5000/api'
 function ConfigEditor() {
   const [config, setConfig] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState('')
+  const [expandedAdvanced, setExpandedAdvanced] = useState(false)
+  const [presetDialogOpen, setPresetDialogOpen] = useState(false)
+
+  const commonViewports = [
+    { label: 'Mobile Portrait', width: 375, height: 667, icon: PhoneAndroidOutlined },
+    { label: 'Mobile Landscape', width: 667, height: 375, icon: PhoneAndroidOutlined },
+    { label: 'Tablet Portrait', width: 768, height: 1024, icon: TabletAndroidOutlined },
+    { label: 'Tablet Landscape', width: 1024, height: 768, icon: TabletAndroidOutlined },
+    { label: 'Laptop', width: 1366, height: 768, icon: LaptopOutlined },
+    { label: 'Desktop', width: 1920, height: 1080, icon: DesktopWindowsOutlined }
+  ]
 
   useEffect(() => {
     loadConfig()
@@ -44,7 +89,14 @@ function ConfigEditor() {
   const loadConfig = async () => {
     try {
       const response = await axios.get(`${API_BASE}/config`)
-      setConfig(response.data)
+      const loadedConfig = response.data || {}
+      
+      // Ensure viewports array exists
+      if (!loadedConfig.viewports) {
+        loadedConfig.viewports = []
+      }
+      
+      setConfig(loadedConfig)
       setLoading(false)
     } catch (error) {
       setMessage(`Error loading config: ${error.message}`)
@@ -53,12 +105,15 @@ function ConfigEditor() {
   }
 
   const saveConfig = async () => {
+    setSaving(true)
     try {
       await axios.post(`${API_BASE}/config`, config)
-      setMessage('Configuration saved successfully!')
-      setTimeout(() => setMessage(''), 3000)
+      setMessage('✅ Configuration saved successfully!')
+      setTimeout(() => setMessage(''), 4000)
     } catch (error) {
-      setMessage(`Error saving config: ${error.message}`)
+      setMessage(`❌ Error saving config: ${error.message}`)
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -71,20 +126,32 @@ function ConfigEditor() {
   }, [])
 
   const addViewport = useCallback(() => {
+    if (!config || !config.viewports) return
+    
     const newViewport = {
-      label: 'new-viewport',
+      label: `viewport-${config.viewports.length + 1}`,
       width: 1024,
       height: 768
     }
     setConfig(prev => ({
       ...prev,
-      viewports: [...prev.viewports, newViewport]
+      viewports: [...(prev.viewports || []), newViewport]
     }))
+  }, [config])
+
+  const addPresetViewport = useCallback((preset) => {
+    setConfig(prev => ({
+      ...prev,
+      viewports: [...(prev.viewports || []), { ...preset }]
+    }))
+    setPresetDialogOpen(false)
   }, [])
 
   const updateViewport = useCallback((index, field, value) => {
     // Update immediately for smooth typing experience
     setConfig(prev => {
+      if (!prev.viewports) return prev
+      
       const newViewports = [...prev.viewports]
       newViewports[index] = {
         ...newViewports[index],
@@ -100,208 +167,676 @@ function ConfigEditor() {
   const removeViewport = useCallback((index) => {
     setConfig(prev => ({
       ...prev,
-      viewports: prev.viewports.filter((_, i) => i !== index)
+      viewports: (prev.viewports || []).filter((_, i) => i !== index)
     }))
   }, [])
 
   if (loading) {
     return (
-      <Box display="flex" justifyContent="center" alignItems="center" minHeight="200px">
-        <CircularProgress />
+      <Box sx={{ maxWidth: '1400px', mx: 'auto', py: 4 }}>
+        <Stack alignItems="center" spacing={3}>
+          <CircularProgress size={60} thickness={4} />
+          <Typography variant="h6" color="text.secondary">
+            Loading BackstopJS Configuration...
+          </Typography>
+        </Stack>
       </Box>
     )
   }
 
   if (!config) {
     return (
-      <Alert severity="error">
-        Failed to load configuration
-      </Alert>
+      <Box sx={{ maxWidth: '1400px', mx: 'auto', py: 4 }}>
+        <Alert 
+          severity="error" 
+          sx={{ borderRadius: 3, p: 3 }}
+          icon={<WarningAmberOutlined sx={{ fontSize: 32 }} />}
+        >
+          <Typography variant="h6" sx={{ fontWeight: 600, mb: 1 }}>
+            Configuration Load Failed
+          </Typography>
+          <Typography>
+            Unable to load BackstopJS configuration. Please check your connection and try again.
+          </Typography>
+        </Alert>
+      </Box>
     )
   }
 
-  return (
-    <Box>
-      <Typography variant="h4" component="h1" gutterBottom sx={{ fontWeight: 600 }}>
-        BackstopJS Configuration
-      </Typography>
-      
-      {message && (
-        <Alert 
-          severity={message.includes('Error') ? 'error' : 'success'}
-          sx={{ mb: 3 }}
-          onClose={() => setMessage('')}
-        >
-          {message}
-        </Alert>
-      )}
+  // Ensure config has all required properties
+  const safeConfig = {
+    id: '',
+    engine: 'puppeteer',
+    debug: false,
+    viewports: [],
+    similarityThreshold: 0.1,
+    delay: 500,
+    ...config
+  }
 
-      <Grid container spacing={3}>
-        {/* Basic Configuration */}
-        <Grid item xs={12} md={6}>
-          <Card>
-            <CardContent>
-              <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center' }}>
-                <Settings sx={{ mr: 1 }} />
-                Basic Settings
-              </Typography>
-              
-              <Stack spacing={3}>
-                <TextField
-                  label="Project ID"
-                  value={config.id || ''}
-                  onChange={(e) => updateConfig('id', e.target.value)}
-                  fullWidth
-                  variant="outlined"
-                />
-                
-                <TextField
-                  label="Engine"
-                  select
-                  value={config.engine || 'puppeteer'}
-                  onChange={(e) => updateConfig('engine', e.target.value)}
-                  fullWidth
-                  variant="outlined"
-                  helperText="BackstopJS engine"
-                  slotProps={{
-                    select: {
-                      native: true,
-                    }
-                  }}
-                >
-                  <option value="puppeteer">Puppeteer</option>
-                  <option value="playwright">Playwright</option>
-                </TextField>
-                
-                <FormControlLabel
-                  control={
-                    <Switch
-                      checked={config.debug || false}
-                      onChange={(e) => updateConfig('debug', e.target.checked)}
-                    />
-                  }
-                  label="Debug Mode"
-                />
-              </Stack>
-            </CardContent>
-          </Card>
+  const getEngineIcon = (engine) => {
+    switch (engine) {
+      case 'playwright': return '🎭'
+      case 'puppeteer': return '🎪'
+      default: return '⚙️'
+    }
+  }
+
+  const getViewportIcon = (width) => {
+    if (width <= 480) return PhoneAndroidOutlined
+    if (width <= 768) return TabletAndroidOutlined
+    if (width <= 1366) return LaptopOutlined
+    return DesktopWindowsOutlined
+  }
+
+  return (
+    <Box sx={{ maxWidth: '1400px', mx: 'auto' }}>
+      {/* Header Section */}
+      <Box sx={{ mb: 4 }}>
+        <Stack direction="row" alignItems="center" spacing={2} sx={{ mb: 2 }}>
+          <Avatar sx={{ bgcolor: 'primary.main', width: 56, height: 56 }}>
+            <Tune />
+          </Avatar>
+          <Box>
+            <Typography variant="h3" component="h1" sx={{ fontWeight: 700, color: 'text.primary' }}>
+              BackstopJS Configuration
+            </Typography>
+            <Typography variant="h6" color="text.secondary" sx={{ fontWeight: 400 }}>
+              Configure visual regression testing parameters and viewports
+            </Typography>
+          </Box>
+        </Stack>
+
+        {/* Status Cards Row */}
+        <Grid container spacing={2} sx={{ mb: 3 }}>
+          <Grid item xs={12} sm={6} md={3}>
+            <Card sx={{ 
+              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+              color: 'white',
+              height: '100%'
+            }}>
+              <CardContent sx={{ textAlign: 'center', py: 2 }}>
+                <Settings sx={{ fontSize: 32, mb: 1 }} />
+                <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                  {safeConfig.id || 'Default'}
+                </Typography>
+                <Typography variant="body2" sx={{ opacity: 0.9 }}>
+                  Project ID
+                </Typography>
+              </CardContent>
+            </Card>
+          </Grid>
+          
+          <Grid item xs={12} sm={6} md={3}>
+            <Card sx={{ 
+              background: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
+              color: 'white',
+              height: '100%'
+            }}>
+              <CardContent sx={{ textAlign: 'center', py: 2 }}>
+                <MonitorOutlined sx={{ fontSize: 32, mb: 1 }} />
+                <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                  {safeConfig.viewports?.length || 0}
+                </Typography>
+                <Typography variant="body2" sx={{ opacity: 0.9 }}>
+                  Viewports Configured
+                </Typography>
+              </CardContent>
+            </Card>
+          </Grid>
+          
+          <Grid item xs={12} sm={6} md={3}>
+            <Card sx={{ 
+              background: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
+              color: 'white',
+              height: '100%'
+            }}>
+              <CardContent sx={{ textAlign: 'center', py: 2 }}>
+                <Typography variant="h4" sx={{ mb: 1 }}>
+                  {getEngineIcon(safeConfig.engine)}
+                </Typography>
+                <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                  {safeConfig.engine || 'Puppeteer'}
+                </Typography>
+                <Typography variant="body2" sx={{ opacity: 0.9 }}>
+                  Testing Engine
+                </Typography>
+              </CardContent>
+            </Card>
+          </Grid>
+          
+          <Grid item xs={12} sm={6} md={3}>
+            <Card sx={{ 
+              background: safeConfig.debug 
+                ? 'linear-gradient(135deg, #fa709a 0%, #fee140 100%)'
+                : 'linear-gradient(135deg, #a8edea 0%, #fed6e3 100%)',
+              color: safeConfig.debug ? 'white' : '#8B4513',
+              height: '100%'
+            }}>
+              <CardContent sx={{ textAlign: 'center', py: 2 }}>
+                {safeConfig.debug ? (
+                  <BugReportOutlined sx={{ fontSize: 32, mb: 1 }} />
+                ) : (
+                  <SpeedOutlined sx={{ fontSize: 32, mb: 1 }} />
+                )}
+                <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                  {safeConfig.debug ? 'Debug' : 'Production'}
+                </Typography>
+                <Typography variant="body2" sx={{ opacity: 0.8 }}>
+                  Execution Mode
+                </Typography>
+              </CardContent>
+            </Card>
+          </Grid>
         </Grid>
 
-        {/* Viewports Configuration */}
-        <Grid item xs={12} md={6}>
-          <Card>
-            <CardContent>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-                <Typography variant="h6" sx={{ display: 'flex', alignItems: 'center' }}>
-                  <Devices sx={{ mr: 1 }} />
-                  Viewports
-                </Typography>
-                <Button
-                  startIcon={<Add />}
-                  onClick={addViewport}
-                  variant="outlined"
-                  size="small"
-                >
-                  Add Viewport
-                </Button>
-              </Box>
-              
-              <Stack spacing={2}>
-                {config.viewports?.map((viewport, index) => (
-                  <Paper key={`viewport-${index}`} variant="outlined" sx={{ p: 2 }}>
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
-                      <Typography variant="subtitle2" fontWeight={600}>
-                        Viewport {index + 1}
-                      </Typography>
-                      <IconButton
-                        onClick={() => removeViewport(index)}
-                        size="small"
-                        color="error"
-                      >
-                        <Delete />
-                      </IconButton>
-                    </Box>
-                    
-                    <Stack spacing={2}>
-                      <TextField
-                        label="Label"
-                        value={viewport.label || ''}
-                        onChange={(e) => updateViewport(index, 'label', e.target.value)}
-                        size="small"
-                        fullWidth
-                      />
-                      <Grid container spacing={1}>
-                        <Grid item xs={6}>
-                          <TextField
-                            label="Width"
-                            type="number"
-                            value={viewport.width || ''}
-                            onChange={(e) => updateViewport(index, 'width', parseInt(e.target.value))}
-                            size="small"
-                            fullWidth
-                          />
-                        </Grid>
-                        <Grid item xs={6}>
-                          <TextField
-                            label="Height"
-                            type="number"
-                            value={viewport.height || ''}
-                            onChange={(e) => updateViewport(index, 'height', parseInt(e.target.value))}
-                            size="small"
-                            fullWidth
-                          />
-                        </Grid>
-                      </Grid>
-                    </Stack>
+        {/* Message Alert */}
+        {message && (
+          <Fade in={Boolean(message)}>
+            <Alert 
+              severity={message.includes('❌') ? 'error' : 'success'}
+              sx={{ 
+                mb: 3,
+                borderRadius: 2,
+                '& .MuiAlert-icon': { fontSize: 24 },
+                '& .MuiAlert-message': { fontSize: '1rem' }
+              }}
+              action={
+                <IconButton color="inherit" size="small" onClick={() => setMessage('')}>
+                  <Delete />
+                </IconButton>
+              }
+            >
+              {message}
+            </Alert>
+          </Fade>
+        )}
+      </Box>
+
+      <Grid container spacing={4}>
+        {/* Left Panel - Basic Configuration */}
+        <Grid item xs={12} lg={6}>
+          <Stack spacing={3}>
+            {/* Project Settings Card */}
+            <Card sx={{ 
+              borderRadius: 3,
+              boxShadow: '0 4px 20px rgba(0,0,0,0.1)',
+              border: '1px solid',
+              borderColor: 'divider'
+            }}>
+              <CardContent sx={{ p: 3 }}>
+                <Stack direction="row" alignItems="center" spacing={2} sx={{ mb: 3 }}>
+                  <Avatar sx={{ bgcolor: 'primary.main' }}>
+                    <Settings />
+                  </Avatar>
+                  <Box>
+                    <Typography variant="h5" sx={{ fontWeight: 600 }}>
+                      Project Settings
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Basic BackstopJS configuration parameters
+                    </Typography>
+                  </Box>
+                </Stack>
+
+                <Divider sx={{ mb: 3 }} />
+                
+                <Stack spacing={3}>
+                  <TextField
+                    label="Project Identifier"
+                    value={safeConfig.id || ''}
+                    onChange={(e) => updateConfig('id', e.target.value)}
+                    fullWidth
+                    variant="outlined"
+                    helperText="Unique identifier for this BackstopJS project"
+                    sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
+                  />
+                  
+                  <TextField
+                    label="Testing Engine"
+                    select
+                    value={safeConfig.engine || 'puppeteer'}
+                    onChange={(e) => updateConfig('engine', e.target.value)}
+                    fullWidth
+                    variant="outlined"
+                    helperText="Browser automation engine for screenshot capture"
+                    sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
+                  >
+                    <MenuItem value="puppeteer">
+                      <Stack direction="row" alignItems="center" spacing={1}>
+                        <Typography>🎪</Typography>
+                        <Typography>Puppeteer (Chrome/Chromium)</Typography>
+                      </Stack>
+                    </MenuItem>
+                    <MenuItem value="playwright">
+                      <Stack direction="row" alignItems="center" spacing={1}>
+                        <Typography>🎭</Typography>
+                        <Typography>Playwright (Multi-browser)</Typography>
+                      </Stack>
+                    </MenuItem>
+                  </TextField>
+                  
+                  <Paper sx={{ p: 2, borderRadius: 2, bgcolor: 'grey.50' }}>
+                    <FormControlLabel
+                      control={
+                        <Switch
+                          checked={safeConfig.debug || false}
+                          onChange={(e) => updateConfig('debug', e.target.checked)}
+                          color="primary"
+                        />
+                      }
+                      label={
+                        <Box>
+                          <Typography variant="body1" fontWeight={500}>
+                            Debug Mode
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary">
+                            Enable verbose logging and detailed error reporting
+                          </Typography>
+                        </Box>
+                      }
+                    />
                   </Paper>
-                ))}
+                </Stack>
+              </CardContent>
+            </Card>
+
+            {/* Performance Settings Card */}
+            <Card sx={{ 
+              borderRadius: 3,
+              boxShadow: '0 4px 20px rgba(0,0,0,0.1)',
+              border: '1px solid',
+              borderColor: 'divider'
+            }}>
+              <CardContent sx={{ p: 3 }}>
+                <Stack direction="row" alignItems="center" spacing={2} sx={{ mb: 3 }}>
+                  <Avatar sx={{ bgcolor: 'success.main' }}>
+                    <SpeedOutlined />
+                  </Avatar>
+                  <Box>
+                    <Typography variant="h5" sx={{ fontWeight: 600 }}>
+                      Performance & Quality
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Optimize screenshot quality and performance
+                    </Typography>
+                  </Box>
+                </Stack>
+
+                <Divider sx={{ mb: 3 }} />
+
+                <Stack spacing={3}>
+                  <TextField
+                    label="Similarity Threshold"
+                    type="number"
+                    value={safeConfig.similarityThreshold || 0.1}
+                    onChange={(e) => updateConfig('similarityThreshold', parseFloat(e.target.value))}
+                    fullWidth
+                    inputProps={{ min: 0, max: 1, step: 0.01 }}
+                    helperText="Threshold for detecting visual differences (0.0 = exact match, 1.0 = any difference)"
+                    sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
+                  />
+
+                  <TextField
+                    label="Delay (ms)"
+                    type="number"
+                    value={safeConfig.delay || 500}
+                    onChange={(e) => updateConfig('delay', parseInt(e.target.value))}
+                    fullWidth
+                    inputProps={{ min: 0, step: 100 }}
+                    helperText="Wait time before taking screenshots"
+                    sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
+                  />
+                </Stack>
+              </CardContent>
+            </Card>
+          </Stack>
+        </Grid>
+
+        {/* Right Panel - Viewport Configuration */}
+        <Grid item xs={12} lg={6}>
+          <Card sx={{ 
+            borderRadius: 3,
+            boxShadow: '0 4px 20px rgba(0,0,0,0.1)',
+            border: '1px solid',
+            borderColor: 'divider'
+          }}>
+            <CardContent sx={{ p: 3 }}>
+              <Stack direction="row" alignItems="center" spacing={2} sx={{ mb: 3 }}>
+                <Avatar sx={{ bgcolor: 'secondary.main' }}>
+                  <MonitorOutlined />
+                </Avatar>
+                <Box sx={{ flex: 1 }}>
+                  <Typography variant="h5" sx={{ fontWeight: 600 }}>
+                    Viewport Configuration
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Define screen sizes for responsive testing
+                  </Typography>
+                </Box>
+                <Stack direction="row" spacing={1}>
+                  <Tooltip title="Add Common Viewport">
+                    <Button
+                      startIcon={<AutoAwesomeOutlined />}
+                      onClick={() => setPresetDialogOpen(true)}
+                      variant="outlined"
+                      size="small"
+                      sx={{ borderRadius: 2 }}
+                    >
+                      Presets
+                    </Button>
+                  </Tooltip>
+                  <Tooltip title="Add Custom Viewport">
+                    <Button
+                      startIcon={<Add />}
+                      onClick={addViewport}
+                      variant="contained"
+                      size="small"
+                      sx={{ borderRadius: 2 }}
+                    >
+                      Add
+                    </Button>
+                  </Tooltip>
+                </Stack>
               </Stack>
+
+              <Divider sx={{ mb: 3 }} />
+              
+              <Box sx={{ maxHeight: 500, overflow: 'auto' }}>
+                <Stack spacing={2}>
+                  {safeConfig.viewports?.map((viewport, index) => {
+                    const ViewportIcon = getViewportIcon(viewport.width)
+                    return (
+                      <Paper 
+                        key={`viewport-${index}`} 
+                        sx={{ 
+                          p: 3, 
+                          borderRadius: 2,
+                          border: '1px solid',
+                          borderColor: 'divider',
+                          '&:hover': {
+                            borderColor: 'primary.main',
+                            boxShadow: 1
+                          }
+                        }}
+                      >
+                        <Stack direction="row" alignItems="flex-start" spacing={2}>
+                          <Avatar sx={{ bgcolor: 'info.main', mt: 0.5 }}>
+                            <ViewportIcon />
+                          </Avatar>
+                          
+                          <Box sx={{ flex: 1 }}>
+                            <Stack spacing={2}>
+                              <TextField
+                                label="Viewport Label"
+                                value={viewport.label || ''}
+                                onChange={(e) => updateViewport(index, 'label', e.target.value)}
+                                size="small"
+                                fullWidth
+                                sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
+                              />
+                              
+                              <Grid container spacing={2}>
+                                <Grid item xs={6}>
+                                  <TextField
+                                    label="Width (px)"
+                                    type="number"
+                                    value={viewport.width || ''}
+                                    onChange={(e) => updateViewport(index, 'width', parseInt(e.target.value))}
+                                    size="small"
+                                    fullWidth
+                                    inputProps={{ min: 320, max: 3840 }}
+                                    sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
+                                  />
+                                </Grid>
+                                <Grid item xs={6}>
+                                  <TextField
+                                    label="Height (px)"
+                                    type="number"
+                                    value={viewport.height || ''}
+                                    onChange={(e) => updateViewport(index, 'height', parseInt(e.target.value))}
+                                    size="small"
+                                    fullWidth
+                                    inputProps={{ min: 200, max: 2160 }}
+                                    sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
+                                  />
+                                </Grid>
+                              </Grid>
+                              
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                <Chip 
+                                  label={`${viewport.width} × ${viewport.height}`}
+                                  size="small"
+                                  color="primary"
+                                  variant="outlined"
+                                />
+                                <Chip 
+                                  label={viewport.width <= 480 ? 'Mobile' : 
+                                         viewport.width <= 768 ? 'Tablet' : 
+                                         viewport.width <= 1366 ? 'Laptop' : 'Desktop'}
+                                  size="small"
+                                  color="secondary"
+                                />
+                              </Box>
+                            </Stack>
+                          </Box>
+                          
+                          <Tooltip title="Remove Viewport">
+                            <IconButton
+                              onClick={() => removeViewport(index)}
+                              color="error"
+                              sx={{ mt: 0.5 }}
+                            >
+                              <Delete />
+                            </IconButton>
+                          </Tooltip>
+                        </Stack>
+                      </Paper>
+                    )
+                  })}
+                  
+                  {(!safeConfig.viewports || safeConfig.viewports.length === 0) && (
+                    <Paper sx={{ p: 4, textAlign: 'center', borderRadius: 2, bgcolor: 'grey.50' }}>
+                      <MonitorOutlined sx={{ fontSize: 48, color: 'text.secondary', mb: 2 }} />
+                      <Typography variant="h6" color="text.secondary" sx={{ mb: 1 }}>
+                        No Viewports Configured
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                        Add viewports to test your application across different screen sizes
+                      </Typography>
+                      <Button
+                        startIcon={<Add />}
+                        onClick={addViewport}
+                        variant="contained"
+                        sx={{ borderRadius: 2 }}
+                      >
+                        Add Your First Viewport
+                      </Button>
+                    </Paper>
+                  )}
+                </Stack>
+              </Box>
             </CardContent>
           </Card>
         </Grid>
       </Grid>
 
-      <Divider sx={{ my: 3 }} />
-
-      {/* Actions */}
-      <Stack direction="row" spacing={2} sx={{ mb: 3 }}>
-        <Button
-          variant="contained"
-          startIcon={<Save />}
-          onClick={saveConfig}
-          size="large"
-        >
-          Save Configuration
-        </Button>
-      </Stack>
-
-      {/* Raw JSON Editor */}
-      <Accordion>
-        <AccordionSummary expandIcon={<ExpandMore />}>
-          <Typography variant="h6" sx={{ display: 'flex', alignItems: 'center' }}>
-            <Code sx={{ mr: 1 }} />
-            Advanced Configuration (Raw JSON)
-          </Typography>
-        </AccordionSummary>
-        <AccordionDetails>
-          <TextField
-            multiline
-            rows={15}
-            value={JSON.stringify(config, null, 2)}
-            onChange={(e) => {
-              try {
-                setConfig(JSON.parse(e.target.value))
-              } catch {
-                // Invalid JSON, ignore for now
+      {/* Actions Section */}
+      <Box sx={{ mt: 4, mb: 3 }}>
+        <Stack direction="row" spacing={2} justifyContent="center">
+          <Button
+            variant="contained"
+            startIcon={saving ? <CircularProgress size={20} color="inherit" /> : <Save />}
+            onClick={saveConfig}
+            size="large"
+            disabled={saving}
+            sx={{ 
+              py: 2,
+              px: 4,
+              borderRadius: 3,
+              fontSize: '1.1rem',
+              fontWeight: 600,
+              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+              '&:hover': {
+                background: 'linear-gradient(135deg, #5a6fd8 0%, #6a4190 100%)',
               }
             }}
-            fullWidth
+          >
+            {saving ? 'Saving Configuration...' : 'Save Configuration'}
+          </Button>
+          
+          <Button
             variant="outlined"
-            sx={{ fontFamily: 'monospace' }}
-            helperText="Direct JSON editing - be careful with syntax"
-          />
-        </AccordionDetails>
-      </Accordion>
+            startIcon={<RestoreOutlined />}
+            onClick={loadConfig}
+            size="large"
+            sx={{ 
+              py: 2,
+              px: 4,
+              borderRadius: 3,
+              fontSize: '1.1rem',
+              fontWeight: 600
+            }}
+          >
+            Reset Changes
+          </Button>
+        </Stack>
+      </Box>
+
+      {/* Advanced Configuration */}
+      <Card sx={{ 
+        mt: 3,
+        borderRadius: 3,
+        boxShadow: '0 4px 20px rgba(0,0,0,0.1)'
+      }}>
+        <Accordion 
+          expanded={expandedAdvanced}
+          onChange={() => setExpandedAdvanced(!expandedAdvanced)}
+          sx={{ borderRadius: 3, '&:before': { display: 'none' } }}
+        >
+          <AccordionSummary 
+            expandIcon={<ExpandMore />}
+            sx={{ borderRadius: 3, minHeight: 70 }}
+          >
+            <Stack direction="row" alignItems="center" spacing={2}>
+              <Avatar sx={{ bgcolor: 'warning.main' }}>
+                <Code />
+              </Avatar>
+              <Box>
+                <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                  Advanced Configuration
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  Direct JSON editing for advanced users
+                </Typography>
+              </Box>
+            </Stack>
+          </AccordionSummary>
+          <AccordionDetails sx={{ p: 3 }}>
+            <Alert severity="warning" sx={{ mb: 3, borderRadius: 2 }}>
+              <Typography variant="body2">
+                <strong>⚠️ Advanced Mode:</strong> Direct JSON editing. Invalid syntax may break the configuration.
+              </Typography>
+            </Alert>
+            <TextField
+              multiline
+              rows={20}
+              value={JSON.stringify(config, null, 2)}
+              onChange={(e) => {
+                try {
+                  setConfig(JSON.parse(e.target.value))
+                } catch {
+                  // Invalid JSON, ignore for now
+                }
+              }}
+              fullWidth
+              variant="outlined"
+              sx={{ 
+                fontFamily: 'monospace',
+                '& .MuiOutlinedInput-root': { 
+                  borderRadius: 2,
+                  fontSize: '0.875rem'
+                }
+              }}
+              helperText="Raw BackstopJS configuration in JSON format"
+            />
+          </AccordionDetails>
+        </Accordion>
+      </Card>
+
+      {/* Preset Viewports Dialog */}
+      <Dialog 
+        open={presetDialogOpen} 
+        onClose={() => setPresetDialogOpen(false)}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle>
+          <Stack direction="row" alignItems="center" spacing={2}>
+            <Avatar sx={{ bgcolor: 'primary.main' }}>
+              <AutoAwesomeOutlined />
+            </Avatar>
+            <Box>
+              <Typography variant="h5" sx={{ fontWeight: 600 }}>
+                Common Viewport Presets
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                Quick setup for popular device sizes
+              </Typography>
+            </Box>
+          </Stack>
+        </DialogTitle>
+        <DialogContent>
+          <List>
+            {commonViewports.map((preset, index) => {
+              const IconComponent = preset.icon
+              return (
+                <ListItem
+                  key={index}
+                  button
+                  onClick={() => addPresetViewport(preset)}
+                  sx={{ 
+                    borderRadius: 2, 
+                    mb: 1,
+                    '&:hover': { bgcolor: 'action.hover' }
+                  }}
+                >
+                  <ListItemIcon>
+                    <Avatar sx={{ bgcolor: 'primary.main', width: 40, height: 40 }}>
+                      <IconComponent />
+                    </Avatar>
+                  </ListItemIcon>
+                  <ListItemText
+                    primary={
+                      <Typography variant="body1" fontWeight={500}>
+                        {preset.label}
+                      </Typography>
+                    }
+                    secondary={`${preset.width} × ${preset.height} pixels`}
+                  />
+                  <ListItemSecondaryAction>
+                    <Chip 
+                      label="Add" 
+                      color="primary" 
+                      size="small"
+                      onClick={() => addPresetViewport(preset)}
+                    />
+                  </ListItemSecondaryAction>
+                </ListItem>
+              )
+            })}
+          </List>
+        </DialogContent>
+        <DialogActions sx={{ p: 3 }}>
+          <Button 
+            onClick={() => setPresetDialogOpen(false)}
+            variant="outlined"
+            sx={{ borderRadius: 2 }}
+          >
+            Close
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   )
 }
