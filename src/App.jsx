@@ -38,9 +38,9 @@ function AppContent() {
       flexDirection: 'column'
     }}>
       <AppBar position="static" elevation={0} sx={{ 
-        backgroundColor: 'background.paper', 
+        backgroundColor: '#ffffff', 
         borderBottom: 1, 
-        borderColor: 'divider'
+        borderColor: '#e5e7eb'
       }}>
         <Box sx={{ width: '100%', px: 2 }}>
           <Toolbar sx={{ px: 0, minHeight: 64 }}>
@@ -70,7 +70,24 @@ function AppContent() {
           <Tabs 
             value={getActiveTab()} 
             onChange={handleTabChange}
-            sx={{ borderBottom: 1, borderColor: 'divider' }}
+            sx={{ 
+              borderBottom: 1, 
+              borderColor: '#e5e7eb',
+              '& .MuiTab-root': {
+                textTransform: 'none',
+                fontWeight: 500,
+                minHeight: 48,
+                borderRadius: 0,
+                '&.Mui-selected': {
+                  color: '#2563eb',
+                  fontWeight: 600
+                }
+              },
+              '& .MuiTabs-indicator': {
+                backgroundColor: '#2563eb',
+                height: 2
+              }
+            }}
             variant="scrollable"
             scrollButtons="auto"
           >
@@ -78,31 +95,26 @@ function AppContent() {
               icon={<SettingsOutlined />} 
               label="Configuration" 
               iconPosition="start"
-              sx={{ textTransform: 'none', fontWeight: 500, minHeight: 48 }}
             />
             <Tab 
               icon={<PhotoCameraOutlined />} 
               label="Scenarios" 
               iconPosition="start"
-              sx={{ textTransform: 'none', fontWeight: 500, minHeight: 48 }}
             />
             <Tab 
               icon={<UploadFileOutlined />} 
               label="Upload Screenshots" 
               iconPosition="start"
-              sx={{ textTransform: 'none', fontWeight: 500, minHeight: 48 }}
             />
             <Tab 
               icon={<PlayArrowOutlined />} 
               label="Run Tests" 
               iconPosition="start"
-              sx={{ textTransform: 'none', fontWeight: 500, minHeight: 48 }}
             />
             <Tab 
               icon={<CompareArrowsOutlined />} 
               label="Design Comparison" 
               iconPosition="start"
-              sx={{ textTransform: 'none', fontWeight: 500, minHeight: 48 }}
             />
           </Tabs>
         </Box>

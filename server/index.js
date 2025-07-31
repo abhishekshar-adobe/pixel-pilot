@@ -831,6 +831,119 @@ app.post('/api/approve', async (req, res) => {
   }
 });
 
+// Generate preview screenshot for a single scenario
+app.post('/api/preview-scenario', async (req, res) => {
+  try {
+    const { config: scenarioConfig, scenarioIndex = 0, viewportIndex = 0 } = req.body;
+    
+    if (!scenarioConfig || !scenarioConfig.scenarios || scenarioConfig.scenarios.length === 0) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Invalid scenario configuration provided' 
+      });
+    }
+
+    const scenario = scenarioConfig.scenarios[scenarioIndex];
+    const viewport = scenarioConfig.viewports?.[viewportIndex] || { label: 'preview', width: 1200, height: 800 };
+
+    // Create a temporary preview configuration
+    const previewConfigPath = path.join(configDir, 'temp_preview', 'preview-backstop.json');
+    const previewDir = path.dirname(previewConfigPath);
+    await fs.ensureDir(previewDir);
+    await fs.ensureDir(path.join(previewDir, 'preview_reference'));
+
+    const previewConfig = {
+      id: 'preview_backstop',
+      viewports: [viewport],
+      onBeforeScript: 'puppet/onBefore.js',
+      onReadyScript: 'puppet/onReady.js',
+      scenarios: [{
+        ...scenario,
+        label: 'preview_scenario',
+        url: scenario.url,
+        referenceUrl: '',
+        readyEvent: '',
+        readySelector: '',
+        delay: scenario.delay || 0,
+        hideSelectors: scenario.hideSelectors || [],
+        removeSelectors: scenario.removeSelectors || [],
+        hoverSelector: scenario.hoverSelector || '',
+        clickSelector: scenario.clickSelector || '',
+        postInteractionWait: 0,
+        selectors: scenario.selectors || ['document'],
+        selectorExpansion: true,
+        expect: 0,
+        misMatchThreshold: scenario.misMatchThreshold || 0.1,
+        requireSameDimensions: scenario.requireSameDimensions || true
+      }],
+      paths: {
+        bitmaps_reference: path.join(previewDir, 'preview_reference'),
+        bitmaps_test: path.join(previewDir, 'preview_test'),
+        engine_scripts: path.join(configDir, 'engine_scripts'),
+        json_report: path.join(previewDir, 'json_report'),
+        html_report: path.join(previewDir, 'html_report')
+      },
+      report: ['browser'],
+      engine: 'puppeteer',
+      engineOptions: {
+        args: ['--no-sandbox']
+      },
+      asyncCaptureLimit: 5,
+      asyncCompareLimit: 50,
+      debug: false,
+      debugWindow: false
+    };
+
+    // Write the preview configuration
+    await fs.writeJson(previewConfigPath, previewConfig, { spaces: 2 });
+
+    // Ensure preview directories exist
+    await fs.ensureDir(path.join(previewDir, 'preview_reference'));
+    await fs.ensureDir(path.join(previewDir, 'preview_test'));
+
+    // Generate the preview screenshot using BackstopJS reference command
+    await backstop('reference', { 
+      config: previewConfigPath
+    });
+
+    // Find the generated screenshot
+    const referenceDir = path.join(previewDir, 'preview_reference');
+    const screenshotFiles = await fs.readdir(referenceDir);
+    
+    if (screenshotFiles.length === 0) {
+      return res.status(500).json({ 
+        success: false, 
+        error: 'No preview screenshot was generated' 
+      });
+    }
+
+    // Return the first (and should be only) screenshot file
+    const screenshotFile = screenshotFiles[0];
+    const screenshotPath = path.join(referenceDir, screenshotFile);
+    
+    // Create a public accessible URL for the image
+    const publicImageName = `preview_${Date.now()}_${screenshotFile}`;
+    const publicImagePath = path.join(uploadsDir, publicImageName);
+    
+    // Copy the screenshot to the uploads directory so it can be served
+    await fs.copy(screenshotPath, publicImagePath);
+    
+    res.json({ 
+      success: true, 
+      imageUrl: `http://localhost:5000/uploads/${publicImageName}`,
+      screenshotFile: screenshotFile,
+      message: 'Preview screenshot generated successfully'
+    });
+
+  } catch (error) {
+    console.error('Error generating preview screenshot:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: `Failed to generate preview: ${error.message}` 
+    });
+  }
+});
+
 // Serve BackstopJS HTML report
 app.use('/report', express.static(path.join(configDir, 'html_report')));
 

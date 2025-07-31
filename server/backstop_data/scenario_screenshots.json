@@ -417,5 +417,57 @@
       "size": 4112428,
       "isReference": true
     }
+  },
+  "Subscribe_Lg-desktop": {
+    "scenario": "Subscribe",
+    "viewport": "Lg-desktop",
+    "screenshots": [
+      {
+        "filename": "unknown_unknown_1753958148960_Subscribe_Our_Newsletter_2_97.png",
+        "originalName": "Subscribe_Our_Newsletter_2_97.png",
+        "path": "C:\\Users\\abhishekshar\\Desktop\\workspace\\PixelPilot\\server\\uploads\\unknown_unknown_1753958148960_Subscribe_Our_Newsletter_2_97.png",
+        "uploadedAt": "2025-07-31T10:35:48.986Z",
+        "size": 79032,
+        "isReference": true
+      },
+      {
+        "filename": "unknown_unknown_1753958445825_Subscribe Our Newsletter.png",
+        "originalName": "Subscribe Our Newsletter.png",
+        "path": "C:\\Users\\abhishekshar\\Desktop\\workspace\\PixelPilot\\server\\uploads\\unknown_unknown_1753958445825_Subscribe Our Newsletter.png",
+        "uploadedAt": "2025-07-31T10:40:45.831Z",
+        "size": 33008,
+        "isReference": true
+      }
+    ],
+    "referenceScreenshot": {
+      "filename": "unknown_unknown_1753958445825_Subscribe Our Newsletter.png",
+      "originalName": "Subscribe Our Newsletter.png",
+      "path": "C:\\Users\\abhishekshar\\Desktop\\workspace\\PixelPilot\\server\\uploads\\unknown_unknown_1753958445825_Subscribe Our Newsletter.png",
+      "uploadedAt": "2025-07-31T10:40:45.831Z",
+      "size": 33008,
+      "isReference": true
+    }
+  },
+  "Recent Posts_Lg-desktop": {
+    "scenario": "Recent Posts",
+    "viewport": "Lg-desktop",
+    "screenshots": [
+      {
+        "filename": "unknown_unknown_1753958809614_Our_Recent_Posts_2_117.png",
+        "originalName": "Our_Recent_Posts_2_117.png",
+        "path": "C:\\Users\\abhishekshar\\Desktop\\workspace\\PixelPilot\\server\\uploads\\unknown_unknown_1753958809614_Our_Recent_Posts_2_117.png",
+        "uploadedAt": "2025-07-31T10:46:49.721Z",
+        "size": 2365343,
+        "isReference": true
+      }
+    ],
+    "referenceScreenshot": {
+      "filename": "unknown_unknown_1753958809614_Our_Recent_Posts_2_117.png",
+      "originalName": "Our_Recent_Posts_2_117.png",
+      "path": "C:\\Users\\abhishekshar\\Desktop\\workspace\\PixelPilot\\server\\uploads\\unknown_unknown_1753958809614_Our_Recent_Posts_2_117.png",
+      "uploadedAt": "2025-07-31T10:46:49.721Z",
+      "size": 2365343,
+      "isReference": true
+    }
   }
 }

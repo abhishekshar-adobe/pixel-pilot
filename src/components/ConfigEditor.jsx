@@ -357,9 +357,16 @@ function ConfigEditor() {
       </Box>
 
       {/* Main Content */}
-      <Grid container spacing={4}>
+      <Box sx={{ display: 'flex', gap: 4, width: '100%' }}>
         {/* Left Panel - Basic Configuration */}
-        <Grid item xs={12} lg={6}>
+        <Box sx={{ 
+          width: '20%', 
+          minWidth: '300px',
+          bgcolor: 'rgba(25, 118, 210, 0.04)', 
+          border: '1px dashed rgba(25, 118, 210, 0.3)',
+          borderRadius: 2,
+          p: 2
+        }}>
           <Stack spacing={3}>
             {/* Project Settings Card */}
             <Card sx={{ 
@@ -495,10 +502,16 @@ function ConfigEditor() {
               </CardContent>
             </Card>
           </Stack>
-        </Grid>
+        </Box>
 
         {/* Right Panel - Viewport Configuration */}
-        <Grid item xs={12} lg={6}>
+        <Box sx={{ 
+          width: '80%', 
+          bgcolor: 'rgba(46, 125, 50, 0.04)', 
+          border: '1px dashed rgba(46, 125, 50, 0.3)',
+          borderRadius: 2,
+          p: 2
+        }}>
           <Card sx={{ 
             borderRadius: 3,
             boxShadow: '0 4px 20px rgba(0,0,0,0.1)',
@@ -547,123 +560,133 @@ function ConfigEditor() {
               <Divider sx={{ mb: 3 }} />
               
               <Box sx={{ maxHeight: 500, overflow: 'auto' }}>
-                <Stack spacing={2}>
+                <Grid container spacing={2}>
                   {safeConfig.viewports?.map((viewport, index) => {
                     const ViewportIcon = getViewportIcon(viewport.width)
                     return (
-                      <Paper 
-                        key={`viewport-${index}`} 
-                        sx={{ 
-                          p: 3, 
-                          borderRadius: 2,
-                          border: '1px solid',
-                          borderColor: 'divider',
-                          '&:hover': {
-                            borderColor: 'primary.main',
-                            boxShadow: 1
-                          }
-                        }}
-                      >
-                        <Stack direction="row" alignItems="flex-start" spacing={2}>
-                          <Avatar sx={{ bgcolor: 'info.main', mt: 0.5 }}>
-                            <ViewportIcon />
-                          </Avatar>
-                          
-                          <Box sx={{ flex: 1 }}>
-                            <Stack spacing={2}>
-                              <TextField
-                                label="Viewport Label"
-                                value={viewport.label || ''}
-                                onChange={(e) => updateViewport(index, 'label', e.target.value)}
-                                size="small"
-                                fullWidth
-                                sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
-                              />
-                              
-                              <Grid container spacing={2}>
-                                <Grid item xs={6}>
-                                  <TextField
-                                    label="Width (px)"
-                                    type="number"
-                                    value={viewport.width || ''}
-                                    onChange={(e) => updateViewport(index, 'width', parseInt(e.target.value))}
-                                    size="small"
-                                    fullWidth
-                                    inputProps={{ min: 320, max: 3840 }}
-                                    sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
-                                  />
-                                </Grid>
-                                <Grid item xs={6}>
-                                  <TextField
-                                    label="Height (px)"
-                                    type="number"
-                                    value={viewport.height || ''}
-                                    onChange={(e) => updateViewport(index, 'height', parseInt(e.target.value))}
-                                    size="small"
-                                    fullWidth
-                                    inputProps={{ min: 200, max: 2160 }}
-                                    sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
-                                  />
-                                </Grid>
-                              </Grid>
-                              
-                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                <Chip 
-                                  label={`${viewport.width} × ${viewport.height}`}
-                                  size="small"
-                                  color="primary"
-                                  variant="outlined"
-                                />
-                                <Chip 
-                                  label={viewport.width <= 480 ? 'Mobile' : 
-                                         viewport.width <= 768 ? 'Tablet' : 
-                                         viewport.width <= 1366 ? 'Laptop' : 'Desktop'}
-                                  size="small"
-                                  color="secondary"
-                                />
+                      <Grid item xs={12} sm={6} md={4} lg={3} key={`viewport-${index}`}>
+                        <Paper 
+                          sx={{ 
+                            p: 2, 
+                            borderRadius: 2,
+                            border: '1px solid',
+                            borderColor: 'divider',
+                            height: '100%',
+                            minWidth: '280px',
+                            maxWidth: '400px',
+                            '&:hover': {
+                              borderColor: 'primary.main',
+                              boxShadow: 1
+                            }
+                          }}
+                        >
+                          <Stack spacing={2} sx={{ height: '100%' }}>
+                            <Stack direction="row" alignItems="center" spacing={2}>
+                              <Avatar sx={{ bgcolor: 'info.main', width: 32, height: 32 }}>
+                                <ViewportIcon sx={{ fontSize: 18 }} />
+                              </Avatar>
+                              <Box sx={{ flex: 1 }}>
+                                <Typography variant="body2" fontWeight={600} noWrap>
+                                  Viewport {index + 1}
+                                </Typography>
                               </Box>
+                              <Tooltip title="Remove Viewport">
+                                <IconButton
+                                  onClick={() => removeViewport(index)}
+                                  color="error"
+                                  size="small"
+                                >
+                                  <Delete sx={{ fontSize: 16 }} />
+                                </IconButton>
+                              </Tooltip>
                             </Stack>
-                          </Box>
-                          
-                          <Tooltip title="Remove Viewport">
-                            <IconButton
-                              onClick={() => removeViewport(index)}
-                              color="error"
-                              sx={{ mt: 0.5 }}
-                            >
-                              <Delete />
-                            </IconButton>
-                          </Tooltip>
-                        </Stack>
-                      </Paper>
+                            
+                            <TextField
+                              label="Label"
+                              value={viewport.label || ''}
+                              onChange={(e) => updateViewport(index, 'label', e.target.value)}
+                              size="small"
+                              fullWidth
+                              sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
+                            />
+                            
+                            <Stack direction="row" spacing={1}>
+                              <TextField
+                                label="Width"
+                                type="number"
+                                value={viewport.width || ''}
+                                onChange={(e) => updateViewport(index, 'width', parseInt(e.target.value))}
+                                size="small"
+                                inputProps={{ min: 320, max: 3840 }}
+                                sx={{ 
+                                  flex: 1,
+                                  '& .MuiOutlinedInput-root': { borderRadius: 2 } 
+                                }}
+                              />
+                              <TextField
+                                label="Height"
+                                type="number"
+                                value={viewport.height || ''}
+                                onChange={(e) => updateViewport(index, 'height', parseInt(e.target.value))}
+                                size="small"
+                                inputProps={{ min: 200, max: 2160 }}
+                                sx={{ 
+                                  flex: 1,
+                                  '& .MuiOutlinedInput-root': { borderRadius: 2 } 
+                                }}
+                              />
+                            </Stack>
+                            
+                            <Stack direction="row" spacing={1} sx={{ mt: 'auto' }}>
+                              <Chip 
+                                label={`${viewport.width} × ${viewport.height}`}
+                                size="small"
+                                color="primary"
+                                variant="outlined"
+                                sx={{ flex: 1, fontSize: '0.7rem' }}
+                              />
+                              <Chip 
+                                label={viewport.width <= 480 ? 'Mobile' : 
+                                       viewport.width <= 768 ? 'Tablet' : 
+                                       viewport.width <= 1366 ? 'Laptop' : 'Desktop'}
+                                size="small"
+                                color="secondary"
+                                sx={{ fontSize: '0.7rem' }}
+                              />
+                            </Stack>
+                          </Stack>
+                        </Paper>
+                      </Grid>
                     )
                   })}
                   
                   {(!safeConfig.viewports || safeConfig.viewports.length === 0) && (
-                    <Paper sx={{ p: 4, textAlign: 'center', borderRadius: 2, bgcolor: 'grey.50' }}>
-                      <MonitorOutlined sx={{ fontSize: 48, color: 'text.secondary', mb: 2 }} />
-                      <Typography variant="h6" color="text.secondary" sx={{ mb: 1 }}>
-                        No Viewports Configured
-                      </Typography>
-                      <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                        Add viewports to test your application across different screen sizes
-                      </Typography>
-                      <Button
-                        startIcon={<Add />}
-                        onClick={addViewport}
-                        variant="contained"
-                        sx={{ borderRadius: 2 }}
-                      >
-                        Add Your First Viewport
-                      </Button>
-                    </Paper>
+                    <Grid item xs={12}>
+                      <Paper sx={{ p: 4, textAlign: 'center', borderRadius: 2, bgcolor: 'grey.50' }}>
+                        <MonitorOutlined sx={{ fontSize: 48, color: 'text.secondary', mb: 2 }} />
+                        <Typography variant="h6" color="text.secondary" sx={{ mb: 1 }}>
+                          No Viewports Configured
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                          Add viewports to test your application across different screen sizes
+                        </Typography>
+                        <Button
+                          startIcon={<Add />}
+                          onClick={addViewport}
+                          variant="contained"
+                          sx={{ borderRadius: 2 }}
+                        >
+                          Add Your First Viewport
+                        </Button>
+                      </Paper>
+                    </Grid>
                   )}
-                </Stack>
+                </Grid>
               </Box>
             </CardContent>
           </Card>
-        </Grid>
-      </Grid>
+        </Box>
+      </Box>
 
       {/* Actions Section */}
       <Box sx={{ mt: 4, mb: 3 }}>

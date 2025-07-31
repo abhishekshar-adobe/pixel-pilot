@@ -20,7 +20,16 @@ import {
   Fade,
   Accordion,
   AccordionSummary,
-  AccordionDetails
+  AccordionDetails,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  List,
+  ListItem,
+  ListItemIcon,
+  ListItemText,
+  Divider
 } from '@mui/material'
 import { 
   Add, 
@@ -49,6 +58,10 @@ function ScenarioManager() {
   const [saving, setSaving] = useState(false)
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
   const [message, setMessage] = useState('')
+  const [previewDialogOpen, setPreviewDialogOpen] = useState(false)
+  const [previewScenarioData, setPreviewScenarioData] = useState(null)
+  const [previewImage, setPreviewImage] = useState(null)
+  const [loadingPreview, setLoadingPreview] = useState(false)
 
   useEffect(() => {
     loadData()
@@ -165,6 +178,48 @@ function ScenarioManager() {
       setMessage(`Error saving scenarios: ${error.message}`)
     } finally {
       setSaving(false)
+    }
+  }
+
+  const previewScenario = async (scenario) => {
+    if (!scenario.url) {
+      setMessage('No URL configured for this scenario')
+      setTimeout(() => setMessage(''), 3000)
+      return
+    }
+
+    // Set scenario data for preview dialog
+    setPreviewScenarioData(scenario)
+    setPreviewDialogOpen(true)
+    setLoadingPreview(true)
+    setPreviewImage(null)
+
+    try {
+      // Create a temporary preview configuration
+      const previewConfig = {
+        scenarios: [scenario],
+        viewports: config?.viewports || [{ label: 'preview', width: 1200, height: 800 }]
+      }
+
+      // Request a preview screenshot from the backend
+      const response = await axios.post(`${API_BASE}/preview-scenario`, {
+        config: previewConfig,
+        scenarioIndex: 0,
+        viewportIndex: 0
+      })
+
+      if (response.data.success && response.data.imageUrl) {
+        setPreviewImage(response.data.imageUrl)
+      } else {
+        setMessage('Failed to generate preview image')
+        setTimeout(() => setMessage(''), 3000)
+      }
+    } catch (error) {
+      console.error('Error generating preview:', error)
+      setMessage(`Error generating preview: ${error.message}`)
+      setTimeout(() => setMessage(''), 3000)
+    } finally {
+      setLoadingPreview(false)
     }
   }
 
@@ -374,7 +429,6 @@ function ScenarioManager() {
               sx={{ 
                 background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
                 color: 'white',
-                borderRadius: '12px 12px 0 0',
                 minHeight: 72,
                 '&.Mui-expanded': {
                   minHeight: 72
@@ -459,6 +513,18 @@ function ScenarioManager() {
                   </Stack>
                   
                   {/* Action Buttons */}
+                  <Tooltip title="Preview Scenario">
+                    <IconButton 
+                      size="small" 
+                      sx={{ color: 'rgba(255,255,255,0.8)', '&:hover': { color: 'white', bgcolor: 'rgba(255,255,255,0.1)' } }}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        previewScenario(scenario)
+                      }}
+                    >
+                      <Visibility fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
                   <Tooltip title="Duplicate Scenario">
                     <IconButton 
                       size="small" 
@@ -566,6 +632,26 @@ function ScenarioManager() {
                         }
                         label="Require Same Dimensions"
                       />
+                      
+                      {/* Preview Button */}
+                      <Button
+                        variant="outlined"
+                        startIcon={<Visibility />}
+                        onClick={() => previewScenario(scenario)}
+                        fullWidth
+                        size="small"
+                        sx={{ 
+                          mt: 1,
+                          borderColor: 'primary.main',
+                          color: 'primary.main',
+                          '&:hover': {
+                            backgroundColor: 'primary.main',
+                            color: 'white'
+                          }
+                        }}
+                      >
+                        Preview Scenario
+                      </Button>
                     </Stack>
                   </Card>
                 </Grid>
@@ -726,6 +812,316 @@ function ScenarioManager() {
           </Button>
         </Card>
       )}
+      
+      {/* Preview Dialog */}
+      <Dialog
+        open={previewDialogOpen}
+        onClose={() => setPreviewDialogOpen(false)}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle>
+          <Stack direction="row" alignItems="center" spacing={2}>
+            <Avatar sx={{ bgcolor: 'primary.main' }}>
+              <Visibility />
+            </Avatar>
+            <Box>
+              <Typography variant="h5" sx={{ fontWeight: 600 }}>
+                Scenario Preview
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                {previewScenarioData?.label || 'Preview Configuration'}
+              </Typography>
+            </Box>
+          </Stack>
+        </DialogTitle>
+        
+        <DialogContent>
+          {previewScenarioData && (
+            <Stack spacing={3}>
+              {/* URL Section */}
+              <Card sx={{ p: 2, bgcolor: 'grey.50' }}>
+                <Typography variant="subtitle1" fontWeight="bold" gutterBottom>
+                  Target URL
+                </Typography>
+                <Typography variant="body1" sx={{ wordBreak: 'break-all' }}>
+                  {previewScenarioData.url}
+                </Typography>
+              </Card>
+
+              {/* Preview Image Section */}
+              <Card sx={{ p: 2 }}>
+                <Typography variant="subtitle1" fontWeight="bold" gutterBottom>
+                  Selected Area Preview
+                </Typography>
+                {loadingPreview ? (
+                  <Box sx={{ 
+                    display: 'flex', 
+                    flexDirection: 'column',
+                    alignItems: 'center', 
+                    justifyContent: 'center',
+                    minHeight: 200,
+                    bgcolor: 'grey.50',
+                    borderRadius: 1
+                  }}>
+                    <CircularProgress size={40} sx={{ mb: 2 }} />
+                    <Typography variant="body2" color="text.secondary">
+                      Generating preview of selected elements...
+                    </Typography>
+                  </Box>
+                ) : previewImage ? (
+                  <Box sx={{ 
+                    border: '2px solid',
+                    borderColor: 'grey.200',
+                    borderRadius: 2,
+                    overflow: 'hidden',
+                    maxHeight: '400px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    bgcolor: 'grey.50'
+                  }}>
+                    <img
+                      src={previewImage}
+                      alt="Scenario Preview"
+                      style={{
+                        maxWidth: '100%',
+                        maxHeight: '400px',
+                        width: 'auto',
+                        height: 'auto',
+                        display: 'block',
+                        objectFit: 'contain'
+                      }}
+                    />
+                  </Box>
+                ) : (
+                  <Box sx={{ 
+                    display: 'flex', 
+                    flexDirection: 'column',
+                    alignItems: 'center', 
+                    justifyContent: 'center',
+                    minHeight: 150,
+                    bgcolor: 'grey.50',
+                    borderRadius: 1,
+                    border: '2px dashed',
+                    borderColor: 'grey.300'
+                  }}>
+                    <Camera sx={{ fontSize: 48, color: 'grey.400', mb: 1 }} />
+                    <Typography variant="body2" color="text.secondary">
+                      Preview image will be generated when available
+                    </Typography>
+                  </Box>
+                )}
+                
+                {/* Selector Information */}
+                <Box sx={{ mt: 2, p: 1, bgcolor: 'info.light', borderRadius: 1 }}>
+                  <Typography variant="caption" color="info.dark">
+                    <strong>Capturing:</strong> {
+                      Array.isArray(previewScenarioData.selectors) 
+                        ? previewScenarioData.selectors.join(', ') || 'document'
+                        : previewScenarioData.selectors || 'document'
+                    }
+                  </Typography>
+                </Box>
+              </Card>
+
+              {/* Capture Configuration */}
+              <Card sx={{ p: 2 }}>
+                <Typography variant="subtitle1" fontWeight="bold" gutterBottom>
+                  Capture Configuration
+                </Typography>
+                <List dense>
+                  <ListItem>
+                    <ListItemIcon>
+                      <Camera />
+                    </ListItemIcon>
+                    <ListItemText
+                      primary="Elements to Capture"
+                      secondary={
+                        Array.isArray(previewScenarioData.selectors) 
+                          ? previewScenarioData.selectors.join(', ') || 'document'
+                          : previewScenarioData.selectors || 'document'
+                      }
+                    />
+                  </ListItem>
+                  
+                  <ListItem>
+                    <ListItemIcon>
+                      <AccessTime />
+                    </ListItemIcon>
+                    <ListItemText
+                      primary="Delay"
+                      secondary={`${previewScenarioData.delay || 0}ms before capture`}
+                    />
+                  </ListItem>
+                  
+                  <ListItem>
+                    <ListItemIcon>
+                      <CompareArrows />
+                    </ListItemIcon>
+                    <ListItemText
+                      primary="Mismatch Threshold"
+                      secondary={`${Math.round((previewScenarioData.misMatchThreshold || 0.1) * 100)}% tolerance`}
+                    />
+                  </ListItem>
+                  
+                  {previewScenarioData.requireSameDimensions && (
+                    <ListItem>
+                      <ListItemIcon>
+                        <Settings />
+                      </ListItemIcon>
+                      <ListItemText
+                        primary="Dimension Check"
+                        secondary="Requires same dimensions for comparison"
+                      />
+                    </ListItem>
+                  )}
+                </List>
+              </Card>
+
+              {/* Interactive Elements */}
+              {(previewScenarioData.clickSelector || previewScenarioData.hoverSelector) && (
+                <Card sx={{ p: 2 }}>
+                  <Typography variant="subtitle1" fontWeight="bold" gutterBottom>
+                    Interactive Elements
+                  </Typography>
+                  <List dense>
+                    {previewScenarioData.clickSelector && (
+                      <ListItem>
+                        <ListItemIcon>
+                          <TouchApp />
+                        </ListItemIcon>
+                        <ListItemText
+                          primary="Click Element"
+                          secondary={previewScenarioData.clickSelector}
+                        />
+                      </ListItem>
+                    )}
+                    
+                    {previewScenarioData.hoverSelector && (
+                      <ListItem>
+                        <ListItemIcon>
+                          <TouchApp />
+                        </ListItemIcon>
+                        <ListItemText
+                          primary="Hover Element"
+                          secondary={previewScenarioData.hoverSelector}
+                        />
+                      </ListItem>
+                    )}
+                  </List>
+                </Card>
+              )}
+
+              {/* Element Control */}
+              {(previewScenarioData.hideSelectors?.length > 0 || previewScenarioData.removeSelectors?.length > 0) && (
+                <Card sx={{ p: 2 }}>
+                  <Typography variant="subtitle1" fontWeight="bold" gutterBottom>
+                    Element Control
+                  </Typography>
+                  <List dense>
+                    {previewScenarioData.hideSelectors?.length > 0 && (
+                      <ListItem>
+                        <ListItemIcon>
+                          <Visibility />
+                        </ListItemIcon>
+                        <ListItemText
+                          primary="Hidden Elements"
+                          secondary={Array.isArray(previewScenarioData.hideSelectors) 
+                            ? previewScenarioData.hideSelectors.join(', ')
+                            : previewScenarioData.hideSelectors}
+                        />
+                      </ListItem>
+                    )}
+                    
+                    {previewScenarioData.removeSelectors?.length > 0 && (
+                      <ListItem>
+                        <ListItemIcon>
+                          <Delete />
+                        </ListItemIcon>
+                        <ListItemText
+                          primary="Removed Elements"
+                          secondary={Array.isArray(previewScenarioData.removeSelectors)
+                            ? previewScenarioData.removeSelectors.join(', ')
+                            : previewScenarioData.removeSelectors}
+                        />
+                      </ListItem>
+                    )}
+                  </List>
+                </Card>
+              )}
+
+              {/* Custom Scripts */}
+              {(previewScenarioData.customScript || previewScenarioData.customBeforeScript) && (
+                <Card sx={{ p: 2 }}>
+                  <Typography variant="subtitle1" fontWeight="bold" gutterBottom>
+                    Custom Scripts
+                  </Typography>
+                  <List dense>
+                    {previewScenarioData.customBeforeScript && (
+                      <ListItem>
+                        <ListItemIcon>
+                          <CodeIcon />
+                        </ListItemIcon>
+                        <ListItemText
+                          primary="Before Script (onBefore)"
+                          secondary="Custom JavaScript will execute before page load"
+                        />
+                      </ListItem>
+                    )}
+                    
+                    {previewScenarioData.customScript && (
+                      <ListItem>
+                        <ListItemIcon>
+                          <CodeIcon />
+                        </ListItemIcon>
+                        <ListItemText
+                          primary="Ready Script (onReady)"
+                          secondary="Custom JavaScript will execute before screenshot"
+                        />
+                      </ListItem>
+                    )}
+                  </List>
+                </Card>
+              )}
+            </Stack>
+          )}
+        </DialogContent>
+        
+        <DialogActions sx={{ p: 3 }}>
+          <Button
+            onClick={() => {
+              setPreviewDialogOpen(false)
+              setPreviewImage(null)
+            }}
+            variant="outlined"
+          >
+            Close
+          </Button>
+          <Button
+            onClick={() => previewScenario(previewScenarioData)}
+            variant="outlined"
+            startIcon={loadingPreview ? <CircularProgress size={16} /> : <Camera />}
+            disabled={loadingPreview}
+            sx={{ mr: 'auto' }}
+          >
+            {loadingPreview ? 'Generating...' : 'Refresh Preview'}
+          </Button>
+          <Button
+            onClick={() => {
+              if (previewScenarioData?.url) {
+                window.open(previewScenarioData.url, '_blank')
+                setMessage(`Opening preview for "${previewScenarioData.label}"`)
+                setTimeout(() => setMessage(''), 2000)
+              }
+            }}
+            variant="contained"
+            startIcon={<WebIcon />}
+          >
+            Open URL
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   )
 }

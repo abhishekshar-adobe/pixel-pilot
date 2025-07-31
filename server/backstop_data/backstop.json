@@ -2,7 +2,7 @@
   "id": "backstop_default",
   "viewports": [
     {
-      "label": "Insove",
+      "label": "Lg-desktop",
       "width": 1920,
       "height": 768
     }
@@ -11,28 +11,28 @@
   "onReadyScript": "puppet/onReady.js",
   "scenarios": [
     {
-      "id": 1753805418167,
-      "label": "Faqspage",
+      "id": 1753957966817,
+      "label": "Subscribe",
       "url": "http://localhost:3000",
       "selectors": [
-        "#faqs > .container"
+        "#subscribe"
       ],
       "delay": 0,
-      "misMatchThreshold": 0.1,
+      "misMatchThreshold": 0.01,
       "requireSameDimensions": true,
       "removeSelectors": [],
       "onReadyScript": "puppet/onReady.js",
       "onBeforeScript": "puppet/onBefore.js"
     },
     {
-      "id": 1753808818500,
-      "label": "Newsletter",
+      "id": 1753958499990,
+      "label": "Recent Posts",
       "url": "http://localhost:3000",
       "selectors": [
-        "#subscribe"
+        "#latest-blog > .container"
       ],
       "delay": 0,
-      "misMatchThreshold": 0.1,
+      "misMatchThreshold": 0.01,
       "requireSameDimensions": true,
       "removeSelectors": [],
       "onReadyScript": "puppet/onReady.js",

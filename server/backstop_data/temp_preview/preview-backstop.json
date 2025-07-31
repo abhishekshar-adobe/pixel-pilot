@@ -1,0 +1,55 @@
+{
+  "id": "preview_backstop",
+  "viewports": [
+    {
+      "label": "Lg-desktop",
+      "width": 1920,
+      "height": 768
+    }
+  ],
+  "onBeforeScript": "puppet/onBefore.js",
+  "onReadyScript": "puppet/onReady.js",
+  "scenarios": [
+    {
+      "id": 1753958499990,
+      "label": "preview_scenario",
+      "url": "http://localhost:3000",
+      "selectors": [
+        "#latest-blog > .container"
+      ],
+      "delay": 0,
+      "misMatchThreshold": 0.01,
+      "requireSameDimensions": true,
+      "removeSelectors": [],
+      "referenceUrl": "",
+      "readyEvent": "",
+      "readySelector": "",
+      "hideSelectors": [],
+      "hoverSelector": "",
+      "clickSelector": "",
+      "postInteractionWait": 0,
+      "selectorExpansion": true,
+      "expect": 0
+    }
+  ],
+  "paths": {
+    "bitmaps_reference": "C:\\Users\\abhishekshar\\Desktop\\workspace\\PixelPilot\\server\\backstop_data\\temp_preview\\preview_reference",
+    "bitmaps_test": "C:\\Users\\abhishekshar\\Desktop\\workspace\\PixelPilot\\server\\backstop_data\\temp_preview\\preview_test",
+    "engine_scripts": "C:\\Users\\abhishekshar\\Desktop\\workspace\\PixelPilot\\server\\backstop_data\\engine_scripts",
+    "json_report": "C:\\Users\\abhishekshar\\Desktop\\workspace\\PixelPilot\\server\\backstop_data\\temp_preview\\json_report",
+    "html_report": "C:\\Users\\abhishekshar\\Desktop\\workspace\\PixelPilot\\server\\backstop_data\\temp_preview\\html_report"
+  },
+  "report": [
+    "browser"
+  ],
+  "engine": "puppeteer",
+  "engineOptions": {
+    "args": [
+      "--no-sandbox"
+    ]
+  },
+  "asyncCaptureLimit": 5,
+  "asyncCompareLimit": 50,
+  "debug": false,
+  "debugWindow": false
+}

@@ -716,11 +716,10 @@ const ScreenshotUploader = () => {
       )}
 
       {/* Scenario Selection Card */}
-      <Card sx={{ mb: 4, borderRadius: 3, boxShadow: 3 }}>
+      <Card sx={{ mb: 4, borderRadius: 2, boxShadow: 3 }}>
         <Box sx={{
           background: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
-          p: 3,
-          borderRadius: '12px 12px 0 0'
+          p: 3
         }}>
           <Stack direction="row" alignItems="center" spacing={2}>
             <Avatar sx={{ bgcolor: 'rgba(255,255,255,0.2)' }}>
@@ -790,6 +789,8 @@ const ScreenshotUploader = () => {
                     borderRadius: 3,
                     boxShadow: 3,
                     transition: 'all 0.3s ease',
+                    maxWidth: '400px',
+                    mx: 'auto',
                     '&:hover': {
                       transform: 'translateY(-4px)',
                       boxShadow: 6
@@ -888,15 +889,23 @@ const ScreenshotUploader = () => {
                                 border: '2px solid',
                                 borderColor: 'grey.200',
                                 borderRadius: 2,
-                                overflow: 'hidden'
+                                overflow: 'hidden',
+                                maxHeight: '300px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                bgcolor: 'grey.50'
                               }}>
                                 <img
                                   src={`http://localhost:5000/uploads/${screenshotToShow.filename || screenshotToShow}`}
                                   alt={`${viewport.label} reference`}
                                   style={{
-                                    width: '100%',
+                                    maxWidth: '100%',
+                                    maxHeight: '300px',
+                                    width: 'auto',
                                     height: 'auto',
-                                    display: 'block'
+                                    display: 'block',
+                                    objectFit: 'contain'
                                   }}
                                   onError={(e) => {
                                     console.error('Image failed to load:', e.target.src)
