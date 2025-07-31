@@ -459,14 +459,38 @@
         "uploadedAt": "2025-07-31T10:46:49.721Z",
         "size": 2365343,
         "isReference": true
+      },
+      {
+        "filename": "unknown_unknown_1753960875401_Our_Recent_Posts_2_117.png",
+        "originalName": "Our_Recent_Posts_2_117.png",
+        "path": "C:\\Users\\abhishekshar\\Desktop\\workspace\\PixelPilot\\server\\uploads\\unknown_unknown_1753960875401_Our_Recent_Posts_2_117.png",
+        "uploadedAt": "2025-07-31T11:21:15.443Z",
+        "size": 729662,
+        "isReference": true
+      },
+      {
+        "filename": "unknown_unknown_1753962371060_Our_Recent_Posts_2_117.png",
+        "originalName": "Our_Recent_Posts_2_117.png",
+        "path": "C:\\Users\\abhishekshar\\Desktop\\workspace\\PixelPilot\\server\\uploads\\unknown_unknown_1753962371060_Our_Recent_Posts_2_117.png",
+        "uploadedAt": "2025-07-31T11:46:11.093Z",
+        "size": 729662,
+        "isReference": true
+      },
+      {
+        "filename": "unknown_unknown_1753963123538_Our_Recent_Posts_2_117.png",
+        "originalName": "Our_Recent_Posts_2_117.png",
+        "path": "C:\\Users\\abhishekshar\\Desktop\\workspace\\PixelPilot\\server\\uploads\\unknown_unknown_1753963123538_Our_Recent_Posts_2_117.png",
+        "uploadedAt": "2025-07-31T11:58:43.576Z",
+        "size": 729662,
+        "isReference": true
       }
     ],
     "referenceScreenshot": {
-      "filename": "unknown_unknown_1753958809614_Our_Recent_Posts_2_117.png",
+      "filename": "unknown_unknown_1753963123538_Our_Recent_Posts_2_117.png",
       "originalName": "Our_Recent_Posts_2_117.png",
-      "path": "C:\\Users\\abhishekshar\\Desktop\\workspace\\PixelPilot\\server\\uploads\\unknown_unknown_1753958809614_Our_Recent_Posts_2_117.png",
-      "uploadedAt": "2025-07-31T10:46:49.721Z",
-      "size": 2365343,
+      "path": "C:\\Users\\abhishekshar\\Desktop\\workspace\\PixelPilot\\server\\uploads\\unknown_unknown_1753963123538_Our_Recent_Posts_2_117.png",
+      "uploadedAt": "2025-07-31T11:58:43.576Z",
+      "size": 729662,
       "isReference": true
     }
   }

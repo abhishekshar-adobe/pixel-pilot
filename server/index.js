@@ -519,21 +519,27 @@ app.post('/api/upload-screenshot', upload.single('screenshot'), async (req, res)
           throw new Error(`Viewport "${viewport}" not found in BackstopJS configuration`);
         }
         
+        // Sanitize scenario name to match BackstopJS naming convention
+        // BackstopJS replaces spaces with underscores in scenario labels
+        const sanitizedScenario = scenario.replace(/\s+/g, '_');
+        
         if (scenarioConfig && scenarioConfig.selectors && scenarioConfig.selectors.length > 0) {
           // If scenario has specific selectors, include them in filename
           // BackstopJS selector naming convention:
-          // Based on actual BackstopJS behavior: removes # and . and spaces, keeps text
+          // - Removes # and . symbols
+          // - Removes spaces around > (child selectors)
+          // - Concatenates parts without additional separators
+          // - Converts to lowercase
           const selectorName = scenarioConfig.selectors[0]
             .replace(/#/g, '') // Remove hash symbols
             .replace(/\./g, '') // Remove dots  
-            .replace(/\s*>\s*/g, '') // Remove child selectors with spaces
-            .replace(/\s+/g, '') // Remove all spaces
-            .replace(/[^a-zA-Z0-9]/g, '') // Remove all special characters
+            .replace(/\s*>\s*/g, '') // Remove child selectors and spaces
+            .replace(/\s+/g, '') // Remove remaining spaces
             .toLowerCase(); // BackstopJS uses lowercase
-          backstopFilename = `backstop_default_${scenario}_0_${selectorName}_${viewportIndex}_${viewport}.png`;
+          backstopFilename = `backstop_default_${sanitizedScenario}_0_${selectorName}_${viewportIndex}_${viewport}.png`;
         } else {
           // Full page screenshot
-          backstopFilename = `backstop_default_${scenario}_${viewportIndex}_${viewport}.png`;
+          backstopFilename = `backstop_default_${sanitizedScenario}_${viewportIndex}_${viewport}.png`;
         }
         
         const referencePath = path.join(referenceDir, backstopFilename);
@@ -612,21 +618,20 @@ app.get('/api/sync-status/:scenario/:viewport', async (req, res) => {
     }
     
     let backstopFilename;
+    
+    // Sanitize scenario name to match BackstopJS naming convention
+    const sanitizedScenario = scenario.replace(/\s+/g, '_');
+    
     if (scenarioConfig.selectors && scenarioConfig.selectors.length > 0) {
       const selectorName = scenarioConfig.selectors[0]
         .replace(/#/g, '') // Remove hash symbols
-        .replace(/\./g, '') // Remove dots
-        .replace(/\s*>\s*/g, '----') // Replace > with 4 dashes
-        .replace(/\s+/g, '--') // Replace spaces with 2 dashes
-        .replace(/#/g, '') // Remove hash symbols
         .replace(/\./g, '') // Remove dots  
-        .replace(/\s*>\s*/g, '') // Remove child selectors with spaces
-        .replace(/\s+/g, '') // Remove all spaces
-        .replace(/[^a-zA-Z0-9]/g, '') // Remove all special characters
-        .toLowerCase();
-      backstopFilename = `backstop_default_${scenario}_0_${selectorName}_${viewportIndex}_${viewport}.png`;
+        .replace(/\s*>\s*/g, '') // Remove child selectors and spaces
+        .replace(/\s+/g, '') // Remove remaining spaces
+        .toLowerCase(); // BackstopJS uses lowercase
+      backstopFilename = `backstop_default_${sanitizedScenario}_0_${selectorName}_${viewportIndex}_${viewport}.png`;
     } else {
-      backstopFilename = `backstop_default_${scenario}_${viewportIndex}_${viewport}.png`;
+      backstopFilename = `backstop_default_${sanitizedScenario}_${viewportIndex}_${viewport}.png`;
     }
     
     // Check if BackstopJS reference file exists
@@ -682,17 +687,20 @@ app.post('/api/sync-reference', async (req, res) => {
     
     // Generate backstop filename
     let backstopFilename;
+    
+    // Sanitize scenario name to match BackstopJS naming convention
+    const sanitizedScenario = scenario.replace(/\s+/g, '_');
+    
     if (scenarioConfig.selectors && scenarioConfig.selectors.length > 0) {
       const selectorName = scenarioConfig.selectors[0]
         .replace(/#/g, '') // Remove hash symbols
         .replace(/\./g, '') // Remove dots  
-        .replace(/\s*>\s*/g, '') // Remove child selectors with spaces
-        .replace(/\s+/g, '') // Remove all spaces
-        .replace(/[^a-zA-Z0-9]/g, '') // Remove all special characters
-        .toLowerCase();
-      backstopFilename = `backstop_default_${scenario}_0_${selectorName}_${viewportIndex}_${viewport}.png`;
+        .replace(/\s*>\s*/g, '') // Remove child selectors and spaces
+        .replace(/\s+/g, '') // Remove remaining spaces
+        .toLowerCase(); // BackstopJS uses lowercase
+      backstopFilename = `backstop_default_${sanitizedScenario}_0_${selectorName}_${viewportIndex}_${viewport}.png`;
     } else {
-      backstopFilename = `backstop_default_${scenario}_${viewportIndex}_${viewport}.png`;
+      backstopFilename = `backstop_default_${sanitizedScenario}_${viewportIndex}_${viewport}.png`;
     }
     
     console.log('Generated backstop filename:', backstopFilename);
@@ -1191,13 +1199,22 @@ app.post('/api/sync-references', async (req, res) => {
         const scenario = config.scenarios.find(s => s.label === data.scenario);
         
         let fileName;
+        
+        // Sanitize scenario name to match BackstopJS naming convention
+        const sanitizedScenario = data.scenario.replace(/\s+/g, '_');
+        
         if (scenario && scenario.selectors && scenario.selectors.length > 0) {
           // If scenario has specific selectors, include them in filename
-          const selectorName = scenario.selectors[0].replace(/[^a-zA-Z0-9]/g, '-').replace(/^-+|-+$/g, '');
-          fileName = `backstop_default_${data.scenario}_0_${selectorName}_0_${data.viewport}.png`;
+          const selectorName = scenario.selectors[0]
+            .replace(/#/g, '') // Remove hash symbols
+            .replace(/\./g, '') // Remove dots  
+            .replace(/\s*>\s*/g, '') // Remove child selectors and spaces
+            .replace(/\s+/g, '') // Remove remaining spaces
+            .toLowerCase(); // BackstopJS uses lowercase
+          fileName = `backstop_default_${sanitizedScenario}_0_${selectorName}_0_${data.viewport}.png`;
         } else {
           // Full page screenshot
-          fileName = `backstop_default_${data.scenario}_0_${data.viewport}.png`;
+          fileName = `backstop_default_${sanitizedScenario}_0_${data.viewport}.png`;
         }
         
         const destPath = path.join(referenceDir, fileName);
@@ -1300,7 +1317,9 @@ async function findBackstopFiles(scenario, viewport) {
     const files = await fs.readdir(referenceDir);
     
     // Look for files that match the scenario and viewport
-    const scenarioPattern = new RegExp(`backstop_default_${scenario}_.*_${viewport}\\.png$`);
+    // Sanitize scenario name for pattern matching
+    const sanitizedScenario = scenario.replace(/\s+/g, '_');
+    const scenarioPattern = new RegExp(`backstop_default_${sanitizedScenario}_.*_${viewport}\\.png$`);
     
     for (const file of files) {
       if (scenarioPattern.test(file)) {
@@ -2130,8 +2149,10 @@ app.post('/api/design-comparison/export-layers-for-upload', async (req, res) => 
 
     console.log(`Exporting layer ${layerId} from Figma for upload`);
     
-    // Get the image URL from Figma
-    const images = await figmaClient.getImages([layerId], format, scale);
+    // Get the image URL from Figma with dimension-aware scaling
+    // Convert scale to max dimension for consistent behavior
+    const maxDimension = scale * 1000; // Convert scale factor to approximate max dimension
+    const images = await figmaClient.getImagesWithDimensions([layerId], format, maxDimension);
     
     if (!images.images[layerId]) {
       throw new Error('Failed to get image URL from Figma');
@@ -2237,8 +2258,10 @@ app.post('/api/design-comparison/download-figma-layer', async (req, res) => {
       console.log('Created temporary Figma client');
     }
     
-    // Get high-quality image from Figma (scale 2 for good quality)
-    const images = await figmaClient.getImages([layerId], 'png', 2);
+    // Get high-quality image from Figma with explicit dimensions for consistent resolution
+    // Use explicit width/height instead of scale to prevent resolution issues
+    const maxDimension = 2048; // Maximum dimension to prevent excessively large images
+    const images = await figmaClient.getImagesWithDimensions([layerId], 'png', maxDimension);
     
     if (!images.images[layerId]) {
       throw new Error('Failed to get image URL from Figma');
@@ -2363,12 +2386,18 @@ app.post('/api/design-comparison/layer-thumbnails', async (req, res) => {
       console.log('Created temporary Figma client for thumbnails');
     }
     
-    // Use different scales based on size request
-    // For frames, we want better quality thumbnails
-    const scale = size === 'large' ? 0.5 : size === 'medium' ? 0.3 : 0.2;
+    // Use dimension-aware scaling for consistent thumbnail quality
+    // Define target dimensions for different thumbnail sizes
+    const targetDimensions = {
+      'small': 150,    // 150px max dimension
+      'medium': 300,   // 300px max dimension  
+      'large': 600     // 600px max dimension
+    };
     
-    // Get images with appropriate scale for frames
-    const images = await figmaClient.getImages(layerIds, 'png', scale);
+    const maxDimension = targetDimensions[size] || targetDimensions['small'];
+    
+    // Get images with proper dimension-aware scaling
+    const images = await figmaClient.getImagesWithDimensions(layerIds, 'png', maxDimension);
     
     // Return the image URLs for client-side loading
     const thumbnails = {};
@@ -2376,7 +2405,7 @@ app.post('/api/design-comparison/layer-thumbnails', async (req, res) => {
       if (imageUrl) {
         thumbnails[layerId] = {
           url: imageUrl,
-          scale: scale,
+          maxDimension: maxDimension,
           size: size
         };
       }
@@ -2385,7 +2414,7 @@ app.post('/api/design-comparison/layer-thumbnails', async (req, res) => {
     res.json({ 
       thumbnails,
       total: Object.keys(thumbnails).length,
-      scale: scale,
+      maxDimension: maxDimension,
       requestedCount: layerIds.length,
       successCount: Object.keys(thumbnails).length
     });
@@ -2434,9 +2463,10 @@ app.get('/api/design-comparison/bulk-thumbnails', async (req, res) => {
       fileKey: fileId
     });
 
-    // Use Figma's bulk image export API: /images/{file_id}?ids=ID1,ID2,ID3
+    // Use dimension-aware bulk image export with consistent scaling
     const scaleValue = parseFloat(scale) || 0.5;
-    const images = await figmaClient.getImages(layerIds, 'png', scaleValue);
+    const maxDimension = scaleValue * 1000; // Convert scale to max dimension
+    const images = await figmaClient.getImagesWithDimensions(layerIds, 'png', maxDimension);
     
     if (!images || !images.images) {
       throw new Error('Failed to get images from Figma API');

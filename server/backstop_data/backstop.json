@@ -33,7 +33,7 @@
       ],
       "delay": 0,
       "misMatchThreshold": 0.01,
-      "requireSameDimensions": true,
+      "requireSameDimensions": false,
       "removeSelectors": [],
       "onReadyScript": "puppet/onReady.js",
       "onBeforeScript": "puppet/onBefore.js"

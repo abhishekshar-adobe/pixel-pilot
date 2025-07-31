@@ -594,6 +594,157 @@ class FigmaAPIClient {
   }
 
   /**
+   * Get images with explicit dimensions to ensure consistent resolution
+   * This method fetches layer information first to calculate appropriate dimensions,
+   * preventing resolution issues that can occur with arbitrary scale values.
+   * 
+   * BENEFITS:
+   * - Prevents excessive image sizes by capping dimensions
+   * - Maintains aspect ratio while ensuring consistent quality
+   * - Calculates optimal scale based on original layer dimensions
+   * - Handles edge cases like very small or very large layers
+   * 
+   * @param {string[]} nodeIds - Array of Figma node IDs
+   * @param {string} format - Image format ('png', 'jpg', 'svg', 'pdf')
+   * @param {number} maxDimension - Maximum width or height in pixels (default: 2048)
+   * @returns {Promise<Object>} Figma images response with URLs
+   */
+  async getImagesWithDimensions(nodeIds, format = 'png', maxDimension = 2048) {
+    try {
+      // Validate inputs
+      if (!Array.isArray(nodeIds) || nodeIds.length === 0) {
+        throw new Error('nodeIds must be a non-empty array');
+      }
+      
+      if (maxDimension < 50 || maxDimension > 8192) {
+        throw new Error('maxDimension must be between 50 and 8192 pixels');
+      }
+      
+      console.log(`🎯 Fetching ${nodeIds.length} images with max dimension: ${maxDimension}px`);
+      
+      // First, get the file data to access layer dimensions
+      const fileData = await this.getFile();
+      const layerDimensions = {};
+      
+      // Extract dimensions for requested layers
+      const extractLayerDimensions = (node) => {
+        if (nodeIds.includes(node.id) && node.absoluteBoundingBox) {
+          layerDimensions[node.id] = {
+            width: node.absoluteBoundingBox.width,
+            height: node.absoluteBoundingBox.height
+          };
+        }
+        
+        // Recursively check children
+        if (node.children) {
+          node.children.forEach(extractLayerDimensions);
+        }
+      };
+      
+      // Search through all pages and layers
+      if (fileData.document && fileData.document.children) {
+        fileData.document.children.forEach(page => {
+          if (page.children) {
+            page.children.forEach(extractLayerDimensions);
+          }
+        });
+      }
+      
+      console.log(`📐 Found dimensions for ${Object.keys(layerDimensions).length}/${nodeIds.length} layers`);
+      
+      // For each layer, determine optimal dimensions
+      const imageRequests = nodeIds.map(async (nodeId) => {
+        const dimensions = layerDimensions[nodeId];
+        let params = {
+          ids: nodeId,
+          format
+        };
+        
+        if (dimensions) {
+          const { width, height } = dimensions;
+          
+          // Skip layers that are too small (likely decorative elements)
+          if (width < 1 || height < 1) {
+            console.log(`⚠️ Skipping layer ${nodeId}: too small (${width}x${height})`);
+            return { nodeId, error: 'Layer too small' };
+          }
+          
+          const aspectRatio = width / height;
+          
+          // Calculate dimensions that fit within maxDimension while preserving aspect ratio
+          let targetWidth, targetHeight;
+          
+          if (width > height) {
+            // Landscape orientation
+            targetWidth = Math.min(width, maxDimension);
+            targetHeight = Math.round(targetWidth / aspectRatio);
+          } else {
+            // Portrait orientation  
+            targetHeight = Math.min(height, maxDimension);
+            targetWidth = Math.round(targetHeight * aspectRatio);
+          }
+          
+          // Calculate appropriate scale based on desired vs original dimensions
+          const scaleX = targetWidth / width;
+          const scaleY = targetHeight / height;
+          const scale = Math.min(scaleX, scaleY, 4); // Cap at 4x scale to prevent excessive file sizes
+          
+          // Use minimum scale of 0.1 to ensure readability
+          params.scale = Math.max(0.1, Math.min(scale, 4));
+          
+          console.log(`📏 Layer ${nodeId}: ${width}x${height} -> scale: ${params.scale.toFixed(2)} (target: ${targetWidth}x${targetHeight})`);
+        } else {
+          // Fallback to reasonable scale if dimensions not found
+          // This might happen for text layers or other special elements
+          params.scale = Math.min(2, maxDimension / 500); // Reasonable fallback
+          console.log(`🔍 Layer ${nodeId}: dimensions not found, using fallback scale: ${params.scale.toFixed(2)}`);
+        }
+        
+        try {
+          const response = await this.axios.get(`/images/${this.fileKey}`, { params });
+          return { nodeId, response: response.data };
+        } catch (error) {
+          console.error(`❌ Failed to fetch image for layer ${nodeId}:`, error.message);
+          return { nodeId, error: error.message };
+        }
+      });
+      
+      // Execute all requests in parallel with error handling
+      const results = await Promise.all(imageRequests);
+      
+      // Combine successful results into single response format
+      const combinedImages = {};
+      const errors = [];
+      
+      results.forEach(result => {
+        if (result.error) {
+          errors.push({ nodeId: result.nodeId, error: result.error });
+        } else if (result.response && result.response.images && result.response.images[result.nodeId]) {
+          combinedImages[result.nodeId] = result.response.images[result.nodeId];
+        } else {
+          errors.push({ nodeId: result.nodeId, error: 'No image URL returned' });
+        }
+      });
+      
+      console.log(`✅ Successfully fetched ${Object.keys(combinedImages).length}/${nodeIds.length} images`);
+      
+      if (errors.length > 0) {
+        console.warn(`⚠️ ${errors.length} images failed:`, errors);
+      }
+      
+      return {
+        images: combinedImages,
+        errors: errors.length > 0 ? errors : null,
+        err: null
+      };
+      
+    } catch (error) {
+      console.error('❌ Error fetching Figma images with dimensions:', error.message);
+      throw error;
+    }
+  }
+
+  /**
    * Cache design tokens to file
    */
   async cacheDesignTokens(filePath) {

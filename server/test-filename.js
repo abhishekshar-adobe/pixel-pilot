@@ -39,13 +39,17 @@ async function testSync() {
       const viewportIndex = config.viewports.findIndex(v => v.label === viewport);
       const scenarioConfig = config.scenarios.find(s => s.label === scenario);
       
+      // Sanitize scenario name to match BackstopJS naming convention
+      const sanitizedScenario = scenario.replace(/\s+/g, '_');
+      
       if (scenarioConfig && scenarioConfig.selectors) {
         const selectorName = scenarioConfig.selectors[0]
-          .replace(/^\./, '')
-          .replace(/[^a-zA-Z0-9]/g, '-')
-          .replace(/^-+|-+$/g, '')
-          .toLowerCase();
-        const backstopFilename = `backstop_default_${scenario}_0_${selectorName}_${viewportIndex}_${viewport}.png`;
+          .replace(/#/g, '') // Remove hash symbols
+          .replace(/\./g, '') // Remove dots  
+          .replace(/\s*>\s*/g, '') // Remove child selectors and spaces
+          .replace(/\s+/g, '') // Remove remaining spaces
+          .toLowerCase(); // BackstopJS uses lowercase
+        const backstopFilename = `backstop_default_${sanitizedScenario}_0_${selectorName}_${viewportIndex}_${viewport}.png`;
         
         console.log('Expected backstop filename:', backstopFilename);
         
