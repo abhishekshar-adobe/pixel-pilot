@@ -230,7 +230,10 @@ function ConfigEditor() {
   }
 
   return (
-    <Box sx={{ maxWidth: '1400px', mx: 'auto' }}>
+    <Box sx={{ 
+      width: '100%', 
+      p: 3
+    }}>
       {/* Header Section */}
       <Box sx={{ mb: 4 }}>
         <Stack direction="row" alignItems="center" spacing={2} sx={{ mb: 2 }}>
@@ -353,6 +356,7 @@ function ConfigEditor() {
         )}
       </Box>
 
+      {/* Main Content */}
       <Grid container spacing={4}>
         {/* Left Panel - Basic Configuration */}
         <Grid item xs={12} lg={6}>

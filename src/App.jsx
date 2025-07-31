@@ -1,6 +1,6 @@
 import { BrowserRouter as Router, Routes, Route, useLocation, useNavigate } from 'react-router-dom'
 import { ThemeProvider } from '@mui/material/styles'
-import { CssBaseline, Container, AppBar, Toolbar, Typography, Tabs, Tab, Box } from '@mui/material'
+import { CssBaseline, AppBar, Toolbar, Typography, Tabs, Tab, Box } from '@mui/material'
 import { PhotoCameraOutlined, SettingsOutlined, PlayArrowOutlined, UploadFileOutlined, CompareArrowsOutlined } from '@mui/icons-material'
 import ConfigEditor from './components/ConfigEditor'
 import ScenarioManager from './components/ScenarioManager'
@@ -31,18 +31,22 @@ function AppContent() {
   }
 
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
+    <Box sx={{ 
+      minHeight: '100vh',
+      width: '100%',
+      display: 'flex',
+      flexDirection: 'column'
+    }}>
       <AppBar position="static" elevation={0} sx={{ 
         backgroundColor: 'background.paper', 
         borderBottom: 1, 
-        borderColor: 'divider',
-        mb: 3
+        borderColor: 'divider'
       }}>
-        <Container maxWidth="xl">
-          <Toolbar sx={{ px: 0 }}>
+        <Box sx={{ width: '100%', px: 2 }}>
+          <Toolbar sx={{ px: 0, minHeight: 64 }}>
             <PhotoCameraOutlined sx={{ mr: 2, color: 'primary.main' }} />
             <Typography 
-              variant="h4" 
+              variant="h5" 
               component="h1" 
               sx={{ 
                 flexGrow: 1, 
@@ -74,37 +78,40 @@ function AppContent() {
               icon={<SettingsOutlined />} 
               label="Configuration" 
               iconPosition="start"
-              sx={{ textTransform: 'none', fontWeight: 500, minHeight: 64 }}
+              sx={{ textTransform: 'none', fontWeight: 500, minHeight: 48 }}
             />
             <Tab 
               icon={<PhotoCameraOutlined />} 
               label="Scenarios" 
               iconPosition="start"
-              sx={{ textTransform: 'none', fontWeight: 500, minHeight: 64 }}
+              sx={{ textTransform: 'none', fontWeight: 500, minHeight: 48 }}
             />
             <Tab 
               icon={<UploadFileOutlined />} 
               label="Upload Screenshots" 
               iconPosition="start"
-              sx={{ textTransform: 'none', fontWeight: 500, minHeight: 64 }}
+              sx={{ textTransform: 'none', fontWeight: 500, minHeight: 48 }}
             />
             <Tab 
               icon={<PlayArrowOutlined />} 
               label="Run Tests" 
               iconPosition="start"
-              sx={{ textTransform: 'none', fontWeight: 500, minHeight: 64 }}
+              sx={{ textTransform: 'none', fontWeight: 500, minHeight: 48 }}
             />
             <Tab 
               icon={<CompareArrowsOutlined />} 
               label="Design Comparison" 
               iconPosition="start"
-              sx={{ textTransform: 'none', fontWeight: 500, minHeight: 64 }}
+              sx={{ textTransform: 'none', fontWeight: 500, minHeight: 48 }}
             />
           </Tabs>
-        </Container>
+        </Box>
       </AppBar>
 
-      <Container maxWidth="xl" sx={{ px: 3, flex: 1 }}>
+      <Box sx={{ 
+        flex: 1, 
+        width: '100%'
+      }}>
         <Routes>
           <Route path="/" element={<ConfigEditor />} />
           <Route path="/scenarios" element={<ScenarioManager />} />
@@ -112,7 +119,7 @@ function AppContent() {
           <Route path="/test" element={<TestRunner />} />
           <Route path="/design-comparison" element={<DesignComparison />} />
         </Routes>
-      </Container>
+      </Box>
 
       <Footer />
     </Box>

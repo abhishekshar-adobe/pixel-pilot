@@ -493,7 +493,10 @@ const DesignComparison = () => {
   };
 
   return (
-    <Box sx={{ p: 3 }}>
+    <Box sx={{ 
+      width: '100%', 
+      p: 3
+    }}>
       <Typography variant="h4" component="h1" gutterBottom sx={{ color: 'primary.main' }}>
         Design-to-Code Comparison
       </Typography>

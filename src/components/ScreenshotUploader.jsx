@@ -700,7 +700,10 @@ const ScreenshotUploader = () => {
   }
 
   return (
-    <Box sx={{ maxWidth: 1400, mx: 'auto', p: 3 }}>
+    <Box sx={{ 
+      width: '100%', 
+      p: 3
+    }}>
       {/* Message Display */}
       {message && (
         <Alert 
