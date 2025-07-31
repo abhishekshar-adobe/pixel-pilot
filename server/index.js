@@ -2097,7 +2097,7 @@ app.get('/api/design-comparison/layer-elements', async (req, res) => {
 app.post('/api/design-comparison/export-layers', async (req, res) => {
   try {
     const figmaToken = req.headers['x-figma-token'];
-    const { fileId, layerIds, format = 'png', scale = 1 } = req.body;
+    const { fileId, layerIds, format = 'jpg', scale = 1 } = req.body;
 
     if (!figmaToken || !fileId || !layerIds || !Array.isArray(layerIds) || layerIds.length === 0) {
       return res.status(400).json({ 
@@ -2132,7 +2132,7 @@ app.post('/api/design-comparison/export-layers', async (req, res) => {
 app.post('/api/design-comparison/export-layers-for-upload', async (req, res) => {
   try {
     const figmaToken = req.headers['x-figma-token'];
-    const { fileId, layerId, format = 'png', scale = 2, layerName = 'figma-layer' } = req.body;
+    const { fileId, layerId, format = 'jpg', scale = 2, layerName = 'figma-layer' } = req.body;
 
     if (!figmaToken || !fileId || !layerId) {
       return res.status(400).json({ 
@@ -2261,7 +2261,7 @@ app.post('/api/design-comparison/download-figma-layer', async (req, res) => {
     // Get high-quality image from Figma with explicit dimensions for consistent resolution
     // Use explicit width/height instead of scale to prevent resolution issues
     const maxDimension = 2048; // Maximum dimension to prevent excessively large images
-    const images = await figmaClient.getImagesWithDimensions([layerId], 'png', maxDimension);
+    const images = await figmaClient.getImagesWithDimensions([layerId], 'jpg', maxDimension);
     
     if (!images.images[layerId]) {
       throw new Error('Failed to get image URL from Figma');
@@ -2290,7 +2290,7 @@ app.post('/api/design-comparison/download-figma-layer', async (req, res) => {
     // Create a safe filename by sanitizing both layer name and layer ID
     const safeLayerName = (layerName || 'figma-layer').replace(/[^a-zA-Z0-9_-]/g, '_');
     const safeLayerId = layerId.replace(/[^a-zA-Z0-9_-]/g, '_'); // Replace colon and other invalid chars
-    const fileName = `${safeLayerName}_${safeLayerId}.png`;
+    const fileName = `${safeLayerName}_${safeLayerId}.jpg`;
     
     console.log('Filename generation:', {
       original: { layerName, layerId },
@@ -2310,9 +2310,9 @@ app.post('/api/design-comparison/download-figma-layer', async (req, res) => {
     res.json({
       success: true,
       fileName,
-      imageData: `data:image/png;base64,${base64Image}`,
+      imageData: `data:image/jpeg;base64,${base64Image}`,
       size: imageResponse.data.byteLength,
-      contentType: 'image/png'
+      contentType: 'image/jpeg'
     });
 
   } catch (error) {
@@ -2397,7 +2397,7 @@ app.post('/api/design-comparison/layer-thumbnails', async (req, res) => {
     const maxDimension = targetDimensions[size] || targetDimensions['small'];
     
     // Get images with proper dimension-aware scaling
-    const images = await figmaClient.getImagesWithDimensions(layerIds, 'png', maxDimension);
+    const images = await figmaClient.getImagesWithDimensions(layerIds, 'jpg', maxDimension);
     
     // Return the image URLs for client-side loading
     const thumbnails = {};
@@ -2466,7 +2466,7 @@ app.get('/api/design-comparison/bulk-thumbnails', async (req, res) => {
     // Use dimension-aware bulk image export with consistent scaling
     const scaleValue = parseFloat(scale) || 0.5;
     const maxDimension = scaleValue * 1000; // Convert scale to max dimension
-    const images = await figmaClient.getImagesWithDimensions(layerIds, 'png', maxDimension);
+    const images = await figmaClient.getImagesWithDimensions(layerIds, 'jpg', maxDimension);
     
     if (!images || !images.images) {
       throw new Error('Failed to get images from Figma API');

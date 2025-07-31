@@ -662,7 +662,7 @@ const ScreenshotUploader = () => {
         byteNumbers[i] = byteCharacters.charCodeAt(i)
       }
       const byteArray = new Uint8Array(byteNumbers)
-      const imageFile = new File([byteArray], downloadResponse.data.fileName, { type: 'image/png' })
+      const imageFile = new File([byteArray], downloadResponse.data.fileName, { type: 'image/jpeg' })
       
       // Upload the file through the regular screenshot upload endpoint
       const formData = new FormData()

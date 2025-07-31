@@ -390,7 +390,7 @@ class FigmaAPIClient {
   async exportLayers(layerIds, options = {}) {
     try {
       const {
-        format = 'png',
+        format = 'jpg',
         scale = 1,
         useAbsoluteBounds = false
       } = options;
@@ -577,7 +577,7 @@ class FigmaAPIClient {
   /**
    * Get images/exports from Figma
    */
-  async getImages(nodeIds, format = 'png', scale = 1) {
+  async getImages(nodeIds, format = 'jpg', scale = 1) {
     try {
       const response = await this.axios.get(`/images/${this.fileKey}`, {
         params: {
@@ -605,11 +605,11 @@ class FigmaAPIClient {
    * - Handles edge cases like very small or very large layers
    * 
    * @param {string[]} nodeIds - Array of Figma node IDs
-   * @param {string} format - Image format ('png', 'jpg', 'svg', 'pdf')
+   * @param {string} format - Image format ('jpg', 'png', 'svg', 'pdf')
    * @param {number} maxDimension - Maximum width or height in pixels (default: 2048)
    * @returns {Promise<Object>} Figma images response with URLs
    */
-  async getImagesWithDimensions(nodeIds, format = 'png', maxDimension = 2048) {
+  async getImagesWithDimensions(nodeIds, format = 'jpg', maxDimension = 2048) {
     try {
       // Validate inputs
       if (!Array.isArray(nodeIds) || nodeIds.length === 0) {

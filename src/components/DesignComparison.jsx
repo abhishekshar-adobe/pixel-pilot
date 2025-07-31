@@ -87,7 +87,7 @@ const DesignComparison = () => {
   const [reportDialogOpen, setReportDialogOpen] = useState(false);
   const [layersDialogOpen, setLayersDialogOpen] = useState(false);
   const [exportDialogOpen, setExportDialogOpen] = useState(false);
-  const [exportFormat, setExportFormat] = useState('png');
+  const [exportFormat, setExportFormat] = useState('jpg');
   const [exportScale, setExportScale] = useState(1);
   const [selectedReport, setSelectedReport] = useState(null);
   
@@ -288,7 +288,7 @@ const DesignComparison = () => {
     );
   };
 
-  const exportSelectedLayers = async (format = 'png', scale = 1) => {
+  const exportSelectedLayers = async (format = 'jpg', scale = 1) => {
     if (selectedLayers.length === 0) {
       setSnackbar({
         open: true,

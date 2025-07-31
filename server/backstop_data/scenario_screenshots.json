@@ -483,14 +483,22 @@
         "uploadedAt": "2025-07-31T11:58:43.576Z",
         "size": 729662,
         "isReference": true
+      },
+      {
+        "filename": "unknown_unknown_1753966334389_Our_Recent_Posts_2_117.jpg",
+        "originalName": "Our_Recent_Posts_2_117.jpg",
+        "path": "C:\\Users\\abhishekshar\\Desktop\\workspace\\PixelPilot\\server\\uploads\\unknown_unknown_1753966334389_Our_Recent_Posts_2_117.jpg",
+        "uploadedAt": "2025-07-31T12:52:14.413Z",
+        "size": 548106,
+        "isReference": true
       }
     ],
     "referenceScreenshot": {
-      "filename": "unknown_unknown_1753963123538_Our_Recent_Posts_2_117.png",
-      "originalName": "Our_Recent_Posts_2_117.png",
-      "path": "C:\\Users\\abhishekshar\\Desktop\\workspace\\PixelPilot\\server\\uploads\\unknown_unknown_1753963123538_Our_Recent_Posts_2_117.png",
-      "uploadedAt": "2025-07-31T11:58:43.576Z",
-      "size": 729662,
+      "filename": "unknown_unknown_1753966334389_Our_Recent_Posts_2_117.jpg",
+      "originalName": "Our_Recent_Posts_2_117.jpg",
+      "path": "C:\\Users\\abhishekshar\\Desktop\\workspace\\PixelPilot\\server\\uploads\\unknown_unknown_1753966334389_Our_Recent_Posts_2_117.jpg",
+      "uploadedAt": "2025-07-31T12:52:14.413Z",
+      "size": 548106,
       "isReference": true
     }
   }
