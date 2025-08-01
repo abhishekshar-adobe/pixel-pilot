@@ -1115,13 +1115,14 @@ const ScreenshotUploader = () => {
         <DialogTitle sx={{ 
           background: 'linear-gradient(135deg, #2196f3 0%, #1565c0 100%)',
           color: 'white',
-          p: 3
+          p: 3,
+          position: 'relative'
         }}>
           <Stack direction="row" alignItems="center" spacing={2}>
             <Avatar sx={{ bgcolor: 'rgba(255,255,255,0.2)' }}>
               <Layers />
             </Avatar>
-            <Box>
+            <Box sx={{ flex: 1 }}>
               <Typography variant="h5" sx={{ fontWeight: 600 }}>
                 Import from Figma
               </Typography>
@@ -1129,6 +1130,55 @@ const ScreenshotUploader = () => {
                 {currentViewport ? `For ${currentViewport.label} (${currentViewport.width}×${currentViewport.height})` : ''}
               </Typography>
             </Box>
+            {/* Show search/filter only on Browse Layers tab */}
+            {tabValue === 2 && selectedPage && (
+              <Stack direction="row" spacing={2} alignItems="center" sx={{ ml: 4, bgcolor: 'rgba(255,255,255,0.10)', p: 1.5, borderRadius: 2, minWidth: 400 }}>
+                <TextField
+                  placeholder="Search layers..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  size="small"
+                  InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <Search />
+                      </InputAdornment>
+                    )
+                  }}
+                  sx={{ bgcolor: 'white', borderRadius: 1, minWidth: 180 }}
+                />
+                <FormControl size="small" sx={{ minWidth: 120, bgcolor: 'white', borderRadius: 1 }}>
+                  <InputLabel>Type Filter</InputLabel>
+                  <Select
+                    value={layerTypeFilter}
+                    onChange={(e) => setLayerTypeFilter(e.target.value)}
+                    label="Type Filter"
+                  >
+                    <MenuItem value="all">All Types</MenuItem>
+                    <MenuItem value="FRAME">Frames</MenuItem>
+                    <MenuItem value="COMPONENT">Components</MenuItem>
+                    <MenuItem value="INSTANCE">Instances</MenuItem>
+                    <MenuItem value="GROUP">Groups</MenuItem>
+                    <MenuItem value="RECTANGLE">Rectangles</MenuItem>
+                    <MenuItem value="TEXT">Text</MenuItem>
+                  </Select>
+                </FormControl>
+                <Button
+                  variant={showFramesOnly ? "contained" : "outlined"}
+                  onClick={() => setShowFramesOnly(!showFramesOnly)}
+                  startIcon={<FilterAlt />}
+                  size="small"
+                  sx={{ bgcolor: showFramesOnly ? 'primary.main' : 'white', color: showFramesOnly ? 'white' : 'primary.main', borderRadius: 1 }}
+                >
+                  Frames Only
+                </Button>
+                {layerFilterSummary && (
+                  <Typography variant="caption" color="white" sx={{ ml: 2 }}>
+                    Showing {filteredLayers.length} of {layerFilterSummary.total} layers
+                  </Typography>
+                )}
+              </Stack>
+            )}
           </Stack>
         </DialogTitle>
         
@@ -1170,7 +1220,6 @@ const ScreenshotUploader = () => {
           {tabValue === 1 && (
             <Box 
               sx={{ p: 3, height: 'calc(100vh - 300px)', overflow: 'auto' }}
-              onScroll={(e) => handleScroll(e, 'pages')}
             >
               <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 3 }}>
                 <Typography variant="h6" sx={{ fontWeight: 600 }}>
@@ -1323,7 +1372,14 @@ const ScreenshotUploader = () => {
                   )}
                 </Grid>
                 
-                {/* Load More Indicator for Pages */}
+                {/* Load More Button for Pages */}
+                {pagesPagination.hasMore && !loadingMorePages && figmaPages.length > 0 && (
+                  <Box sx={{ textAlign: 'center', mt: 3, py: 2 }}>
+                    <Button variant="outlined" onClick={() => loadFigmaPages(true)}>
+                      Load More Pages
+                    </Button>
+                  </Box>
+                )}
                 {loadingMorePages && (
                   <Box sx={{ display: 'flex', justifyContent: 'center', mt: 3 }}>
                     <Stack alignItems="center" spacing={1}>
@@ -1334,7 +1390,6 @@ const ScreenshotUploader = () => {
                     </Stack>
                   </Box>
                 )}
-                
                 {!pagesPagination.hasMore && figmaPages.length > 0 && (
                   <Box sx={{ textAlign: 'center', mt: 3, py: 2 }}>
                     <Typography variant="caption" color="text.secondary">
@@ -1350,55 +1405,7 @@ const ScreenshotUploader = () => {
           {tabValue === 2 && selectedPage && (
             <Box 
               sx={{ p: 3, height: 'calc(100vh - 300px)', overflow: 'auto' }}
-              onScroll={(e) => handleScroll(e, 'layers')}
             >
-              {/* Search and Filter Controls */}
-              <Stack spacing={2} sx={{ mb: 3, position: 'sticky', top: 0, bgcolor: 'background.paper', zIndex: 1, pb: 2 }}>
-                <TextField
-                  placeholder="Search layers..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  size="small"
-                  InputProps={{
-                    startAdornment: (
-                      <InputAdornment position="start">
-                        <Search />
-                      </InputAdornment>
-                    )
-                  }}
-                />
-                <Stack direction="row" spacing={2}>
-                  <FormControl size="small" sx={{ minWidth: 120 }}>
-                    <InputLabel>Type Filter</InputLabel>
-                    <Select
-                      value={layerTypeFilter}
-                      onChange={(e) => setLayerTypeFilter(e.target.value)}
-                      label="Type Filter"
-                    >
-                      <MenuItem value="all">All Types</MenuItem>
-                      <MenuItem value="FRAME">Frames</MenuItem>
-                      <MenuItem value="COMPONENT">Components</MenuItem>
-                      <MenuItem value="INSTANCE">Instances</MenuItem>
-                      <MenuItem value="GROUP">Groups</MenuItem>
-                      <MenuItem value="RECTANGLE">Rectangles</MenuItem>
-                      <MenuItem value="TEXT">Text</MenuItem>
-                    </Select>
-                  </FormControl>
-                  <Button
-                    variant={showFramesOnly ? "contained" : "outlined"}
-                    onClick={() => setShowFramesOnly(!showFramesOnly)}
-                    startIcon={<FilterAlt />}
-                    size="small"
-                  >
-                    Frames Only
-                  </Button>
-                </Stack>
-                {layerFilterSummary && (
-                  <Typography variant="caption" color="text.secondary">
-                    Showing {filteredLayers.length} of {layerFilterSummary.total} layers
-                  </Typography>
-                )}
-              </Stack>
 
               {/* Layer Browser Content */}
               {loadingLayers ? (
@@ -1419,7 +1426,7 @@ const ScreenshotUploader = () => {
                 <>
                   <Grid container spacing={2}>
                     {filteredLayers.map((layer) => (
-                    <Grid item xs={12} sm={6} md={4} key={layer.id}>
+                    <Grid item xs={12} sm={6} md={4} key={layer.id} sx={{ display: 'flex', justifyContent: 'center' }}>
                       <Tooltip
                         title={
                           <Box sx={{ p: 1 }}>
@@ -1459,38 +1466,57 @@ const ScreenshotUploader = () => {
                         placement="top"
                         arrow
                       >
-                        <Card 
-                          sx={{ 
-                            borderRadius: 2,
-                            cursor: 'pointer',
-                            border: selectedLayer?.id === layer.id ? '2px solid' : '1px solid',
-                            borderColor: selectedLayer?.id === layer.id ? 'primary.main' : 'divider',
-                            transition: 'all 0.2s ease',
-                            '&:hover': {
-                              transform: 'translateY(-2px)',
-                              boxShadow: 3
-                            }
-                          }}
+                      <Card 
+                        sx={{ 
+                          borderRadius: 2,
+                          cursor: 'pointer',
+                          border: selectedLayer?.id === layer.id ? '2px solid' : '1px solid',
+                          borderColor: selectedLayer?.id === layer.id ? 'primary.main' : 'divider',
+                          transition: 'all 0.2s ease',
+                          '&:hover': {
+                            transform: 'translateY(-2px)',
+                            boxShadow: 3
+                          },
+                          height: 320,
+                          width: 260,
+                          minWidth: 260,
+                          maxWidth: 260,
+                          display: 'flex',
+                          flexDirection: 'column',
+                          justifyContent: 'flex-start',
+                          alignItems: 'stretch',
+                        }}
                         onClick={() => setSelectedLayer(layer)}
                       >
-                      {/* Layer Thumbnail */}
-                      <Box sx={{ 
-                        height: 150, 
-                        bgcolor: 'grey.100',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        position: 'relative',
-                        overflow: 'hidden'
-                      }}>
+                        {/* Layer Thumbnail */}
+                        <Box sx={{ 
+                          height: 150, 
+                          minHeight: 150,
+                          maxHeight: 150,
+                          width: '100%',
+                          bgcolor: 'grey.100',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          position: 'relative',
+                          overflow: 'hidden',
+                          borderTopLeftRadius: 8,
+                          borderTopRightRadius: 8
+                        }}>
                         {layerThumbnails[layer.id] ? (
                           <img
                             src={layerThumbnails[layer.id]}
                             alt={layer.name}
                             style={{
                               maxWidth: '100%',
-                              maxHeight: '100%',
-                              objectFit: 'contain'
+                              maxHeight: '120px',
+                              width: 'auto',
+                              height: 'auto',
+                              display: 'block',
+                              margin: '0 auto',
+                              objectFit: 'contain',
+                              borderRadius: 8,
+                              boxShadow: '0 2px 8px rgba(0,0,0,0.04)'
                             }}
                           />
                         ) : (
@@ -1699,7 +1725,14 @@ const ScreenshotUploader = () => {
                   )}
                 </Grid>
                   <>
-                    {/* Load More Indicator for Layers */}
+                    {/* Load More Button for Layers */}
+                    {layersPagination.hasMore && !loadingMoreLayers && filteredLayers.length > 0 && (
+                      <Box sx={{ textAlign: 'center', mt: 3, py: 2 }}>
+                        <Button variant="outlined" onClick={() => loadFigmaLayers(selectedPage?.id, true)}>
+                          Load More Layers
+                        </Button>
+                      </Box>
+                    )}
                     {loadingMoreLayers && (
                       <Box sx={{ display: 'flex', justifyContent: 'center', mt: 3 }}>
                         <Stack alignItems="center" spacing={1}>
@@ -1710,7 +1743,6 @@ const ScreenshotUploader = () => {
                         </Stack>
                       </Box>
                     )}
-                    
                     {!layersPagination.hasMore && filteredLayers.length > 0 && (
                       <Box sx={{ textAlign: 'center', mt: 3, py: 2 }}>
                         <Typography variant="caption" color="text.secondary">
@@ -1727,7 +1759,6 @@ const ScreenshotUploader = () => {
           {tabValue === 3 && selectedLayer && (
             <Box 
               sx={{ p: 3, height: 'calc(100vh - 300px)', overflow: 'auto' }}
-              onScroll={(e) => handleScroll(e, 'elements')}
             >
               <Box sx={{ mb: 3 }}>
                 <Typography variant="h6" sx={{ fontWeight: 600 }}>
@@ -1911,7 +1942,14 @@ const ScreenshotUploader = () => {
                   )}
                 </Grid>
                 
-                {/* Load More Indicator for Elements */}
+                {/* Load More Button for Elements */}
+                {elementsPagination.hasMore && !loadingMoreElements && layerElements.length > 0 && (
+                  <Box sx={{ textAlign: 'center', mt: 3, py: 2 }}>
+                    <Button variant="outlined" onClick={() => loadFigmaElements(true)}>
+                      Load More Elements
+                    </Button>
+                  </Box>
+                )}
                 {loadingMoreElements && (
                   <Box sx={{ display: 'flex', justifyContent: 'center', mt: 3 }}>
                     <Stack alignItems="center" spacing={1}>
@@ -1922,7 +1960,6 @@ const ScreenshotUploader = () => {
                     </Stack>
                   </Box>
                 )}
-                
                 {!elementsPagination.hasMore && layerElements.length > 0 && (
                   <Box sx={{ textAlign: 'center', mt: 3, py: 2 }}>
                     <Typography variant="caption" color="text.secondary">

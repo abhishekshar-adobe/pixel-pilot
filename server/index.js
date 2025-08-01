@@ -1927,12 +1927,20 @@ app.get('/api/design-comparison/layers', async (req, res) => {
     } else {
       // Fallback to all layers for backward compatibility
       layers = await figmaClient.getLayersList(pageId);
-      
+
       // Apply legacy filters
       if (type) {
         const types = type.split(',');
         layers = figmaClient.filterLayersByType(layers, types);
       }
+
+      // Apply minWidth/minHeight filtering
+      const minW = parseInt(minWidth, 10) || 0;
+      const minH = parseInt(minHeight, 10) || 0;
+      layers = layers.filter(layer => {
+        if (!layer.bounds) return false;
+        return layer.bounds.width >= minW && layer.bounds.height >= minH;
+      });
     }
 
     console.log(`✅ Found ${layers.length} layers after filtering`);
@@ -1948,9 +1956,13 @@ app.get('/api/design-comparison/layers', async (req, res) => {
     // Store total count before pagination
     const totalLayers = layers.length;
 
+    // Parse pagination params as integers
+    const pageNum = parseInt(page, 10) || 1;
+    const limitNum = parseInt(limit, 10) || 30;
+
     // Apply pagination
-    const startIndex = (page - 1) * limit;
-    const endIndex = startIndex + limit;
+    const startIndex = (pageNum - 1) * limitNum;
+    const endIndex = startIndex + limitNum;
     const paginatedLayers = layers.slice(startIndex, endIndex);
     const hasMore = endIndex < totalLayers;
 
@@ -1990,8 +2002,8 @@ app.get('/api/design-comparison/layers', async (req, res) => {
     res.json({
       layers: paginatedLayers,
       total: totalLayers,
-      page: page,
-      limit: limit,
+      page: pageNum,
+      limit: limitNum,
       hasMore: hasMore,
       summary
     });
