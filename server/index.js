@@ -5,6 +5,8 @@ const fs = require('fs-extra');
 const path = require('path');
 const backstop = require('backstopjs');
 const sharp = require('sharp');
+const axios = require('axios');
+const archiver = require('archiver');
 const { DesignComparisonEngine } = require('./design-comparison-engine');
 
 const app = express();
@@ -1671,33 +1673,70 @@ app.post('/api/design-comparison/batch', async (req, res) => {
 app.get('/api/design-comparison/reports', async (req, res) => {
   try {
     const reportsDir = path.join(__dirname, 'design-cache');
+    const enhancedReportsDir = path.join(reportsDir, 'enhanced-reports');
     
-    if (!await fs.pathExists(reportsDir)) {
-      return res.json({ reports: [] });
-    }
-
-    const files = await fs.readdir(reportsDir);
     const reports = [];
 
-    for (const file of files) {
-      if (file.endsWith('.json') && file.startsWith('design-comparison-')) {
-        try {
-          const filePath = path.join(reportsDir, file);
-          const reportData = await fs.readJson(filePath);
-          const stats = await fs.stat(filePath);
-          
-          reports.push({
-            filename: file,
-            htmlFilename: file.replace('.json', '.html'),
-            scenario: reportData.metadata?.scenario,
-            url: reportData.metadata?.url,
-            timestamp: reportData.metadata?.timestamp,
-            totalMismatches: reportData.statistics?.totalMismatches || 0,
-            size: stats.size,
-            created: stats.birthtime
-          });
-        } catch (error) {
-          console.error(`Error reading report ${file}:`, error);
+    // Check for enhanced reports in enhanced-reports subdirectory
+    if (await fs.pathExists(enhancedReportsDir)) {
+      const enhancedFiles = await fs.readdir(enhancedReportsDir);
+      
+      for (const file of enhancedFiles) {
+        if (file.endsWith('.html') && file.startsWith('enhanced-report-')) {
+          try {
+            const filePath = path.join(enhancedReportsDir, file);
+            const stats = await fs.stat(filePath);
+            
+            // Extract timestamp from filename: enhanced-report-2025-08-01T06-27-27-046Z.html
+            const timestampMatch = file.match(/enhanced-report-(.+)\.html$/);
+            const timestamp = timestampMatch ? timestampMatch[1].replace(/-/g, ':').replace(/(\d{4}):(\d{2}):(\d{2})T/, '$1-$2-$3T') : null;
+            
+            reports.push({
+              filename: file,
+              type: 'enhanced',
+              name: `Enhanced Analysis Report`,
+              scenario: 'Enhanced Design Comparison',
+              url: 'Multiple scenarios analyzed',
+              timestamp: timestamp || stats.birthtime.toISOString(),
+              reportUrl: `/api/design-comparison/reports/${file}/html`,
+              size: stats.size,
+              created: stats.birthtime,
+              path: filePath
+            });
+          } catch (error) {
+            console.error(`Error reading enhanced report ${file}:`, error);
+          }
+        }
+      }
+    }
+
+    // Check for legacy design comparison reports in main directory
+    if (await fs.pathExists(reportsDir)) {
+      const files = await fs.readdir(reportsDir);
+      
+      for (const file of files) {
+        if (file.endsWith('.json') && file.startsWith('design-comparison-')) {
+          try {
+            const filePath = path.join(reportsDir, file);
+            const reportData = await fs.readJson(filePath);
+            const stats = await fs.stat(filePath);
+            
+            reports.push({
+              filename: file,
+              type: 'legacy',
+              htmlFilename: file.replace('.json', '.html'),
+              name: `Design Comparison - ${reportData.metadata?.scenario || 'Unknown'}`,
+              scenario: reportData.metadata?.scenario,
+              url: reportData.metadata?.url,
+              timestamp: reportData.metadata?.timestamp,
+              totalMismatches: reportData.statistics?.totalMismatches || 0,
+              size: stats.size,
+              created: stats.birthtime,
+              reportUrl: `/api/design-comparison/reports/${file}/html`
+            });
+          } catch (error) {
+            console.error(`Error reading legacy report ${file}:`, error);
+          }
         }
       }
     }
@@ -1705,6 +1744,7 @@ app.get('/api/design-comparison/reports', async (req, res) => {
     // Sort by creation time (newest first)
     reports.sort((a, b) => new Date(b.created) - new Date(a.created));
 
+    console.log(`📊 Found ${reports.length} design comparison reports`);
     res.json({ reports });
 
   } catch (error) {
@@ -1736,10 +1776,19 @@ app.get('/api/design-comparison/reports/:filename', async (req, res) => {
 app.get('/api/design-comparison/reports/:filename/html', async (req, res) => {
   try {
     const { filename } = req.params;
-    const htmlFilename = filename.replace('.json', '.html');
-    const htmlPath = path.join(__dirname, 'design-cache', htmlFilename);
+    let htmlPath;
+    
+    // Check if it's an enhanced report
+    if (filename.startsWith('enhanced-report-') && filename.endsWith('.html')) {
+      htmlPath = path.join(__dirname, 'design-cache', 'enhanced-reports', filename);
+    } else {
+      // Legacy format: JSON filename to HTML
+      const htmlFilename = filename.replace('.json', '.html');
+      htmlPath = path.join(__dirname, 'design-cache', htmlFilename);
+    }
     
     if (!await fs.pathExists(htmlPath)) {
+      console.log(`HTML report not found at: ${htmlPath}`);
       return res.status(404).json({ error: 'HTML report not found' });
     }
 
@@ -2500,6 +2549,383 @@ app.get('/api/design-comparison/bulk-thumbnails', async (req, res) => {
   }
 });
 
+// Enhanced Design Comparison Endpoints with Detailed Insights
+
+// Run enhanced design comparison with detailed insights
+app.post('/api/design-comparison/enhanced-run', async (req, res) => {
+  try {
+    const { scenarioConfig } = req.body;
+    
+    if (!scenarioConfig) {
+      return res.status(400).json({ error: 'Scenario configuration is required' });
+    }
+
+    if (!designEngine) {
+      return res.status(500).json({ error: 'Design comparison engine not initialized' });
+    }
+
+    console.log('🔍 Running enhanced design comparison with detailed insights...');
+    
+    // Run the enhanced comparison
+    const results = await designEngine.runComparison(scenarioConfig);
+    
+    // Save results to cache
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const resultsPath = path.join(configDir, `enhanced-comparison-${timestamp}.json`);
+    await fs.writeFile(resultsPath, JSON.stringify(results, null, 2), 'utf8');
+    
+    console.log('✅ Enhanced design comparison completed');
+    
+    res.json({
+      success: true,
+      results: results,
+      savedPath: resultsPath,
+      enhancedFeatures: {
+        visualAnalysis: !!results.visualAnalysis,
+        detailedInsights: !!results.detailedInsights,
+        enhancedRecommendations: !!results.enhancedRecommendations,
+        actionableItems: results.detailedInsights?.actionableItems?.length || 0,
+        prioritizedIssues: results.detailedInsights?.prioritizedIssues?.length || 0
+      }
+    });
+    
+  } catch (error) {
+    console.error('Error in enhanced design comparison:', error);
+    res.status(500).json({ 
+      error: 'Enhanced design comparison failed',
+      details: error.message 
+    });
+  }
+});
+
+// Get enhanced visual analysis for existing BackstopJS results
+app.post('/api/design-comparison/visual-analysis', async (req, res) => {
+  try {
+    const { testConfig, scenarioConfig } = req.body;
+    
+    if (!designEngine || !designEngine.visualAnalysis) {
+      return res.status(500).json({ error: 'Visual analysis engine not available' });
+    }
+
+    console.log('🎨 Performing enhanced visual analysis...');
+    
+    const analysis = await designEngine.performEnhancedVisualAnalysis(scenarioConfig || testConfig);
+    
+    res.json({
+      success: true,
+      analysis: analysis,
+      timestamp: new Date().toISOString(),
+      features: {
+        backstopIntegration: !!analysis.backstopResults,
+        overallInsights: !!analysis.overallInsights,
+        testAnalyses: analysis.enhancedAnalysis?.length || 0
+      }
+    });
+    
+  } catch (error) {
+    console.error('Error in visual analysis:', error);
+    res.status(500).json({ 
+      error: 'Visual analysis failed',
+      details: error.message 
+    });
+  }
+});
+
+// Generate detailed mismatch insights
+app.post('/api/design-comparison/detailed-insights', async (req, res) => {
+  try {
+    const { results, analysisOptions } = req.body;
+    
+    if (!results) {
+      return res.status(400).json({ error: 'Analysis results are required' });
+    }
+
+    if (!designEngine || !designEngine.detailedInsights) {
+      return res.status(500).json({ error: 'Detailed insights engine not available' });
+    }
+
+    console.log('🔬 Generating detailed mismatch insights...');
+    
+    const insights = await designEngine.generateDetailedInsights(results);
+    
+    res.json({
+      success: true,
+      insights: insights,
+      options: analysisOptions,
+      timestamp: new Date().toISOString(),
+      summary: {
+        totalIssues: insights.prioritizedIssues?.length || 0,
+        actionableItems: insights.actionableItems?.length || 0,
+        crossReferences: insights.crossReferences?.length || 0
+      }
+    });
+    
+  } catch (error) {
+    console.error('Error generating detailed insights:', error);
+    res.status(500).json({ 
+      error: 'Detailed insights generation failed',
+      details: error.message 
+    });
+  }
+});
+
+// Get enhanced recommendations
+app.post('/api/design-comparison/enhanced-recommendations', async (req, res) => {
+  try {
+    const { analysisResults, preferences } = req.body;
+    
+    if (!analysisResults) {
+      return res.status(400).json({ error: 'Analysis results are required' });
+    }
+
+    if (!designEngine) {
+      return res.status(500).json({ error: 'Design comparison engine not available' });
+    }
+
+    console.log('💡 Generating enhanced recommendations...');
+    
+    const recommendations = designEngine.generateEnhancedRecommendations(analysisResults);
+    
+    res.json({
+      success: true,
+      recommendations: recommendations,
+      preferences: preferences,
+      timestamp: new Date().toISOString(),
+      categories: {
+        immediate: recommendations.immediate?.length || 0,
+        shortTerm: recommendations.shortTerm?.length || 0,
+        longTerm: recommendations.longTerm?.length || 0,
+        process: recommendations.process?.length || 0,
+        tooling: recommendations.tooling?.length || 0
+      }
+    });
+    
+  } catch (error) {
+    console.error('Error generating enhanced recommendations:', error);
+    res.status(500).json({ 
+      error: 'Enhanced recommendations generation failed',
+      details: error.message 
+    });
+  }
+});
+
+// Analyze BackstopJS test results with enhanced insights
+app.post('/api/design-comparison/analyze-backstop-results', async (req, res) => {
+  try {
+    const { testResultsPath, analysisDepth = 'standard' } = req.body;
+    
+    if (!designEngine || !designEngine.detailedInsights) {
+      return res.status(500).json({ error: 'Analysis engine not available' });
+    }
+
+    console.log('📊 Analyzing BackstopJS results with enhanced insights...');
+    
+    // Check if BackstopJS results exist
+    const backstopResultsPath = testResultsPath || path.join(__dirname, '../backstop_data/html_report/config.js');
+    
+    if (!await fs.pathExists(backstopResultsPath)) {
+      return res.status(404).json({ 
+        error: 'BackstopJS test results not found',
+        path: backstopResultsPath 
+      });
+    }
+
+    // Parse and analyze results
+    const resultsContent = await fs.readFile(backstopResultsPath, 'utf8');
+    const testResults = designEngine.parseBackstopResults(resultsContent);
+    
+    if (!testResults) {
+      return res.status(400).json({ error: 'Could not parse BackstopJS results' });
+    }
+
+    // Perform enhanced analysis
+    const analysis = await designEngine.detailedInsights.analyzeTestResults(testResults, {
+      depth: analysisDepth,
+      includeRecommendations: true,
+      generateActionItems: true
+    });
+    
+    res.json({
+      success: true,
+      testResults: testResults,
+      enhancedAnalysis: analysis,
+      timestamp: new Date().toISOString(),
+      summary: {
+        totalTests: testResults.tests?.length || 0,
+        failedTests: testResults.tests?.filter(t => t.status === 'fail')?.length || 0,
+        analysisDepth: analysisDepth,
+        insightsGenerated: true
+      }
+    });
+    
+  } catch (error) {
+    console.error('Error analyzing BackstopJS results:', error);
+    res.status(500).json({ 
+      error: 'BackstopJS results analysis failed',
+      details: error.message 
+    });
+  }
+});
+
+// Generate comprehensive enhanced report
+app.post('/api/design-comparison/enhanced-report', async (req, res) => {
+  try {
+    const { analysisResults, reportOptions = {} } = req.body;
+    
+    if (!analysisResults) {
+      return res.status(400).json({ error: 'Analysis results are required' });
+    }
+
+    if (!designEngine) {
+      return res.status(500).json({ error: 'Design comparison engine not available' });
+    }
+
+    console.log('📋 Generating enhanced HTML report...');
+    
+    const reportPath = await designEngine.generateEnhancedReport(analysisResults);
+    
+    // Also save a JSON version for API access
+    const jsonReportPath = reportPath.replace('.html', '.json');
+    await fs.writeFile(jsonReportPath, JSON.stringify(analysisResults, null, 2), 'utf8');
+    
+    res.json({
+      success: true,
+      reportPath: reportPath,
+      jsonReportPath: jsonReportPath,
+      reportUrl: `/api/design-comparison/enhanced-reports/${path.basename(reportPath)}`,
+      timestamp: new Date().toISOString(),
+      options: reportOptions
+    });
+    
+  } catch (error) {
+    console.error('Error generating enhanced report:', error);
+    res.status(500).json({ 
+      error: 'Enhanced report generation failed',
+      details: error.message 
+    });
+  }
+});
+
+// Serve enhanced reports
+app.get('/api/design-comparison/enhanced-reports/:filename', async (req, res) => {
+  try {
+    const { filename } = req.params;
+    const reportsDir = path.join(configDir, 'enhanced-reports');
+    const reportPath = path.join(reportsDir, filename);
+    
+    if (!await fs.pathExists(reportPath)) {
+      return res.status(404).json({ error: 'Enhanced report not found' });
+    }
+
+    // Check if it's HTML or JSON
+    if (filename.endsWith('.html')) {
+      res.setHeader('Content-Type', 'text/html');
+      const htmlContent = await fs.readFile(reportPath, 'utf8');
+      res.send(htmlContent);
+    } else if (filename.endsWith('.json')) {
+      res.setHeader('Content-Type', 'application/json');
+      const jsonContent = await fs.readFile(reportPath, 'utf8');
+      res.send(jsonContent);
+    } else {
+      res.download(reportPath);
+    }
+    
+  } catch (error) {
+    console.error('Error serving enhanced report:', error);
+    res.status(500).json({ 
+      error: 'Failed to serve enhanced report',
+      details: error.message 
+    });
+  }
+});
+
+// List available enhanced reports
+app.get('/api/design-comparison/enhanced-reports', async (req, res) => {
+  try {
+    const reportsDir = path.join(configDir, 'enhanced-reports');
+    
+    if (!await fs.pathExists(reportsDir)) {
+      return res.json({ reports: [], total: 0 });
+    }
+
+    const files = await fs.readdir(reportsDir);
+    const reports = [];
+    
+    for (const file of files) {
+      if (file.endsWith('.html') || file.endsWith('.json')) {
+        const filePath = path.join(reportsDir, file);
+        const stats = await fs.stat(filePath);
+        
+        reports.push({
+          filename: file,
+          type: file.endsWith('.html') ? 'html' : 'json',
+          size: stats.size,
+          created: stats.birthtime,
+          modified: stats.mtime,
+          url: `/api/design-comparison/enhanced-reports/${file}`
+        });
+      }
+    }
+    
+    // Sort by creation date, newest first
+    reports.sort((a, b) => new Date(b.created) - new Date(a.created));
+    
+    res.json({
+      reports: reports,
+      total: reports.length,
+      reportsDir: reportsDir
+    });
+    
+  } catch (error) {
+    console.error('Error listing enhanced reports:', error);
+    res.status(500).json({ 
+      error: 'Failed to list enhanced reports',
+      details: error.message 
+    });
+  }
+});
+
+// Get analysis capabilities and status
+app.get('/api/design-comparison/enhanced-capabilities', async (req, res) => {
+  try {
+    const capabilities = {
+      engines: {
+        designComparison: !!designEngine,
+        detailedInsights: !!(designEngine && designEngine.detailedInsights),
+        visualAnalysis: !!(designEngine && designEngine.visualAnalysis),
+        figmaIntegration: !!(designEngine && designEngine.figmaClient),
+      },
+      features: {
+        tokenComparison: true,
+        visualRegression: true,
+        pixelLevelAnalysis: !!(designEngine && designEngine.visualAnalysis),
+        colorAnalysis: !!(designEngine && designEngine.visualAnalysis),
+        layoutAnalysis: !!(designEngine && designEngine.visualAnalysis),
+        severityClassification: !!(designEngine && designEngine.detailedInsights),
+        actionableRecommendations: !!(designEngine && designEngine.detailedInsights),
+        enhancedReporting: !!(designEngine),
+        crossReferenceAnalysis: !!(designEngine && designEngine.detailedInsights)
+      },
+      supportedFormats: {
+        input: ['backstop-config', 'test-results', 'figma-tokens'],
+        output: ['json', 'html', 'insights', 'recommendations'],
+        images: ['png', 'jpg', 'jpeg']
+      },
+      analysisDepth: ['basic', 'standard', 'comprehensive', 'expert'],
+      timestamp: new Date().toISOString()
+    };
+    
+    res.json(capabilities);
+    
+  } catch (error) {
+    console.error('Error getting enhanced capabilities:', error);
+    res.status(500).json({ 
+      error: 'Failed to get enhanced capabilities',
+      details: error.message 
+    });
+  }
+});
+
 // Get layer types summary
 app.get('/api/design-comparison/layer-types', async (req, res) => {
   try {
@@ -2538,6 +2964,381 @@ app.get('/api/design-comparison/layer-types', async (req, res) => {
 app.get('/', (req, res) => {
   res.send('PixelPilot BackstopJS Dashboard Backend');
 });
+
+// =============================================================================
+// FIGMA HTML/CSS GENERATION ENDPOINTS
+// =============================================================================
+
+const FigmaHTMLGenerator = require('./figma-html-generator');
+
+// Generate HTML/CSS from Figma file
+app.post('/api/figma/generate-html-css', async (req, res) => {
+  try {
+    const {
+      figmaToken,
+      figmaFileKey,
+      pageId,
+      frameIds = [],
+      options = {}
+    } = req.body;
+
+    if (!figmaToken || !figmaFileKey) {
+      return res.status(400).json({
+        success: false,
+        error: 'Figma access token and file key are required'
+      });
+    }
+
+    console.log('🚀 Starting Figma to HTML/CSS generation...');
+    console.log(`📄 File: ${figmaFileKey}, Page: ${pageId || 'first page'}`);
+
+    const generator = new FigmaHTMLGenerator(figmaToken, figmaFileKey);
+    
+    const generationOptions = {
+      pageId,
+      frameIds,
+      generateResponsive: options.generateResponsive !== false,
+      includeInteractions: options.includeInteractions || false,
+      outputFormat: options.outputFormat || 'separate',
+      framework: options.framework || 'vanilla',
+      cssFramework: options.cssFramework || 'custom',
+      ...options
+    };
+
+    const result = await generator.generateFromFigma(generationOptions);
+
+    // Save generated files
+    const outputDir = path.join(__dirname, 'generated-code');
+    await fs.ensureDir(outputDir);
+    
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const projectDir = path.join(outputDir, `figma-${figmaFileKey}-${timestamp}`);
+    await fs.ensureDir(projectDir);
+
+    // Save HTML
+    if (typeof result.html === 'string') {
+      await fs.writeFile(path.join(projectDir, 'index.html'), result.html);
+    } else if (typeof result.html === 'object') {
+      // Multiple components (React/Vue)
+      for (const [filename, content] of Object.entries(result.html)) {
+        await fs.writeFile(path.join(projectDir, filename), content);
+      }
+    }
+
+    // Save CSS
+    await fs.writeFile(path.join(projectDir, 'styles.css'), result.css);
+
+    // Save design tokens as JSON
+    const tokensObject = {};
+    for (const [category, tokenMap] of Object.entries(result.designTokens)) {
+      tokensObject[category] = Object.fromEntries(tokenMap);
+    }
+    await fs.writeFile(
+      path.join(projectDir, 'design-tokens.json'), 
+      JSON.stringify(tokensObject, null, 2)
+    );
+
+    // Save metadata
+    await fs.writeFile(
+      path.join(projectDir, 'metadata.json'), 
+      JSON.stringify(result.metadata, null, 2)
+    );
+
+    console.log('✅ HTML/CSS generation completed successfully');
+    console.log(`📁 Files saved to: ${projectDir}`);
+
+    res.json({
+      success: true,
+      result: {
+        ...result,
+        outputDirectory: projectDir,
+        downloadUrl: `/api/figma/download/${path.basename(projectDir)}`,
+        previewUrl: `/api/figma/preview/${path.basename(projectDir)}`
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Error generating HTML/CSS from Figma:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
+  }
+});
+
+// Get Figma file pages and frames for selection
+app.post('/api/figma/get-structure', async (req, res) => {
+  try {
+    const { figmaToken, figmaFileKey } = req.body;
+
+    if (!figmaToken || !figmaFileKey) {
+      return res.status(400).json({
+        success: false,
+        error: 'Figma access token and file key are required'
+      });
+    }
+
+    console.log('📋 Fetching Figma file structure...');
+
+    const response = await axios.get(`https://api.figma.com/v1/files/${figmaFileKey}`, {
+      headers: { 'X-FIGMA-TOKEN': figmaToken }
+    });
+
+    const figmaData = response.data;
+    const structure = {
+      name: figmaData.name,
+      lastModified: figmaData.lastModified,
+      pages: []
+    };
+
+    // Extract pages and frames
+    for (const page of figmaData.document.children) {
+      const pageInfo = {
+        id: page.id,
+        name: page.name,
+        frames: []
+      };
+
+      if (page.children) {
+        for (const child of page.children) {
+          if (child.type === 'FRAME') {
+            pageInfo.frames.push({
+              id: child.id,
+              name: child.name,
+              width: child.absoluteBoundingBox?.width || 0,
+              height: child.absoluteBoundingBox?.height || 0,
+              type: child.type
+            });
+          }
+        }
+      }
+
+      structure.pages.push(pageInfo);
+    }
+
+    console.log(`📄 Found ${structure.pages.length} pages with frames`);
+
+    res.json({
+      success: true,
+      structure
+    });
+
+  } catch (error) {
+    console.error('❌ Error fetching Figma structure:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// Download generated code as ZIP
+app.get('/api/figma/download/:projectId', async (req, res) => {
+  try {
+    const { projectId } = req.params;
+    const projectDir = path.join(__dirname, 'generated-code', projectId);
+
+    if (!await fs.pathExists(projectDir)) {
+      return res.status(404).json({
+        success: false,
+        error: 'Generated project not found'
+      });
+    }
+
+    // Create ZIP file
+    const archiver = require('archiver');
+    const archive = archiver('zip', { zlib: { level: 9 } });
+
+    res.setHeader('Content-Type', 'application/zip');
+    res.setHeader('Content-Disposition', `attachment; filename="${projectId}.zip"`);
+
+    archive.pipe(res);
+    archive.directory(projectDir, false);
+    await archive.finalize();
+
+  } catch (error) {
+    console.error('❌ Error creating download:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// Preview generated HTML/CSS
+app.get('/api/figma/preview/:projectId', async (req, res) => {
+  try {
+    const { projectId } = req.params;
+    const projectDir = path.join(__dirname, 'generated-code', projectId);
+    const htmlPath = path.join(projectDir, 'index.html');
+
+    if (!await fs.pathExists(htmlPath)) {
+      return res.status(404).json({
+        success: false,
+        error: 'Generated HTML file not found'
+      });
+    }
+
+    let htmlContent = await fs.readFile(htmlPath, 'utf8');
+    
+    // Update CSS link to use the preview endpoint
+    htmlContent = htmlContent.replace(
+      'href="styles.css"',
+      `href="/api/figma/preview/${projectId}/styles.css"`
+    );
+
+    res.setHeader('Content-Type', 'text/html');
+    res.send(htmlContent);
+
+  } catch (error) {
+    console.error('❌ Error serving preview:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// Serve preview assets (CSS, images, etc.)
+app.get('/api/figma/preview/:projectId/:filename', async (req, res) => {
+  try {
+    const { projectId, filename } = req.params;
+    const projectDir = path.join(__dirname, 'generated-code', projectId);
+    const filePath = path.join(projectDir, filename);
+
+    if (!await fs.pathExists(filePath)) {
+      return res.status(404).json({
+        success: false,
+        error: 'File not found'
+      });
+    }
+
+    // Set appropriate content type
+    const ext = path.extname(filename).toLowerCase();
+    const contentTypes = {
+      '.css': 'text/css',
+      '.js': 'application/javascript',
+      '.json': 'application/json',
+      '.png': 'image/png',
+      '.jpg': 'image/jpeg',
+      '.jpeg': 'image/jpeg',
+      '.gif': 'image/gif',
+      '.svg': 'image/svg+xml'
+    };
+
+    if (contentTypes[ext]) {
+      res.setHeader('Content-Type', contentTypes[ext]);
+    }
+
+    res.sendFile(filePath);
+
+  } catch (error) {
+    console.error('❌ Error serving preview asset:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// List generated projects
+app.get('/api/figma/generated-projects', async (req, res) => {
+  try {
+    const outputDir = path.join(__dirname, 'generated-code');
+    
+    if (!await fs.pathExists(outputDir)) {
+      return res.json({ success: true, projects: [] });
+    }
+
+    const projectDirs = await fs.readdir(outputDir);
+    const projects = [];
+
+    for (const dirName of projectDirs) {
+      const projectDir = path.join(outputDir, dirName);
+      const metadataPath = path.join(projectDir, 'metadata.json');
+      
+      if (await fs.pathExists(metadataPath)) {
+        const metadata = await fs.readJson(metadataPath);
+        const stats = await fs.stat(projectDir);
+        
+        projects.push({
+          id: dirName,
+          name: dirName,
+          metadata,
+          createdAt: stats.birthtime,
+          size: await calculateDirectorySize(projectDir),
+          downloadUrl: `/api/figma/download/${dirName}`
+        });
+      }
+    }
+
+    // Sort by creation date (newest first)
+    projects.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+    res.json({
+      success: true,
+      projects
+    });
+
+  } catch (error) {
+    console.error('❌ Error listing generated projects:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// Delete generated project
+app.delete('/api/figma/generated-projects/:projectId', async (req, res) => {
+  try {
+    const { projectId } = req.params;
+    const projectDir = path.join(__dirname, 'generated-code', projectId);
+
+    if (!await fs.pathExists(projectDir)) {
+      return res.status(404).json({
+        success: false,
+        error: 'Project not found'
+      });
+    }
+
+    await fs.remove(projectDir);
+
+    console.log(`🗑️ Deleted generated project: ${projectId}`);
+
+    res.json({
+      success: true,
+      message: 'Project deleted successfully'
+    });
+
+  } catch (error) {
+    console.error('❌ Error deleting project:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// Helper function to calculate directory size
+async function calculateDirectorySize(dirPath) {
+  let totalSize = 0;
+  
+  const files = await fs.readdir(dirPath);
+  for (const file of files) {
+    const filePath = path.join(dirPath, file);
+    const stats = await fs.stat(filePath);
+    
+    if (stats.isDirectory()) {
+      totalSize += await calculateDirectorySize(filePath);
+    } else {
+      totalSize += stats.size;
+    }
+  }
+  
+  return totalSize;
+}
 
 // Global error handling to prevent server crashes
 process.on('uncaughtException', (error) => {

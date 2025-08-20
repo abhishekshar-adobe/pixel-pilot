@@ -8,6 +8,7 @@
     "dev": "nodemon index.js"
   },
   "dependencies": {
+    "archiver": "^7.0.1",
     "axios": "^1.6.0",
     "backstopjs": "^6.3.25",
     "cors": "^2.8.5",
@@ -15,6 +16,7 @@
     "fs-extra": "^11.3.0",
     "multer": "^2.0.2",
     "puppeteer": "^21.0.0",
+    "react-syntax-highlighter": "^15.6.1",
     "sharp": "^0.34.3"
   },
   "devDependencies": {

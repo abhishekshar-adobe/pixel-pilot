@@ -784,18 +784,40 @@ class DesignTokenComparator {
   compareWithTokens(domData, figmaTokens) {
     const mismatches = [];
 
+    console.log('🔍 Starting DOM vs Figma comparison...');
+    console.log(`📊 DOM elements found: ${Object.keys(domData.elements).length} selectors`);
+    console.log(`🎨 Figma tokens - Typography: ${Object.keys(figmaTokens.typography).length}, Components: ${figmaTokens.components.length}`);
+
     // Compare typography
     Object.entries(domData.elements).forEach(([selector, elements]) => {
+      console.log(`🔍 Processing selector: ${selector} (${elements.length} elements)`);
+      
       elements.forEach((element, index) => {
+        // Add safety check for element structure
+        if (!element || typeof element !== 'object') {
+          console.log(`⚠️ Skipping invalid element at ${selector}[${index}]`);
+          return;
+        }
+
+        console.log(`🔍 Element ${index}:`, {
+          className: element.className,
+          textContent: element.textContent ? element.textContent.substring(0, 50) + '...' : 'no text',
+          hasClassName: !!element.className,
+          classNameType: typeof element.className
+        });
+
         // Find matching Figma components/text by name or position
         const matchingFigmaElements = this.findMatchingFigmaElements(
           element, 
           figmaTokens
         );
 
+        console.log(`🎯 Found ${matchingFigmaElements.length} matching Figma elements for selector ${selector}[${index}]`);
+
         matchingFigmaElements.forEach(figmaElement => {
           const elementMismatches = this.compareElement(element, figmaElement);
           if (elementMismatches.length > 0) {
+            console.log(`📍 Found ${elementMismatches.length} mismatches between DOM element and Figma element "${figmaElement.name}"`);
             mismatches.push({
               selector,
               elementIndex: index,
@@ -808,6 +830,8 @@ class DesignTokenComparator {
         });
       });
     });
+
+    console.log(`✅ Comparison completed. Total mismatches found: ${mismatches.length}`);
 
     return {
       totalMismatches: mismatches.length,
@@ -822,19 +846,35 @@ class DesignTokenComparator {
   findMatchingFigmaElements(domElement, figmaTokens) {
     const matches = [];
 
-    // Check typography matches
-    Object.values(figmaTokens.typography).forEach(figmaText => {
-      if (this.isElementMatch(domElement, figmaText)) {
-        matches.push({ ...figmaText, type: 'text' });
+    try {
+      // Check typography matches
+      if (figmaTokens.typography && typeof figmaTokens.typography === 'object') {
+        Object.values(figmaTokens.typography).forEach(figmaText => {
+          try {
+            if (this.isElementMatch(domElement, figmaText)) {
+              matches.push({ ...figmaText, type: 'text' });
+            }
+          } catch (error) {
+            console.log(`⚠️ Error matching typography element:`, error.message);
+          }
+        });
       }
-    });
 
-    // Check component matches
-    figmaTokens.components.forEach(figmaComponent => {
-      if (this.isElementMatch(domElement, figmaComponent)) {
-        matches.push({ ...figmaComponent, type: 'component' });
+      // Check component matches
+      if (figmaTokens.components && Array.isArray(figmaTokens.components)) {
+        figmaTokens.components.forEach(figmaComponent => {
+          try {
+            if (this.isElementMatch(domElement, figmaComponent)) {
+              matches.push({ ...figmaComponent, type: 'component' });
+            }
+          } catch (error) {
+            console.log(`⚠️ Error matching component element:`, error.message);
+          }
+        });
       }
-    });
+    } catch (error) {
+      console.error(`❌ Error in findMatchingFigmaElements:`, error);
+    }
 
     return matches;
   }
@@ -853,7 +893,7 @@ class DesignTokenComparator {
     }
 
     // Match by name similarity
-    if (domElement.className && figmaElement.name) {
+    if (domElement.className && typeof domElement.className === 'string' && figmaElement.name) {
       const classNames = domElement.className.split(' ');
       return classNames.some(className => 
         figmaElement.name.toLowerCase().includes(className.toLowerCase()) ||

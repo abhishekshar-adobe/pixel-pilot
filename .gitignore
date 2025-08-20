@@ -31,14 +31,12 @@ dist-ssr
 .env.production.local
 
 # BackstopJS generated files
-server/backstop_data/bitmaps_test/
-server/backstop_data/html_report/
-server/backstop_data/json_report/
+server/backstop_data/
 server/bitmaps_test/
 server/html_report/
 
-# Uploaded screenshots (you may want to uncomment this)
-# server/uploads/
+# Uploaded screenshots
+server/uploads/
 
 # OS generated files
 Thumbs.db

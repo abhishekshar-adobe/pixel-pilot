@@ -5,6 +5,8 @@
 
 const { extractDOMData } = require('./dom-extractor');
 const { FigmaAPIClient, DesignTokenComparator } = require('./figma-integration');
+const { DetailedMismatchInsights } = require('./detailed-mismatch-insights');
+const { VisualAnalysisEngine } = require('./visual-analysis-engine');
 const fs = require('fs-extra');
 const path = require('path');
 
@@ -24,6 +26,23 @@ class DesignComparisonEngine {
 
     this.figmaClient = null;
     this.comparator = new DesignTokenComparator(this.config.tolerance);
+    this.mismatchInsights = new DetailedMismatchInsights({
+      thresholds: {
+        critical: 5.0,
+        warning: 2.0,
+        minor: 0.5,
+        ...config.thresholds
+      }
+    });
+    this.visualAnalysis = new VisualAnalysisEngine({
+      analysis: {
+        enablePixelAnalysis: true,
+        enableStructuralSimilarity: true,
+        enableColorAnalysis: true,
+        enableLayoutAnalysis: true,
+        ...config.analysis
+      }
+    });
     
     this.initializeCache();
   }
@@ -67,7 +86,7 @@ class DesignComparisonEngine {
   }
 
   /**
-   * Run complete design comparison for a scenario
+   * Run complete design comparison for a scenario with enhanced insights
    */
   async runComparison(scenarioConfig) {
     const results = {
@@ -76,11 +95,14 @@ class DesignComparisonEngine {
       domData: null,
       figmaTokens: null,
       comparison: null,
+      visualAnalysis: null,
+      detailedInsights: null,
+      enhancedRecommendations: null,
       errors: []
     };
 
     try {
-      console.log(`Running design comparison for: ${scenarioConfig.label}`);
+      console.log(`Running enhanced design comparison for: ${scenarioConfig.label}`);
 
       // Step 1: Extract DOM data from the live site
       console.log('Step 1: Extracting DOM data...');
@@ -105,18 +127,30 @@ class DesignComparisonEngine {
         results.figmaTokens
       );
 
-      // Step 4: Generate report
-      console.log('Step 4: Generating comparison report...');
-      const reportPath = await this.generateReport(results);
+      // Step 4: Perform enhanced visual analysis if screenshots are available
+      console.log('Step 4: Performing enhanced visual analysis...');
+      results.visualAnalysis = await this.performEnhancedVisualAnalysis(scenarioConfig);
+
+      // Step 5: Generate detailed mismatch insights
+      console.log('Step 5: Generating detailed insights...');
+      results.detailedInsights = await this.generateDetailedInsights(results);
+
+      // Step 6: Generate enhanced recommendations
+      console.log('Step 6: Creating enhanced recommendations...');
+      results.enhancedRecommendations = this.generateEnhancedRecommendations(results);
+
+      // Step 7: Generate comprehensive report
+      console.log('Step 7: Generating comprehensive report...');
+      const reportPath = await this.generateEnhancedReport(results);
       results.reportPath = reportPath;
 
-      console.log(`Design comparison completed. Found ${results.comparison.totalMismatches} mismatches.`);
+      console.log(`Enhanced design comparison completed. Found ${results.comparison.totalMismatches} mismatches with detailed insights.`);
       
     } catch (error) {
-      console.error('Error during design comparison:', error);
+      console.error('Error during enhanced design comparison:', error);
       results.errors.push({
-        message: error.message,
-        stack: error.stack,
+        step: 'comparison',
+        error: error.message,
         timestamp: new Date().toISOString()
       });
     }
@@ -558,6 +592,910 @@ module.exports = async (page, scenario, vp) => {
 
     console.log(`Filtered tokens: ${Object.keys(filteredTokens).length} items from ${Object.keys(tokens).length} original items`);
     return filteredTokens;
+  }
+
+  /**
+   * Perform enhanced visual analysis on screenshots
+   */
+  async performEnhancedVisualAnalysis(scenarioConfig) {
+    try {
+      // Look for BackstopJS test results to analyze
+      const backstopResultsPath = path.join(__dirname, '../backstop_data/html_report/config.js');
+      
+      if (await fs.pathExists(backstopResultsPath)) {
+        console.log('Found BackstopJS results, performing visual analysis...');
+        
+        // Parse BackstopJS results
+        const resultsContent = await fs.readFile(backstopResultsPath, 'utf8');
+        const resultsData = this.parseBackstopResults(resultsContent);
+        
+        if (resultsData && resultsData.tests) {
+          const visualAnalysis = {
+            backstopResults: resultsData,
+            enhancedAnalysis: [],
+            overallInsights: null
+          };
+
+          // Analyze each test with visual differences
+          for (const test of resultsData.tests.filter(t => t.status === 'fail')) {
+            if (test.pair && test.pair.reference && test.pair.test) {
+              try {
+                const testAnalysis = await this.visualAnalysis.performVisualAnalysis(
+                  test.pair.reference,
+                  test.pair.test,
+                  path.join(this.config.cacheDirectory, 'visual-analysis')
+                );
+                
+                visualAnalysis.enhancedAnalysis.push({
+                  testId: test.pair.label,
+                  viewport: test.pair.viewportLabel,
+                  analysis: testAnalysis
+                });
+              } catch (error) {
+                console.error(`Error analyzing test ${test.pair.label}:`, error);
+              }
+            }
+          }
+
+          // Generate overall insights
+          visualAnalysis.overallInsights = this.generateOverallVisualInsights(visualAnalysis.enhancedAnalysis);
+          
+          return visualAnalysis;
+        }
+      }
+
+      return { message: 'No BackstopJS results found for visual analysis' };
+    } catch (error) {
+      console.error('Error performing enhanced visual analysis:', error);
+      return { error: error.message };
+    }
+  }
+
+  /**
+   * Parse BackstopJS results from config.js file
+   */
+  parseBackstopResults(resultsContent) {
+    try {
+      // Extract JSON data from the BackstopJS config.js file
+      const jsonStart = resultsContent.indexOf('report(') + 7;
+      const jsonEnd = resultsContent.lastIndexOf(');');
+      
+      if (jsonStart > 6 && jsonEnd > jsonStart) {
+        const jsonString = resultsContent.substring(jsonStart, jsonEnd);
+        return JSON.parse(jsonString);
+      }
+      
+      return null;
+    } catch (error) {
+      console.error('Error parsing BackstopJS results:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Generate overall visual insights from individual test analyses
+   */
+  generateOverallVisualInsights(testAnalyses) {
+    if (!testAnalyses || testAnalyses.length === 0) {
+      return { message: 'No test analyses available' };
+    }
+
+    const insights = {
+      totalTests: testAnalyses.length,
+      averageScores: {
+        visual: 0,
+        color: 0,
+        layout: 0,
+        structure: 0
+      },
+      commonIssues: [],
+      severityDistribution: {
+        critical: 0,
+        high: 0,
+        medium: 0,
+        low: 0
+      },
+      recommendations: []
+    };
+
+    let totalScores = { visual: 0, color: 0, layout: 0, structure: 0 };
+
+    // Aggregate data from all test analyses
+    testAnalyses.forEach(testAnalysis => {
+      const analysis = testAnalysis.analysis;
+      
+      if (analysis.insights && analysis.insights.overall) {
+        totalScores.visual += analysis.insights.overall.score || 0;
+      }
+      
+      if (analysis.comparison) {
+        totalScores.color += analysis.comparison.colorDifference?.overallSimilarity || 0;
+        totalScores.layout += analysis.comparison.layoutDifference?.layoutScore || 0;
+        totalScores.structure += analysis.comparison.structuralSimilarity?.overall || 0;
+      }
+
+      // Collect specific insights
+      if (analysis.insights && analysis.insights.specific) {
+        analysis.insights.specific.forEach(insight => {
+          insights.commonIssues.push({
+            test: testAnalysis.testId,
+            viewport: testAnalysis.viewport,
+            category: insight.category,
+            severity: insight.severity,
+            message: insight.message
+          });
+
+          // Count severity distribution
+          if (insight.severity && insights.severityDistribution[insight.severity] !== undefined) {
+            insights.severityDistribution[insight.severity]++;
+          }
+        });
+      }
+    });
+
+    // Calculate averages
+    const testCount = testAnalyses.length;
+    insights.averageScores = {
+      visual: Math.round(totalScores.visual / testCount),
+      color: Math.round(totalScores.color / testCount),
+      layout: Math.round(totalScores.layout / testCount),
+      structure: Math.round(totalScores.structure / testCount)
+    };
+
+    // Generate top-level recommendations
+    insights.recommendations = this.generateTopLevelRecommendations(insights);
+
+    return insights;
+  }
+
+  /**
+   * Generate top-level recommendations based on analysis
+   */
+  generateTopLevelRecommendations(insights) {
+    const recommendations = [];
+
+    // Overall score recommendations
+    if (insights.averageScores.visual < 70) {
+      recommendations.push({
+        priority: 'high',
+        category: 'overall',
+        title: 'Significant Visual Differences Detected',
+        description: `Average visual similarity is ${insights.averageScores.visual}%, indicating substantial differences from design`,
+        impact: 'high'
+      });
+    }
+
+    // Color-specific recommendations
+    if (insights.averageScores.color < 75) {
+      recommendations.push({
+        priority: 'medium',
+        category: 'color',
+        title: 'Color Implementation Issues',
+        description: `Color similarity is ${insights.averageScores.color}%, suggesting color palette discrepancies`,
+        impact: 'medium'
+      });
+    }
+
+    // Layout-specific recommendations  
+    if (insights.averageScores.layout < 80) {
+      recommendations.push({
+        priority: 'high',
+        category: 'layout',
+        title: 'Layout and Spacing Problems',
+        description: `Layout score is ${insights.averageScores.layout}%, indicating spacing and positioning issues`,
+        impact: 'high'
+      });
+    }
+
+    // Severity-based recommendations
+    if (insights.severityDistribution.critical > 0) {
+      recommendations.push({
+        priority: 'critical',
+        category: 'critical',
+        title: 'Critical Issues Require Immediate Attention',
+        description: `${insights.severityDistribution.critical} critical issues found across tests`,
+        impact: 'critical'
+      });
+    }
+
+    return recommendations;
+  }
+
+  /**
+   * Generate detailed insights combining multiple analysis sources
+   */
+  async generateDetailedInsights(results) {
+    try {
+      const insights = {
+        tokenMismatches: results.comparison || {},
+        visualDifferences: results.visualAnalysis || {},
+        crossReferences: [],
+        prioritizedIssues: [],
+        actionableItems: []
+      };
+
+      // Cross-reference token mismatches with visual differences
+      insights.crossReferences = this.crossReferenceAnalyses(
+        results.comparison,
+        results.visualAnalysis
+      );
+
+      // Prioritize issues based on multiple factors
+      insights.prioritizedIssues = this.prioritizeIssues(insights);
+
+      // Generate actionable items
+      insights.actionableItems = this.generateActionableItems(insights);
+
+      return insights;
+    } catch (error) {
+      console.error('Error generating detailed insights:', error);
+      return { error: error.message };
+    }
+  }
+
+  /**
+   * Cross-reference token mismatches with visual analysis
+   */
+  crossReferenceAnalyses(tokenComparison, visualAnalysis) {
+    const crossReferences = [];
+
+    if (!tokenComparison || !visualAnalysis) {
+      return crossReferences;
+    }
+
+    // Find correlations between token mismatches and visual differences
+    if (tokenComparison.mismatches && visualAnalysis.enhancedAnalysis) {
+      tokenComparison.mismatches.forEach(tokenMismatch => {
+        visualAnalysis.enhancedAnalysis.forEach(visualTest => {
+          // Look for correlations based on element selectors, colors, spacing, etc.
+          const correlation = this.findCorrelation(tokenMismatch, visualTest);
+          if (correlation.strength > 0.7) {
+            crossReferences.push({
+              tokenMismatch: tokenMismatch,
+              visualTest: visualTest.testId,
+              correlation: correlation,
+              confidence: correlation.strength
+            });
+          }
+        });
+      });
+    }
+
+    return crossReferences;
+  }
+
+  /**
+   * Find correlation between token mismatch and visual test
+   */
+  findCorrelation(tokenMismatch, visualTest) {
+    let strength = 0;
+    const factors = [];
+
+    // Check if selector matches test viewport/scenario
+    if (tokenMismatch.selector && visualTest.viewport) {
+      if (tokenMismatch.selector.toLowerCase().includes(visualTest.viewport.toLowerCase())) {
+        strength += 0.3;
+        factors.push('selector-viewport-match');
+      }
+    }
+
+    // Check for color-related correlations
+    if (tokenMismatch.mismatches) {
+      tokenMismatch.mismatches.forEach(mismatch => {
+        if (mismatch.property === 'color' && visualTest.analysis.comparison?.colorDifference) {
+          if (visualTest.analysis.comparison.colorDifference.overallSimilarity < 70) {
+            strength += 0.4;
+            factors.push('color-correlation');
+          }
+        }
+
+        // Check for layout correlations
+        if ((mismatch.property === 'fontSize' || mismatch.property === 'spacing') && 
+            visualTest.analysis.comparison?.layoutDifference) {
+          if (visualTest.analysis.comparison.layoutDifference.layoutScore < 80) {
+            strength += 0.3;
+            factors.push('layout-correlation');
+          }
+        }
+      });
+    }
+
+    return { strength, factors };
+  }
+
+  /**
+   * Prioritize issues based on severity, impact, and frequency
+   */
+  prioritizeIssues(insights) {
+    const issues = [];
+
+    // Add token mismatches as issues
+    if (insights.tokenMismatches.mismatches) {
+      insights.tokenMismatches.mismatches.forEach(mismatch => {
+        mismatch.mismatches.forEach(issue => {
+          issues.push({
+            type: 'token',
+            severity: issue.severity,
+            category: issue.property,
+            description: `${issue.property} mismatch: ${issue.domValue} vs ${issue.figmaValue}`,
+            element: mismatch.selector,
+            impact: this.calculateImpact(issue),
+            source: 'design-tokens'
+          });
+        });
+      });
+    }
+
+    // Add visual analysis issues
+    if (insights.visualDifferences.enhancedAnalysis) {
+      insights.visualDifferences.enhancedAnalysis.forEach(analysis => {
+        if (analysis.analysis.insights && analysis.analysis.insights.specific) {
+          analysis.analysis.insights.specific.forEach(insight => {
+            issues.push({
+              type: 'visual',
+              severity: insight.severity,
+              category: insight.category,
+              description: insight.message,
+              element: analysis.testId,
+              impact: this.calculateVisualImpact(insight),
+              source: 'visual-analysis'
+            });
+          });
+        }
+      });
+    }
+
+    // Sort by priority (severity + impact)
+    return issues.sort((a, b) => {
+      const priorityA = this.calculatePriority(a);
+      const priorityB = this.calculatePriority(b);
+      return priorityB - priorityA;
+    });
+  }
+
+  /**
+   * Calculate impact score for token issues
+   */
+  calculateImpact(issue) {
+    let impact = 0;
+    
+    switch (issue.severity) {
+      case 'major': impact += 3; break;
+      case 'moderate': impact += 2; break;
+      case 'minor': impact += 1; break;
+    }
+
+    // Add property-specific impact
+    switch (issue.property) {
+      case 'color': impact += 2; break;
+      case 'fontSize': impact += 2; break;
+      case 'spacing': impact += 1; break;
+    }
+
+    return impact;
+  }
+
+  /**
+   * Calculate impact score for visual issues
+   */
+  calculateVisualImpact(insight) {
+    let impact = 0;
+    
+    switch (insight.severity) {
+      case 'high': impact += 3; break;
+      case 'medium': impact += 2; break;
+      case 'low': impact += 1; break;
+    }
+
+    switch (insight.category) {
+      case 'pixel': impact += 2; break;
+      case 'color': impact += 2; break;
+      case 'layout': impact += 3; break;
+    }
+
+    return impact;
+  }
+
+  /**
+   * Calculate overall priority score
+   */
+  calculatePriority(issue) {
+    return issue.impact * (issue.severity === 'critical' ? 3 : issue.severity === 'high' ? 2 : 1);
+  }
+
+  /**
+   * Generate actionable items from insights
+   */
+  generateActionableItems(insights) {
+    const actionableItems = [];
+    const prioritizedIssues = insights.prioritizedIssues.slice(0, 10); // Top 10 issues
+
+    prioritizedIssues.forEach((issue, index) => {
+      const item = {
+        id: `action-${index + 1}`,
+        priority: this.mapSeverityToPriority(issue.severity),
+        title: this.generateActionTitle(issue),
+        description: issue.description,
+        category: issue.category,
+        estimatedEffort: this.estimateEffort(issue),
+        steps: this.generateActionSteps(issue),
+        verification: this.generateVerificationSteps(issue)
+      };
+
+      actionableItems.push(item);
+    });
+
+    return actionableItems;
+  }
+
+  /**
+   * Map issue severity to action priority
+   */
+  mapSeverityToPriority(severity) {
+    const mapping = {
+      'critical': 'critical',
+      'major': 'high',
+      'high': 'high',
+      'moderate': 'medium',
+      'medium': 'medium',
+      'minor': 'low',
+      'low': 'low'
+    };
+    return mapping[severity] || 'medium';
+  }
+
+  /**
+   * Generate action title based on issue
+   */
+  generateActionTitle(issue) {
+    const titles = {
+      'color': `Fix ${issue.category} implementation for ${issue.element}`,
+      'fontSize': `Adjust font size for ${issue.element}`,
+      'spacing': `Correct spacing for ${issue.element}`,
+      'layout': `Fix layout issues in ${issue.element}`,
+      'pixel': `Resolve visual differences in ${issue.element}`
+    };
+    return titles[issue.category] || `Fix ${issue.category} issue in ${issue.element}`;
+  }
+
+  /**
+   * Estimate effort required for fix
+   */
+  estimateEffort(issue) {
+    const effortMap = {
+      'color': 'low',
+      'fontSize': 'low',
+      'spacing': 'medium',
+      'layout': 'high',
+      'pixel': 'medium'
+    };
+    
+    let effort = effortMap[issue.category] || 'medium';
+    
+    // Adjust based on severity
+    if (issue.severity === 'critical' || issue.severity === 'major') {
+      effort = effort === 'low' ? 'medium' : effort === 'medium' ? 'high' : 'high';
+    }
+    
+    return effort;
+  }
+
+  /**
+   * Generate specific action steps
+   */
+  generateActionSteps(issue) {
+    const stepsByCategory = {
+      'color': [
+        'Extract exact color value from Figma design',
+        'Update CSS color property or design token',
+        'Verify color meets accessibility requirements',
+        'Test across different browsers and devices'
+      ],
+      'fontSize': [
+        'Check Figma design for correct font size',
+        'Update CSS font-size property',
+        'Verify line-height is appropriate',
+        'Test responsive behavior'
+      ],
+      'spacing': [
+        'Measure spacing values in Figma design',
+        'Update margin/padding CSS properties',
+        'Check impact on surrounding elements',
+        'Verify responsive spacing behavior'
+      ],
+      'layout': [
+        'Compare layout structure with Figma design',
+        'Review flexbox/grid implementation',
+        'Adjust element positioning and sizing',
+        'Test responsive layout behavior'
+      ],
+      'pixel': [
+        'Identify specific visual differences',
+        'Compare implementation with design file',
+        'Update relevant CSS properties',
+        'Re-run visual regression tests'
+      ]
+    };
+
+    return stepsByCategory[issue.category] || [
+      'Analyze the specific issue',
+      'Implement necessary changes',
+      'Test the fix',
+      'Verify with design specifications'
+    ];
+  }
+
+  /**
+   * Generate verification steps
+   */
+  generateVerificationSteps(issue) {
+    return [
+      'Run BackstopJS test to verify visual changes',
+      'Compare result with original Figma design',
+      'Test across different screen sizes',
+      'Verify accessibility compliance',
+      'Get design team approval'
+    ];
+  }
+
+  /**
+   * Generate enhanced recommendations
+   */
+  generateEnhancedRecommendations(results) {
+    const recommendations = {
+      immediate: [],
+      shortTerm: [],
+      longTerm: [],
+      process: [],
+      tooling: []
+    };
+
+    // Analyze results and generate targeted recommendations
+    if (results.detailedInsights && results.detailedInsights.prioritizedIssues) {
+      const criticalIssues = results.detailedInsights.prioritizedIssues.filter(
+        issue => issue.severity === 'critical' || issue.severity === 'major'
+      );
+
+      if (criticalIssues.length > 0) {
+        recommendations.immediate.push({
+          title: 'Address Critical Visual Discrepancies',
+          description: `${criticalIssues.length} critical issues require immediate attention`,
+          priority: 'critical',
+          effort: 'high',
+          impact: 'high',
+          timeframe: '1-2 days'
+        });
+      }
+
+      // Add visual analysis specific recommendations
+      if (results.visualAnalysis && results.visualAnalysis.overallInsights) {
+        const insights = results.visualAnalysis.overallInsights;
+        
+        if (insights.averageScores.visual < 80) {
+          recommendations.shortTerm.push({
+            title: 'Improve Visual Implementation Accuracy',
+            description: 'Overall visual accuracy is below acceptable threshold',
+            priority: 'high',
+            effort: 'medium',
+            impact: 'high',
+            timeframe: '1 week'
+          });
+        }
+
+        if (insights.severityDistribution.critical > 2) {
+          recommendations.process.push({
+            title: 'Enhance Design Review Process',
+            description: 'Multiple critical issues suggest need for better design-to-code handoff',
+            priority: 'medium',
+            effort: 'medium',
+            impact: 'high',
+            timeframe: '2-3 weeks'
+          });
+        }
+      }
+    }
+
+    // Add tooling recommendations
+    recommendations.tooling.push({
+      title: 'Implement Continuous Visual Testing',
+      description: 'Set up automated visual regression testing in CI/CD pipeline',
+      priority: 'medium',
+      effort: 'high',
+      impact: 'high',
+      timeframe: '1-2 weeks'
+    });
+
+    recommendations.longTerm.push({
+      title: 'Establish Design System Compliance Monitoring',
+      description: 'Create automated monitoring for design token usage and compliance',
+      priority: 'medium',
+      effort: 'high',
+      impact: 'high',
+      timeframe: '1 month'
+    });
+
+    return recommendations;
+  }
+
+  /**
+   * Generate enhanced HTML report
+   */
+  async generateEnhancedReport(results) {
+    try {
+      const reportDir = path.join(this.config.cacheDirectory, 'enhanced-reports');
+      await fs.ensureDir(reportDir);
+      
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+      const reportPath = path.join(reportDir, `enhanced-report-${timestamp}.html`);
+      
+      const reportHtml = this.generateEnhancedHTMLContent(results);
+      await fs.writeFile(reportPath, reportHtml, 'utf8');
+      
+      console.log(`Enhanced report generated: ${reportPath}`);
+      return reportPath;
+    } catch (error) {
+      console.error('Error generating enhanced report:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Generate enhanced HTML report content
+   */
+  generateEnhancedHTMLContent(results) {
+    const { scenario, detailedInsights, visualAnalysis, enhancedRecommendations } = results;
+    
+    return `
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Enhanced Design Comparison Report - ${scenario.label}</title>
+        <style>
+            body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; padding: 20px; background: #f5f5f5; }
+            .container { max-width: 1200px; margin: 0 auto; background: white; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+            .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; border-radius: 8px 8px 0 0; }
+            .section { padding: 20px; border-bottom: 1px solid #eee; }
+            .section:last-child { border-bottom: none; }
+            .metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin: 20px 0; }
+            .metric { text-align: center; padding: 20px; background: #f8f9fa; border-radius: 8px; }
+            .metric-value { font-size: 2rem; font-weight: bold; color: #333; }
+            .metric-label { color: #666; margin-top: 5px; }
+            .priority-critical { border-left: 4px solid #dc3545; }
+            .priority-high { border-left: 4px solid #fd7e14; }
+            .priority-medium { border-left: 4px solid #ffc107; }
+            .priority-low { border-left: 4px solid #28a745; }
+            .issue-item { padding: 15px; margin: 10px 0; background: #f8f9fa; border-radius: 5px; }
+            .recommendation-item { padding: 15px; margin: 10px 0; background: #e3f2fd; border-radius: 5px; }
+            .tag { display: inline-block; padding: 4px 8px; border-radius: 4px; font-size: 0.8rem; margin-right: 5px; }
+            .tag-critical { background: #dc3545; color: white; }
+            .tag-high { background: #fd7e14; color: white; }
+            .tag-medium { background: #ffc107; color: black; }
+            .tag-low { background: #28a745; color: white; }
+            .visual-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; }
+            .visual-item { background: #f8f9fa; padding: 15px; border-radius: 8px; }
+            .score-bar { width: 100%; height: 20px; background: #e0e0e0; border-radius: 10px; overflow: hidden; margin: 10px 0; }
+            .score-fill { height: 100%; transition: width 0.3s ease; }
+            .score-excellent { background: #4caf50; }
+            .score-good { background: #8bc34a; }
+            .score-fair { background: #ffeb3b; }
+            .score-poor { background: #ff9800; }
+            .score-bad { background: #f44336; }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <div class="header">
+                <h1>🎨 Enhanced Design Comparison Report</h1>
+                <p><strong>Scenario:</strong> ${scenario.label}</p>
+                <p><strong>URL:</strong> ${scenario.url}</p>
+                <p><strong>Generated:</strong> ${new Date(results.timestamp).toLocaleString()}</p>
+            </div>
+
+            ${this.generateOverviewSection(results)}
+            ${this.generateVisualAnalysisSection(visualAnalysis)}
+            ${this.generatePrioritizedIssuesSection(detailedInsights)}
+            ${this.generateRecommendationsSection(enhancedRecommendations)}
+            ${this.generateActionItemsSection(detailedInsights)}
+        </div>
+    </body>
+    </html>`;
+  }
+
+  generateOverviewSection(results) {
+    const totalIssues = results.detailedInsights?.prioritizedIssues?.length || 0;
+    const criticalIssues = results.detailedInsights?.prioritizedIssues?.filter(i => i.severity === 'critical')?.length || 0;
+    const averageVisualScore = results.visualAnalysis?.overallInsights?.averageScores?.visual || 0;
+    
+    return `
+    <div class="section">
+        <h2>📊 Overview</h2>
+        <div class="metrics">
+            <div class="metric">
+                <div class="metric-value">${totalIssues}</div>
+                <div class="metric-label">Total Issues</div>
+            </div>
+            <div class="metric">
+                <div class="metric-value">${criticalIssues}</div>
+                <div class="metric-label">Critical Issues</div>
+            </div>
+            <div class="metric">
+                <div class="metric-value">${averageVisualScore}%</div>
+                <div class="metric-label">Visual Similarity</div>
+            </div>
+            <div class="metric">
+                <div class="metric-value">${results.comparison?.totalMismatches || 0}</div>
+                <div class="metric-label">Token Mismatches</div>
+            </div>
+        </div>
+    </div>`;
+  }
+
+  generateVisualAnalysisSection(visualAnalysis) {
+    if (!visualAnalysis || !visualAnalysis.overallInsights) {
+      return '<div class="section"><h2>🔍 Visual Analysis</h2><p>No visual analysis data available.</p></div>';
+    }
+
+    const insights = visualAnalysis.overallInsights;
+    
+    return `
+    <div class="section">
+        <h2>🔍 Visual Analysis</h2>
+        <div class="visual-grid">
+            <div class="visual-item">
+                <h3>Overall Scores</h3>
+                <div>
+                    <span>Visual Quality:</span>
+                    <div class="score-bar">
+                        <div class="score-fill ${this.getScoreClass(insights.averageScores.visual)}" 
+                             style="width: ${insights.averageScores.visual}%"></div>
+                    </div>
+                    <span>${insights.averageScores.visual}%</span>
+                </div>
+                <div>
+                    <span>Color Accuracy:</span>
+                    <div class="score-bar">
+                        <div class="score-fill ${this.getScoreClass(insights.averageScores.color)}" 
+                             style="width: ${insights.averageScores.color}%"></div>
+                    </div>
+                    <span>${insights.averageScores.color}%</span>
+                </div>
+                <div>
+                    <span>Layout Precision:</span>
+                    <div class="score-bar">
+                        <div class="score-fill ${this.getScoreClass(insights.averageScores.layout)}" 
+                             style="width: ${insights.averageScores.layout}%"></div>
+                    </div>
+                    <span>${insights.averageScores.layout}%</span>
+                </div>
+            </div>
+            <div class="visual-item">
+                <h3>Issue Distribution</h3>
+                <p><span class="tag tag-critical">${insights.severityDistribution.critical}</span> Critical</p>
+                <p><span class="tag tag-high">${insights.severityDistribution.high}</span> High</p>
+                <p><span class="tag tag-medium">${insights.severityDistribution.medium}</span> Medium</p>
+                <p><span class="tag tag-low">${insights.severityDistribution.low}</span> Low</p>
+            </div>
+        </div>
+    </div>`;
+  }
+
+  generatePrioritizedIssuesSection(detailedInsights) {
+    if (!detailedInsights || !detailedInsights.prioritizedIssues) {
+      return '<div class="section"><h2>🔥 Prioritized Issues</h2><p>No issues to display.</p></div>';
+    }
+
+    const topIssues = detailedInsights.prioritizedIssues.slice(0, 10);
+    
+    return `
+    <div class="section">
+        <h2>🔥 Prioritized Issues</h2>
+        ${topIssues.map((issue, index) => `
+            <div class="issue-item priority-${this.mapSeverityToPriority(issue.severity)}">
+                <h4>#${index + 1} ${issue.description}</h4>
+                <p><strong>Element:</strong> ${issue.element}</p>
+                <p><strong>Category:</strong> ${issue.category} | <strong>Source:</strong> ${issue.source}</p>
+                <span class="tag tag-${this.mapSeverityToPriority(issue.severity)}">${issue.severity}</span>
+                <span class="tag" style="background: #e3f2fd;">Impact: ${issue.impact}</span>
+            </div>
+        `).join('')}
+    </div>`;
+  }
+
+  generateRecommendationsSection(recommendations) {
+    if (!recommendations) {
+      return '<div class="section"><h2>💡 Recommendations</h2><p>No recommendations available.</p></div>';
+    }
+
+    return `
+    <div class="section">
+        <h2>💡 Enhanced Recommendations</h2>
+        
+        ${recommendations.immediate?.length > 0 ? `
+        <h3>🚨 Immediate Actions</h3>
+        ${recommendations.immediate.map(rec => `
+            <div class="recommendation-item priority-${rec.priority}">
+                <h4>${rec.title}</h4>
+                <p>${rec.description}</p>
+                <p><strong>Timeframe:</strong> ${rec.timeframe} | <strong>Effort:</strong> ${rec.effort} | <strong>Impact:</strong> ${rec.impact}</p>
+            </div>
+        `).join('')}
+        ` : ''}
+
+        ${recommendations.shortTerm?.length > 0 ? `
+        <h3>📅 Short-term Improvements</h3>
+        ${recommendations.shortTerm.map(rec => `
+            <div class="recommendation-item priority-${rec.priority}">
+                <h4>${rec.title}</h4>
+                <p>${rec.description}</p>
+                <p><strong>Timeframe:</strong> ${rec.timeframe} | <strong>Effort:</strong> ${rec.effort} | <strong>Impact:</strong> ${rec.impact}</p>
+            </div>
+        `).join('')}
+        ` : ''}
+
+        ${recommendations.process?.length > 0 ? `
+        <h3>🔄 Process Improvements</h3>
+        ${recommendations.process.map(rec => `
+            <div class="recommendation-item priority-${rec.priority}">
+                <h4>${rec.title}</h4>
+                <p>${rec.description}</p>
+                <p><strong>Timeframe:</strong> ${rec.timeframe} | <strong>Effort:</strong> ${rec.effort} | <strong>Impact:</strong> ${rec.impact}</p>
+            </div>
+        `).join('')}
+        ` : ''}
+
+        ${recommendations.tooling?.length > 0 ? `
+        <h3>🛠️ Tooling & Automation</h3>
+        ${recommendations.tooling.map(rec => `
+            <div class="recommendation-item priority-${rec.priority}">
+                <h4>${rec.title}</h4>
+                <p>${rec.description}</p>
+                <p><strong>Timeframe:</strong> ${rec.timeframe} | <strong>Effort:</strong> ${rec.effort} | <strong>Impact:</strong> ${rec.impact}</p>
+            </div>
+        `).join('')}
+        ` : ''}
+    </div>`;
+  }
+
+  generateActionItemsSection(detailedInsights) {
+    if (!detailedInsights || !detailedInsights.actionableItems) {
+      return '<div class="section"><h2>✅ Action Items</h2><p>No action items available.</p></div>';
+    }
+
+    const actionItems = detailedInsights.actionableItems.slice(0, 5);
+    
+    return `
+    <div class="section">
+        <h2>✅ Action Items</h2>
+        ${actionItems.map(item => `
+            <div class="issue-item priority-${item.priority}">
+                <h4>${item.title}</h4>
+                <p>${item.description}</p>
+                <p><strong>Category:</strong> ${item.category} | <strong>Estimated Effort:</strong> ${item.estimatedEffort}</p>
+                <details>
+                    <summary>Implementation Steps</summary>
+                    <ol>
+                        ${item.steps.map(step => `<li>${step}</li>`).join('')}
+                    </ol>
+                </details>
+                <details>
+                    <summary>Verification Steps</summary>
+                    <ol>
+                        ${item.verification.map(step => `<li>${step}</li>`).join('')}
+                    </ol>
+                </details>
+            </div>
+        `).join('')}
+    </div>`;
+  }
+
+  getScoreClass(score) {
+    if (score >= 90) return 'score-excellent';
+    if (score >= 80) return 'score-good';
+    if (score >= 70) return 'score-fair';
+    if (score >= 60) return 'score-poor';
+    return 'score-bad';
   }
 }
 

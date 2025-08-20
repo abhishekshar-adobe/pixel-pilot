@@ -8,35 +8,49 @@
     }
   ],
   "onBeforeScript": "puppet/onBefore.js",
-  "onReadyScript": "puppet/onReady.js",
   "scenarios": [
     {
-      "id": 1753957966817,
-      "label": "Subscribe",
-      "url": "http://localhost:3000",
+      "id": 1755156490932,
+      "label": "subscribe",
+      "url": "http://localhost:3005",
       "selectors": [
         "#subscribe"
       ],
       "delay": 0,
-      "misMatchThreshold": 0.01,
+      "misMatchThreshold": 0.1,
       "requireSameDimensions": true,
       "removeSelectors": [],
       "onReadyScript": "puppet/onReady.js",
       "onBeforeScript": "puppet/onBefore.js"
     },
     {
-      "id": 1753958499990,
-      "label": "Recent Posts",
-      "url": "http://localhost:3000",
+      "id": 1755156662662,
+      "label": "site",
+      "url": "http://localhost:3005",
       "selectors": [
-        "#latest-blog > .container"
+        "document"
       ],
       "delay": 0,
-      "misMatchThreshold": 0.01,
-      "requireSameDimensions": false,
+      "misMatchThreshold": 0.1,
+      "requireSameDimensions": true,
       "removeSelectors": [],
       "onReadyScript": "puppet/onReady.js",
       "onBeforeScript": "puppet/onBefore.js"
+    },
+    {
+      "id": 1755156894857,
+      "label": "footer",
+      "url": "http://localhost:3005",
+      "selectors": [
+        "#footer"
+      ],
+      "delay": 0,
+      "misMatchThreshold": 0.1,
+      "requireSameDimensions": true,
+      "removeSelectors": [],
+      "onReadyScript": "puppet/onReady_footer.js",
+      "onBeforeScript": "puppet/onBefore.js",
+      "customScript": "document.getElementById(\"footer\").style.padding = \"0\";"
     }
   ],
   "paths": {

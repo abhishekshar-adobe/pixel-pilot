@@ -97,7 +97,8 @@ function ScenarioManager() {
       delay: 0,
       misMatchThreshold: 0.1,
       requireSameDimensions: true,
-      removeSelectors: []
+      removeSelectors: [],
+      selectorExpansion: true
     }
     
     const updatedScenarios = [...scenarios, newScenario]
@@ -510,6 +511,19 @@ function ScenarioManager() {
                         }}
                       />
                     )}
+                    {scenario.selectorExpansion === false && (
+                      <Chip
+                        label="No Expansion"
+                        size="small"
+                        sx={{ 
+                          bgcolor: 'rgba(255,193,7,0.8)',
+                          color: 'rgba(0,0,0,0.87)',
+                          border: '1px solid rgba(255,193,7,1)',
+                          fontSize: '0.7rem',
+                          height: 20
+                        }}
+                      />
+                    )}
                   </Stack>
                   
                   {/* Action Buttons */}
@@ -704,6 +718,25 @@ function ScenarioManager() {
                         variant="outlined"
                         helperText="Element to hover before capture"
                       />
+                      
+                      <FormControlLabel
+                        control={
+                          <Switch
+                            checked={scenario.selectorExpansion !== false}
+                            onChange={(e) => updateScenario(index, 'selectorExpansion', e.target.checked)}
+                            size="small"
+                          />
+                        }
+                        label="Selector Expansion"
+                        sx={{ mt: 1 }}
+                      />
+                      <Typography 
+                        variant="caption" 
+                        color="text.secondary" 
+                        sx={{ display: 'block', mt: -1, ml: 4 }}
+                      >
+                        Expand selectors to include child elements (default: true)
+                      </Typography>
                     </Stack>
                   </Card>
                 </Grid>

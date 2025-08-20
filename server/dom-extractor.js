@@ -30,7 +30,7 @@ function extractDOMData(selectors = []) {
         
         return {
           elementId: element.id || `${selector}-${index}`,
-          className: element.className,
+          className: element.className ? element.className.toString() : '',
           tagName: element.tagName.toLowerCase(),
           
           // Typography

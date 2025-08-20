@@ -423,20 +423,20 @@
     "viewport": "Lg-desktop",
     "screenshots": [
       {
-        "filename": "unknown_unknown_1754019095880_Services_2_296.jpg",
-        "originalName": "Services_2_296.jpg",
-        "path": "C:\\Users\\abhishekshar\\Desktop\\workspace\\PixelPilot\\server\\uploads\\unknown_unknown_1754019095880_Services_2_296.jpg",
-        "uploadedAt": "2025-08-01T03:31:35.915Z",
-        "size": 303079,
+        "filename": "unknown_unknown_1755156327480_Subscribe_Our_Newsletter_2_97.jpg",
+        "originalName": "Subscribe_Our_Newsletter_2_97.jpg",
+        "path": "C:\\Users\\abhishekshar\\Desktop\\workspace\\PixelPilot\\server\\uploads\\unknown_unknown_1755156327480_Subscribe_Our_Newsletter_2_97.jpg",
+        "uploadedAt": "2025-08-14T07:25:27.506Z",
+        "size": 155511,
         "isReference": true
       }
     ],
     "referenceScreenshot": {
-      "filename": "unknown_unknown_1754019095880_Services_2_296.jpg",
-      "originalName": "Services_2_296.jpg",
-      "path": "C:\\Users\\abhishekshar\\Desktop\\workspace\\PixelPilot\\server\\uploads\\unknown_unknown_1754019095880_Services_2_296.jpg",
-      "uploadedAt": "2025-08-01T03:31:35.915Z",
-      "size": 303079,
+      "filename": "unknown_unknown_1755156327480_Subscribe_Our_Newsletter_2_97.jpg",
+      "originalName": "Subscribe_Our_Newsletter_2_97.jpg",
+      "path": "C:\\Users\\abhishekshar\\Desktop\\workspace\\PixelPilot\\server\\uploads\\unknown_unknown_1755156327480_Subscribe_Our_Newsletter_2_97.jpg",
+      "uploadedAt": "2025-08-14T07:25:27.506Z",
+      "size": 155511,
       "isReference": true
     }
   },
@@ -491,6 +491,94 @@
       "path": "C:\\Users\\abhishekshar\\Desktop\\workspace\\PixelPilot\\server\\uploads\\unknown_unknown_1753966334389_Our_Recent_Posts_2_117.jpg",
       "uploadedAt": "2025-07-31T12:52:14.413Z",
       "size": 548106,
+      "isReference": true
+    }
+  },
+  "sub_Lg-desktop": {
+    "scenario": "sub",
+    "viewport": "Lg-desktop",
+    "screenshots": [
+      {
+        "filename": "unknown_unknown_1754029512790_Footer_Top_2_21.jpg",
+        "originalName": "Footer_Top_2_21.jpg",
+        "path": "C:\\Users\\abhishekshar\\Desktop\\workspace\\PixelPilot\\server\\uploads\\unknown_unknown_1754029512790_Footer_Top_2_21.jpg",
+        "uploadedAt": "2025-08-01T06:25:12.818Z",
+        "size": 149341,
+        "isReference": true
+      }
+    ],
+    "referenceScreenshot": {
+      "filename": "unknown_unknown_1754029512790_Footer_Top_2_21.jpg",
+      "originalName": "Footer_Top_2_21.jpg",
+      "path": "C:\\Users\\abhishekshar\\Desktop\\workspace\\PixelPilot\\server\\uploads\\unknown_unknown_1754029512790_Footer_Top_2_21.jpg",
+      "uploadedAt": "2025-08-01T06:25:12.818Z",
+      "size": 149341,
+      "isReference": true
+    }
+  },
+  "subscribe_Lg-desktop": {
+    "scenario": "subscribe",
+    "viewport": "Lg-desktop",
+    "screenshots": [
+      {
+        "filename": "unknown_unknown_1755156563187_Subscribe_Our_Newsletter_2_97.jpg",
+        "originalName": "Subscribe_Our_Newsletter_2_97.jpg",
+        "path": "C:\\Users\\abhishekshar\\Desktop\\workspace\\PixelPilot\\server\\uploads\\unknown_unknown_1755156563187_Subscribe_Our_Newsletter_2_97.jpg",
+        "uploadedAt": "2025-08-14T07:29:23.199Z",
+        "size": 155511,
+        "isReference": true
+      }
+    ],
+    "referenceScreenshot": {
+      "filename": "unknown_unknown_1755156563187_Subscribe_Our_Newsletter_2_97.jpg",
+      "originalName": "Subscribe_Our_Newsletter_2_97.jpg",
+      "path": "C:\\Users\\abhishekshar\\Desktop\\workspace\\PixelPilot\\server\\uploads\\unknown_unknown_1755156563187_Subscribe_Our_Newsletter_2_97.jpg",
+      "uploadedAt": "2025-08-14T07:29:23.199Z",
+      "size": 155511,
+      "isReference": true
+    }
+  },
+  "site_Lg-desktop": {
+    "scenario": "site",
+    "viewport": "Lg-desktop",
+    "screenshots": [
+      {
+        "filename": "unknown_unknown_1755156738846_Insove_2_19.jpg",
+        "originalName": "Insove_2_19.jpg",
+        "path": "C:\\Users\\abhishekshar\\Desktop\\workspace\\PixelPilot\\server\\uploads\\unknown_unknown_1755156738846_Insove_2_19.jpg",
+        "uploadedAt": "2025-08-14T07:32:18.866Z",
+        "size": 384345,
+        "isReference": true
+      }
+    ],
+    "referenceScreenshot": {
+      "filename": "unknown_unknown_1755156738846_Insove_2_19.jpg",
+      "originalName": "Insove_2_19.jpg",
+      "path": "C:\\Users\\abhishekshar\\Desktop\\workspace\\PixelPilot\\server\\uploads\\unknown_unknown_1755156738846_Insove_2_19.jpg",
+      "uploadedAt": "2025-08-14T07:32:18.866Z",
+      "size": 384345,
+      "isReference": true
+    }
+  },
+  "footer_Lg-desktop": {
+    "scenario": "footer",
+    "viewport": "Lg-desktop",
+    "screenshots": [
+      {
+        "filename": "unknown_unknown_1755156974826_Footer_2_20.jpg",
+        "originalName": "Footer_2_20.jpg",
+        "path": "C:\\Users\\abhishekshar\\Desktop\\workspace\\PixelPilot\\server\\uploads\\unknown_unknown_1755156974826_Footer_2_20.jpg",
+        "uploadedAt": "2025-08-14T07:36:14.838Z",
+        "size": 180464,
+        "isReference": true
+      }
+    ],
+    "referenceScreenshot": {
+      "filename": "unknown_unknown_1755156974826_Footer_2_20.jpg",
+      "originalName": "Footer_2_20.jpg",
+      "path": "C:\\Users\\abhishekshar\\Desktop\\workspace\\PixelPilot\\server\\uploads\\unknown_unknown_1755156974826_Footer_2_20.jpg",
+      "uploadedAt": "2025-08-14T07:36:14.838Z",
+      "size": 180464,
       "isReference": true
     }
   }

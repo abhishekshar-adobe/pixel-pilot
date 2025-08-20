@@ -1,14 +1,16 @@
 import { BrowserRouter as Router, Routes, Route, useLocation, useNavigate } from 'react-router-dom'
 import { ThemeProvider } from '@mui/material/styles'
 import { CssBaseline, AppBar, Toolbar, Typography, Tabs, Tab, Box } from '@mui/material'
-import { PhotoCameraOutlined, SettingsOutlined, PlayArrowOutlined, UploadFileOutlined, CompareArrowsOutlined } from '@mui/icons-material'
+import { SettingsOutlined, PlayArrowOutlined, UploadFileOutlined, CompareArrowsOutlined, CodeOutlined, ViewListOutlined } from '@mui/icons-material'
 import ConfigEditor from './components/ConfigEditor'
 import ScenarioManager from './components/ScenarioManager'
 import ScreenshotUploader from './components/ScreenshotUploader'
 import TestRunner from './components/TestRunner'
 import DesignComparison from './components/DesignComparison'
+import FigmaHTMLGenerator from './components/FigmaHTMLGenerator'
 import Footer from './components/Footer'
 import pixelPilotTheme from './theme/theme'
+import pixelPilotLogo from './assets/pixelpilot-logo.svg'
 
 function AppContent() {
   const location = useLocation()
@@ -21,12 +23,13 @@ function AppContent() {
       case '/upload': return 2
       case '/test': return 3
       case '/design-comparison': return 4
+      case '/figma-generator': return 5
       default: return 0
     }
   }
 
   const handleTabChange = (event, newValue) => {
-    const routes = ['/', '/scenarios', '/upload', '/test', '/design-comparison']
+    const routes = ['/', '/scenarios', '/upload', '/test', '/design-comparison', '/figma-generator']
     navigate(routes[newValue])
   }
 
@@ -44,7 +47,15 @@ function AppContent() {
       }}>
         <Box sx={{ width: '100%', px: 2 }}>
           <Toolbar sx={{ px: 0, minHeight: 64 }}>
-            <PhotoCameraOutlined sx={{ mr: 2, color: 'primary.main' }} />
+            <img 
+              src={pixelPilotLogo} 
+              alt="PixelPilot Logo" 
+              style={{ 
+                width: 40, 
+                height: 40, 
+                marginRight: 16 
+              }} 
+            />
             <Typography 
               variant="h5" 
               component="h1" 
@@ -97,7 +108,7 @@ function AppContent() {
               iconPosition="start"
             />
             <Tab 
-              icon={<PhotoCameraOutlined />} 
+              icon={<ViewListOutlined />} 
               label="Scenarios" 
               iconPosition="start"
             />
@@ -116,6 +127,11 @@ function AppContent() {
               label="Design Comparison" 
               iconPosition="start"
             />
+            <Tab 
+              icon={<CodeOutlined />} 
+              label="Figma Generator" 
+              iconPosition="start"
+            />
           </Tabs>
         </Box>
       </AppBar>
@@ -130,6 +146,7 @@ function AppContent() {
           <Route path="/upload" element={<ScreenshotUploader />} />
           <Route path="/test" element={<TestRunner />} />
           <Route path="/design-comparison" element={<DesignComparison />} />
+          <Route path="/figma-generator" element={<FigmaHTMLGenerator />} />
         </Routes>
       </Box>
 

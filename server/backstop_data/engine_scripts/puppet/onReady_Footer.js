@@ -4,7 +4,7 @@ module.exports = async (page, scenario, vp, isReference, Engine, config) => {
   // Custom script execution
   try {
     await page.evaluate(async () => {
-      sessionStorage.setItem('has-shown-login-prompt', 'true');
+      document.getElementById("footer").style.padding = "0";
     });
   } catch (error) {
     console.warn('Custom onReady script error for scenario "' + scenario.label + '":', error.message);
