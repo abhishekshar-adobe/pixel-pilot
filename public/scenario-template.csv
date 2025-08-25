@@ -1,0 +1,6 @@
+label,url,selectors,delay,misMatchThreshold,requireSameDimensions,hideSelectors,removeSelectors,clickSelector,hoverSelector,selectorExpansion,customScript,customBeforeScript,referenceUrl
+Homepage Header,https://example.com,.header-nav .hero-section,500,0.1,true,.cookie-banner .popup,.ad-container,button.accept-cookies,.menu-item,true,document.querySelector('.theme-toggle').click(),localStorage.setItem('cookies-accepted' 'true'),https://staging.example.com
+Product Grid,https://example.com/products,#product-grid,1000,0.2,true,.newsletter-popup,#chat-widget,,,true,,,
+Footer Links,https://example.com,.footer-links .social-icons,0,0.1,true,,,,,true,,,
+Contact Form,https://example.com/contact,#contact-form,300,0.05,true,.recaptcha-badge,.cookie-notice,,.form-field,true,document.querySelector('#name').value='Test User',,
+Navigation Menu,https://example.com,nav.main-menu,200,0.1,true,,.promo-banner,.menu-toggle,,true,,,

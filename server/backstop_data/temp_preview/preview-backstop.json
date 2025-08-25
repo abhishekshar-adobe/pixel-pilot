@@ -2,45 +2,51 @@
   "id": "preview_backstop",
   "viewports": [
     {
-      "label": "Lg-desktop",
-      "width": 1920,
-      "height": 768
+      "label": "Tablet Landscape",
+      "width": 1024,
+      "height": 768,
+      "icon": {
+        "type": {},
+        "compare": null
+      }
     }
   ],
   "onBeforeScript": "puppet/onBefore.js",
   "onReadyScript": "puppet/onReady.js",
   "scenarios": [
     {
-      "id": 1755156894857,
       "label": "preview_scenario",
-      "url": "http://localhost:3005",
+      "url": "https://www.adobe.com/in/creativecloud/buy/students/photoshop.html",
+      "referenceUrl": "",
       "selectors": [
-        "#footer"
+        "document"
       ],
-      "delay": 0,
+      "delay": 3000,
+      "customBeforeScript": "",
       "misMatchThreshold": 0.1,
       "requireSameDimensions": true,
+      "hideSelectors": [],
       "removeSelectors": [],
+      "clickSelector": "",
+      "hoverSelector": "",
+      "selectorExpansion": true,
+      "customScript": "",
+      "validationErrors": [],
+      "id": 1756011281654.5825,
       "onReadyScript": "puppet/onReady.js",
       "onBeforeScript": "puppet/onBefore.js",
-      "customScript": "document.getElementById(\"footer\").style.padding = \"0\";",
-      "referenceUrl": "",
       "readyEvent": "",
       "readySelector": "",
-      "hideSelectors": [],
-      "hoverSelector": "",
-      "clickSelector": "",
       "postInteractionWait": 0,
-      "selectorExpansion": true,
       "expect": 0
     }
   ],
   "paths": {
-    "bitmaps_reference": "C:\\Users\\abhishekshar\\Desktop\\workspace\\PixelPilot\\server\\backstop_data\\temp_preview\\preview_reference",
-    "bitmaps_test": "C:\\Users\\abhishekshar\\Desktop\\workspace\\PixelPilot\\server\\backstop_data\\temp_preview\\preview_test",
-    "engine_scripts": "C:\\Users\\abhishekshar\\Desktop\\workspace\\PixelPilot\\server\\backstop_data\\engine_scripts",
-    "json_report": "C:\\Users\\abhishekshar\\Desktop\\workspace\\PixelPilot\\server\\backstop_data\\temp_preview\\json_report",
-    "html_report": "C:\\Users\\abhishekshar\\Desktop\\workspace\\PixelPilot\\server\\backstop_data\\temp_preview\\html_report"
+    "bitmaps_reference": "/Users/abhishekshar/Downloads/pixel-pilot/server/backstop_data/temp_preview/preview_reference",
+    "bitmaps_test": "/Users/abhishekshar/Downloads/pixel-pilot/server/backstop_data/temp_preview/preview_test",
+    "engine_scripts": "/Users/abhishekshar/Downloads/pixel-pilot/server/backstop_data/engine_scripts",
+    "json_report": "/Users/abhishekshar/Downloads/pixel-pilot/server/backstop_data/temp_preview/json_report",
+    "html_report": "/Users/abhishekshar/Downloads/pixel-pilot/server/backstop_data/temp_preview/html_report"
   },
   "report": [
     "browser"

@@ -21,6 +21,201 @@ app.use((req, res, next) => {
   next();
 });
 
+// Default viewports configuration
+const DEFAULT_VIEWPORTS = [
+  {
+    label: 'phone',
+    width: 320,
+    height: 480
+  },
+  {
+    label: 'tablet',
+    width: 768,
+    height: 1024
+  },
+  {
+    label: 'Tablet_Landscape',
+    width: 1024,
+    height: 768
+  },
+  {
+    label: 'desktop',
+    width: 1920,
+    height: 1080
+  }
+];
+
+// Helper function to get all possible reference file patterns for a scenario
+const getReferenceFilePatterns = (scenarioLabel, viewportLabel) => {
+  const sanitizedScenario = scenarioLabel.trim().replace(/[^a-zA-Z0-9_]/g, '_');
+  const sanitizedViewport = viewportLabel.trim().replace(/[^a-zA-Z0-9_]/g, '_');
+  const referenceDir = path.join(__dirname, 'backstop_data', 'bitmaps_reference');
+  
+  // Return array of possible patterns for globbing
+  return {
+    referenceDir,
+    patterns: [
+      // Pattern for files with timestamp
+      `*_${sanitizedScenario}_*_${sanitizedViewport}.png`,
+      // Pattern for files without timestamp
+      `${sanitizedScenario}_*_${sanitizedViewport}.png`
+    ]
+  };
+};
+
+// Helper function to find existing reference file
+const findReferenceFile = async (scenarioLabel, viewportLabel) => {
+  const { referenceDir, patterns } = getReferenceFilePatterns(scenarioLabel, viewportLabel);
+  
+  for (const pattern of patterns) {
+    const files = await fs.readdir(referenceDir);
+    const matchingFile = files.find(file => {
+      const match = new RegExp(pattern.replace('*', '.*')).test(file);
+      return match;
+    });
+    if (matchingFile) {
+      return path.join(referenceDir, matchingFile);
+    }
+  }
+  return null;
+};
+
+// Check if reference file exists
+app.get('/api/check-reference/:scenarioLabel', async (req, res) => {
+  try {
+    const { scenarioLabel } = req.params;
+    const { viewport = 'phone' } = req.query; // Default to phone viewport if not specified
+    
+    // Read the config to get available viewports
+    const configPath = path.join(__dirname, 'backstop_data', 'backstop.json');
+    const config = await fs.readJson(configPath);
+    const viewports = config.viewports || DEFAULT_VIEWPORTS;
+    
+    // Check each viewport or just the specified one
+    const results = {};
+    const viewportsToCheck = viewport === 'all' ? viewports : [{ label: viewport }];
+    
+    for (const vp of viewportsToCheck) {
+      const refPath = await findReferenceFile(scenarioLabel, vp.label);
+      results[vp.label] = {
+        exists: !!refPath,
+        path: refPath
+      };
+    }
+    
+    res.json({ 
+      exists: Object.values(results).some(r => r.exists), // true if any viewport has a reference
+      viewports: results
+    });
+  } catch (error) {
+    console.error('Error checking reference:', error);
+    res.status(500).json({ 
+      error: error.message,
+      details: 'Failed to check reference images'
+    });
+  }
+});
+
+// Create reference for a scenario
+app.post('/api/reference', async (req, res) => {
+  try {
+    const { config } = req.body;
+    
+    // Ensure directories exist
+    await fs.ensureDir(path.join(__dirname, 'backstop_data', 'bitmaps_reference'));
+    
+    // Create temporary config file
+    const tempConfigPath = path.join(__dirname, 'backstop_data', 'temp-config.json');
+    
+    // Define default paths relative to backstop_data directory
+    const defaultPaths = {
+      bitmaps_reference: 'backstop_data/bitmaps_reference',
+      bitmaps_test: 'backstop_data/bitmaps_test',
+      engine_scripts: 'backstop_data/engine_scripts',
+      html_report: 'backstop_data/html_report'
+    };
+
+    // Process scenarios to handle referenceUrl correctly
+    const processedConfig = {
+      ...config,
+      scenarios: (config.scenarios || []).map(scenario => {
+        if (scenario.referenceUrl) {
+          // If using referenceUrl, we need to temporarily set it as the main URL
+          // to capture the reference image
+          return {
+            ...scenario,
+            originalUrl: scenario.url, // Save original URL
+            url: scenario.referenceUrl, // Use reference URL for capture
+          };
+        }
+        return scenario;
+      }),
+      viewports: config.viewports || DEFAULT_VIEWPORTS,
+      paths: {
+        ...defaultPaths,
+        ...(config.paths || {})
+      },
+      report: ['browser'],
+      engine: 'puppeteer',
+      engineOptions: {
+        args: ['--no-sandbox', '--disable-setuid-sandbox'],
+        headless: 'new',
+        defaultViewport: null
+      },
+      asyncCaptureLimit: 1, // Reduced to prevent memory issues
+      asyncCompareLimit: 50,
+      debug: false,
+      debugWindow: false,
+      scenarioLogsInReports: true,
+      puppeteerOffscreenCapture: true
+    };
+
+    // Save the temporary config
+    await fs.writeJson(tempConfigPath, processedConfig, { spaces: 2 });
+
+    try {
+      // Run backstop reference
+      await backstop('reference', { 
+        config: tempConfigPath,
+        docker: false // Ensure we're using local Puppeteer
+      });
+      
+      // If successful, update the main config to restore original URLs
+      if (processedConfig.scenarios) {
+        const updatedScenarios = processedConfig.scenarios.map(scenario => {
+          if (scenario.originalUrl) {
+            // Restore the original URL
+            return {
+              ...scenario,
+              url: scenario.originalUrl,
+              referenceUrl: scenario.url // Keep the reference URL
+            };
+          }
+          return scenario;
+        });
+        
+        await fs.writeJson(path.join(__dirname, 'backstop_data', 'backstop.json'), {
+          ...config,
+          scenarios: updatedScenarios
+        }, { spaces: 2 });
+      }
+      
+      // Clean up
+      await fs.remove(tempConfigPath);
+      
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error during reference creation:', error);
+      // Clean up even if there's an error
+      await fs.remove(tempConfigPath);
+      throw error;
+    }
+  } catch (error) {
+    console.error('Error creating reference:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Create necessary directories
 const configDir = path.join(__dirname, 'backstop_data');
 const uploadsDir = path.join(__dirname, 'uploads');
@@ -64,11 +259,111 @@ const upload = multer({
   }
 });
 
+// Utility function to clean up old reference files for a scenario
+const cleanupOldReferenceFiles = async (scenarioLabel, viewportLabel) => {
+  try {
+    const { referenceDir, patterns } = getReferenceFilePatterns(scenarioLabel, viewportLabel);
+    const files = await fs.readdir(referenceDir);
+    
+    for (const pattern of patterns) {
+      const regex = new RegExp(pattern.replace(/\*/g, '.*'));
+      const matchingFiles = files.filter(file => regex.test(file));
+      
+      // Keep the most recent file if there are multiple matches
+      if (matchingFiles.length > 1) {
+        matchingFiles.sort((a, b) => {
+          const aTime = parseInt(a.split('_')[0]) || 0;
+          const bTime = parseInt(b.split('_')[0]) || 0;
+          return bTime - aTime;
+        });
+        
+        // Remove all but the most recent file
+        for (const file of matchingFiles.slice(1)) {
+          await fs.remove(path.join(referenceDir, file));
+        }
+      }
+    }
+  } catch (error) {
+    console.error('Error cleaning up reference files:', error);
+  }
+};
+
 // Store scenario-screenshot associations
 let scenarioScreenshots = {};
 
 // Configuration storage
 const configFilePath = path.join(configDir, 'design-comparison-config.json');
+
+// Handle reference image upload
+app.post('/api/upload-reference', upload.single('image'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).send('No file uploaded');
+    }
+
+    const { label, viewportLabel } = req.body;
+    if (!label) {
+      return res.status(400).send('Label is required');
+    }
+    if (!viewportLabel) {
+      return res.status(400).send('Viewport label is required');
+    }
+
+    // Read existing config
+    const configPath = path.join(__dirname, 'backstop_data', 'backstop.json');
+    const config = await fs.readJson(configPath);
+    
+    // Validate viewport exists
+    const viewports = config.viewports || DEFAULT_VIEWPORTS;
+    const viewport = viewports.find(v => v.label === viewportLabel);
+    if (!viewport) {
+      return res.status(400).send(`Invalid viewport label: ${viewportLabel}`);
+    }
+
+    const referencePath = getReferenceFilePath(label, viewportLabel);
+
+    // Ensure directory exists
+    await fs.ensureDir(path.dirname(referencePath));
+
+    // Move uploaded file to reference location
+    await fs.move(req.file.path, referencePath, { overwrite: true });
+
+    // Update scenario if needed
+    let scenarioUpdated = false;
+    const scenarios = config.scenarios || [];
+    const scenario = scenarios.find(s => s.label === label);
+    
+    if (!scenario) {
+      // Create new scenario
+      scenarios.push({
+        label,
+        url: '',  // User will need to set this
+        referenceUrl: '',
+        readySelector: '',
+        delay: 0,
+        requireSameDimensions: true
+      });
+      scenarioUpdated = true;
+    }
+
+    if (scenarioUpdated) {
+      await fs.writeJson(configPath, {
+        ...config,
+        scenarios
+      }, { spaces: 2 });
+    }
+
+    res.json({ 
+      success: true, 
+      message: 'Reference image uploaded successfully',
+      path: referencePath,
+      scenarioUpdated
+    });
+  } catch (error) {
+    console.error('Error uploading reference image:', error);
+    res.status(500).send('Error uploading reference image: ' + error.message);
+  }
+});
 
 // Load existing configuration on startup
 async function loadDesignComparisonConfig() {
@@ -744,12 +1039,93 @@ app.post('/api/sync-reference', async (req, res) => {
 app.post('/api/test', async (req, res) => {
   try {
     const configPath = path.join(configDir, 'backstop.json');
-    const config = await fs.readJson(configPath);
+    let config = await fs.readJson(configPath);
     
-    // Ensure report paths exist
-    await fs.ensureDir(path.join(configDir, config.paths.html_report));
-    await fs.ensureDir(path.join(configDir, config.paths.bitmaps_test));
+    // Ensure config has all required paths
+    const defaultPaths = {
+      bitmaps_reference: 'backstop_data/bitmaps_reference',
+      bitmaps_test: 'backstop_data/bitmaps_test',
+      engine_scripts: 'backstop_data/engine_scripts',
+      html_report: 'backstop_data/html_report'
+    };
+
+    // Initialize or update paths
+    config = {
+      ...config,
+      paths: {
+        ...defaultPaths,
+        ...(config.paths || {})
+      },
+      report: ['browser'],
+      engine: 'puppeteer',
+      engineOptions: {
+        args: ['--no-sandbox', '--disable-setuid-sandbox'],
+        headless: 'new'
+      },
+      asyncCaptureLimit: 2,
+      asyncCompareLimit: 50,
+      debug: false,
+      debugWindow: false
+    };
+
+    // Process scenarios to ensure consistent naming and structure
+    config.scenarios = (config.scenarios || []).map(scenario => ({
+      ...scenario,
+      label: scenario.label.trim(),
+      selectors: ['document'],
+      selectorExpansion: false,
+      misMatchThreshold: scenario.misMatchThreshold || 0.1,
+      requireSameDimensions: true
+    }));
+
+    // Check if any scenarios use referenceUrl
+    const hasReferenceUrls = config.scenarios?.some(scenario => scenario.referenceUrl);
     
+    if (hasReferenceUrls) {
+      // Create a temporary config for reference capture
+      const tempConfigPath = path.join(configDir, 'temp-reference-config.json');
+      const referenceConfig = {
+        ...config,
+        scenarios: config.scenarios.map(scenario => {
+          if (scenario.referenceUrl) {
+            return {
+              ...scenario,
+              url: scenario.referenceUrl, // Use reference URL for capture
+              selectors: ['document'],
+              selectorExpansion: false,
+              misMatchThreshold: scenario.misMatchThreshold || 0.1,
+              requireSameDimensions: true,
+              id: scenario.id // Maintain the same ID for consistency
+            };
+          }
+          return scenario;
+        })
+      };
+      
+      // Write the temporary config
+      await fs.writeJson(tempConfigPath, referenceConfig, { spaces: 2 });
+      
+      // Run reference capture first
+      console.log('Running reference capture for scenarios with referenceUrl...');
+      await backstop('reference', { config: tempConfigPath });
+      
+      // Clean up temporary config
+      await fs.remove(tempConfigPath);
+      
+      // Restore original config for testing
+      await fs.writeJson(configPath, config, { spaces: 2 });
+    } else {
+      // Write updated config back to file
+      await fs.writeJson(configPath, config, { spaces: 2 });
+    }
+    
+    // Ensure all paths exist
+    await Promise.all(Object.values(config.paths).map(p => 
+      fs.ensureDir(path.join(configDir, p))
+    ));
+    
+    // Now run the test
+    console.log('Running BackstopJS test...');
     const result = await backstop('test', { 
       config: configPath,
       filter: req.body.filter || undefined
@@ -764,7 +1140,10 @@ app.post('/api/test', async (req, res) => {
       success: true, 
       result,
       reportPath: reportExists ? `/report/index.html` : null,
-      message: 'Test completed successfully'
+      message: hasReferenceUrls 
+        ? 'Reference images captured and test completed successfully' 
+        : 'Test completed successfully',
+      referencesCreated: hasReferenceUrls
     });
   } catch (error) {
     // BackstopJS throws error when there are visual differences, but this is expected

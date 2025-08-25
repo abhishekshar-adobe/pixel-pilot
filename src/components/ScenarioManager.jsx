@@ -51,6 +51,8 @@ import {
 
 const API_BASE = 'http://localhost:5000/api'
 
+import CSVScenarioUploader from './CSVScenarioUploader';
+
 function ScenarioManager() {
   const [scenarios, setScenarios] = useState([])
   const [config, setConfig] = useState(null)
@@ -89,10 +91,11 @@ function ScenarioManager() {
   }
 
   const addScenario = () => {
-    const newScenario = {
+      const newScenario = {
       id: Date.now(), // Add unique ID for stable React keys
       label: 'New Scenario',
       url: 'https://example.com',
+      referenceUrl: '', // URL for reference screenshot (if different from test URL)
       selectors: ['document'],
       delay: 0,
       misMatchThreshold: 0.1,
@@ -100,7 +103,6 @@ function ScenarioManager() {
       removeSelectors: [],
       selectorExpansion: true
     }
-    
     const updatedScenarios = [...scenarios, newScenario]
     setScenarios(updatedScenarios)
     setHasUnsavedChanges(true)
@@ -187,6 +189,40 @@ function ScenarioManager() {
       setMessage('No URL configured for this scenario')
       setTimeout(() => setMessage(''), 3000)
       return
+    }
+
+    // Check if reference image exists first
+    try {
+      // Check for all viewports
+      const checkResponse = await axios.get(`${API_BASE}/check-reference/${encodeURIComponent(scenario.label)}?viewport=all`);
+      
+      if (!checkResponse.data.exists) {
+        setMessage('Creating reference screenshots...');
+        await axios.post(`${API_BASE}/reference`, {
+          config: {
+            scenarios: [scenario],
+            viewports: config?.viewports || [{ label: 'phone', width: 320, height: 480 }]
+          },
+          scenarioIndex: 0,
+          viewportIndex: 0
+        })
+        setMessage('Reference screenshot created successfully!')
+        setTimeout(() => setMessage(''), 3000)
+      }
+    } catch (error) {
+      console.error('Error checking/creating reference:', error)
+      setMessage(`Error: ${error.message}`)
+      setTimeout(() => setMessage(''), 3000)
+      return
+    }
+
+    // Validate URL before proceeding
+    try {
+      new URL(scenario.url);
+    } catch (e) {
+      setMessage(`Invalid URL format: ${scenario.url}`);
+      setTimeout(() => setMessage(''), 3000);
+      return;
     }
 
     // Set scenario data for preview dialog
@@ -381,6 +417,16 @@ function ScenarioManager() {
           >
             Add New Scenario
           </Button>
+          
+          {/* Render CSV Uploader */}
+          <CSVScenarioUploader 
+            onScenariosCreated={(newScenarios) => {
+              setScenarios([...scenarios, ...newScenarios]);
+              setHasUnsavedChanges(true);
+              setMessage(`Successfully imported ${newScenarios.length} scenarios from CSV`);
+              setTimeout(() => setMessage(''), 3000);
+            }} 
+          />
           
           {hasUnsavedChanges && (
             <Button
@@ -603,6 +649,16 @@ function ScenarioManager() {
                         fullWidth
                         size="small"
                         variant="outlined"
+                      />
+
+                      <TextField
+                        label="Reference URL (Optional)"
+                        value={scenario.referenceUrl || ''}
+                        onChange={(e) => updateScenario(index, 'referenceUrl', e.target.value)}
+                        fullWidth
+                        size="small"
+                        variant="outlined"
+                        helperText="URL for reference screenshot (leave empty to use same as test URL)"
                       />
                       
                       <TextField
@@ -875,11 +931,28 @@ function ScenarioManager() {
               {/* URL Section */}
               <Card sx={{ p: 2, bgcolor: 'grey.50' }}>
                 <Typography variant="subtitle1" fontWeight="bold" gutterBottom>
-                  Target URL
+                  URLs to Compare
                 </Typography>
-                <Typography variant="body1" sx={{ wordBreak: 'break-all' }}>
-                  {previewScenarioData.url}
-                </Typography>
+                <Stack spacing={1}>
+                  <Box>
+                    <Typography variant="caption" color="text.secondary">
+                      Target URL:
+                    </Typography>
+                    <Typography variant="body1" sx={{ wordBreak: 'break-all' }}>
+                      {previewScenarioData.url}
+                    </Typography>
+                  </Box>
+                  {previewScenarioData.referenceUrl && (
+                    <Box>
+                      <Typography variant="caption" color="text.secondary">
+                        Reference URL:
+                      </Typography>
+                      <Typography variant="body1" sx={{ wordBreak: 'break-all' }}>
+                        {previewScenarioData.referenceUrl}
+                      </Typography>
+                    </Box>
+                  )}
+                </Stack>
               </Card>
 
               {/* Preview Image Section */}
@@ -1140,19 +1213,34 @@ function ScenarioManager() {
           >
             {loadingPreview ? 'Generating...' : 'Refresh Preview'}
           </Button>
-          <Button
-            onClick={() => {
-              if (previewScenarioData?.url) {
-                window.open(previewScenarioData.url, '_blank')
-                setMessage(`Opening preview for "${previewScenarioData.label}"`)
-                setTimeout(() => setMessage(''), 2000)
-              }
-            }}
-            variant="contained"
-            startIcon={<WebIcon />}
-          >
-            Open URL
-          </Button>
+          <Stack direction="row" spacing={1}>
+            <Button
+              onClick={() => {
+                if (previewScenarioData?.url) {
+                  window.open(previewScenarioData.url, '_blank')
+                  setMessage(`Opening target URL for "${previewScenarioData.label}"`)
+                  setTimeout(() => setMessage(''), 2000)
+                }
+              }}
+              variant="contained"
+              startIcon={<WebIcon />}
+            >
+              Open Target URL
+            </Button>
+            {previewScenarioData?.referenceUrl && (
+              <Button
+                onClick={() => {
+                  window.open(previewScenarioData.referenceUrl, '_blank')
+                  setMessage(`Opening reference URL for "${previewScenarioData.label}"`)
+                  setTimeout(() => setMessage(''), 2000)
+                }}
+                variant="outlined"
+                startIcon={<CompareArrows />}
+              >
+                Open Reference URL
+              </Button>
+            )}
+          </Stack>
         </DialogActions>
       </Dialog>
     </Box>

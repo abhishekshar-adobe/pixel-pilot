@@ -1,4 +1,25 @@
 module.exports = async (page, scenario) => {
+  // Set a longer timeout for navigation
+  await page.setDefaultNavigationTimeout(60000);
+
+  // Handle common network errors
+  page.on('error', err => {
+    console.error(`Page error: ${err.message}`);
+  });
+
+  // Listen for failed requests
+  page.on('requestfailed', request => {
+    const failure = request.failure();
+    console.error(`Request failed: ${request.url()} - ${failure.errorText}`);
+  });
+
+  // Set user agent to a modern browser
+  await page.setUserAgent('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Safari/537.36');
+
+  // Enable error handling for HTTP2 issues
+  await page.setExtraHTTPHeaders({
+    'Accept-Encoding': 'gzip, deflate, br',
+  });
   console.log('BEFORE > ' + scenario.label);
   
   // Set viewport if specified

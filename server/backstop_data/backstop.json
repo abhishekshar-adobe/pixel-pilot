@@ -2,55 +2,101 @@
   "id": "backstop_default",
   "viewports": [
     {
-      "label": "Lg-desktop",
-      "width": 1920,
-      "height": 768
+      "label": "Tablet Landscape",
+      "width": 1024,
+      "height": 768,
+      "icon": {
+        "type": {},
+        "compare": null
+      }
+    },
+    {
+      "label": "Mobile Portrait",
+      "width": 375,
+      "height": 667,
+      "icon": {
+        "type": {},
+        "compare": null
+      }
+    },
+    {
+      "label": "Laptop",
+      "width": 1366,
+      "height": 768,
+      "icon": {
+        "type": {},
+        "compare": null
+      }
     }
   ],
   "onBeforeScript": "puppet/onBefore.js",
+  "onReadyScript": "puppet/onReady.js",
   "scenarios": [
     {
-      "id": 1755156490932,
-      "label": "subscribe",
-      "url": "http://localhost:3005",
-      "selectors": [
-        "#subscribe"
-      ],
-      "delay": 0,
-      "misMatchThreshold": 0.1,
-      "requireSameDimensions": true,
-      "removeSelectors": [],
-      "onReadyScript": "puppet/onReady.js",
-      "onBeforeScript": "puppet/onBefore.js"
-    },
-    {
-      "id": 1755156662662,
-      "label": "site",
-      "url": "http://localhost:3005",
+      "label": "Home",
+      "url": "https://www.adobe.com/in/",
+      "referenceUrl": "https://www.adobe.com/in/",
       "selectors": [
         "document"
       ],
-      "delay": 0,
+      "delay": 3000,
+      "customBeforeScript": "",
       "misMatchThreshold": 0.1,
       "requireSameDimensions": true,
+      "hideSelectors": [],
       "removeSelectors": [],
+      "clickSelector": "",
+      "hoverSelector": "",
+      "selectorExpansion": false,
+      "customScript": "",
+      "validationErrors": [],
+      "id": 1756011281654.5095,
       "onReadyScript": "puppet/onReady.js",
       "onBeforeScript": "puppet/onBefore.js"
     },
     {
-      "id": 1755156894857,
-      "label": "footer",
-      "url": "http://localhost:3005",
+      "label": "Page2",
+      "url": "https://www.adobe.com/in/creativecloud/buy/students.html?promoid=65FN7X8B&mv=other",
+      "referenceUrl": "https://www.adobe.com/in/creativecloud/buy/students.html?promoid=65FN7X8B&mv=other",
       "selectors": [
-        "#footer"
+        "document"
       ],
-      "delay": 0,
+      "delay": 100,
+      "customBeforeScript": "",
+      "misMatchThreshold": 0.2,
+      "requireSameDimensions": true,
+      "hideSelectors": [],
+      "removeSelectors": [],
+      "clickSelector": "",
+      "hoverSelector": "",
+      "selectorExpansion": false,
+      "customScript": "",
+      "validationErrors": [],
+      "id": 1756011281654.3938,
+      "onReadyScript": "puppet/onReady.js",
+      "onBeforeScript": "puppet/onBefore.js"
+    },
+    {
+      "label": "Page3",
+      "url": "https://www.adobe.com/in/creativecloud/buy/students/photoshop.html",
+      "referenceUrl": "https://www.adobe.com/in/creativecloud/buy/students/photoshop.html",
+      "selectors": [
+        "document"
+      ],
+      "delay": 3000,
+      "customBeforeScript": "",
       "misMatchThreshold": 0.1,
       "requireSameDimensions": true,
+      "hideSelectors": [],
       "removeSelectors": [],
-      "onReadyScript": "puppet/onReady_footer.js",
-      "onBeforeScript": "puppet/onBefore.js",
-      "customScript": "document.getElementById(\"footer\").style.padding = \"0\";"
+      "clickSelector": "",
+      "hoverSelector": "",
+      "selectorExpansion": false,
+      "customScript": "",
+      "validationErrors": [],
+      "id": 1756011281654.5825,
+      "onReadyScript": "puppet/onReady.js",
+      "onBeforeScript": "puppet/onBefore.js"
     }
   ],
   "paths": {
@@ -58,7 +104,7 @@
     "bitmaps_test": "backstop_data/bitmaps_test",
     "engine_scripts": "backstop_data/engine_scripts",
     "html_report": "backstop_data/html_report",
-    "ci_report": "backstop_data/ci_report"
+    "ci_report": "ci_report"
   },
   "report": [
     "browser"
@@ -66,10 +112,12 @@
   "engine": "puppeteer",
   "engineOptions": {
     "args": [
-      "--no-sandbox"
-    ]
+      "--no-sandbox",
+      "--disable-setuid-sandbox"
+    ],
+    "headless": "new"
   },
-  "asyncCaptureLimit": 5,
+  "asyncCaptureLimit": 2,
   "asyncCompareLimit": 50,
   "debug": false,
   "debugWindow": false
