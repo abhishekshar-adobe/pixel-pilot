@@ -64,6 +64,28 @@ import {
 
 const API_BASE = 'http://localhost:5000/api'
 
+// Helper function to render status chip
+const getStatusChip = (status, misMatchPercentage) => {
+  const statusConfig = {
+    pending: { color: 'default', icon: <RadioButtonUnchecked />, label: 'Not Run' },
+    running: { color: 'primary', icon: <CircularProgress size={16} />, label: 'Running...' },
+    passed: { color: 'success', icon: <CheckCircle />, label: 'Passed' },
+    failed: { color: 'error', icon: <Clear />, label: `Failed (${misMatchPercentage}% diff)` }
+  };
+
+  const config = statusConfig[status];
+  return config ? (
+    <Chip
+      size="small"
+      icon={config.icon}
+      label={config.label}
+      color={config.color}
+      variant="outlined"
+      sx={{ ml: 1 }}
+    />
+  ) : null;
+};
+
 function TestRunner() {
   const [testRunning, setTestRunning] = useState(false)
   const [approveRunning, setApproveRunning] = useState(false)
@@ -74,15 +96,56 @@ function TestRunner() {
   const [runAllScenarios, setRunAllScenarios] = useState(true)
   const [activeStep, setActiveStep] = useState(0)
   const [expandedResult, setExpandedResult] = useState(false)
+  const [scenarioResults, setScenarioResults] = useState({}) // Track test results per scenario
+  const [currentScenario, setCurrentScenario] = useState(null) // Currently running scenario
+  const [backstopReport, setBackstopReport] = useState(null)
 
   useEffect(() => {
-    loadScenarios()
+    const init = async () => {
+      await loadScenarios()
+      await loadBackstopReport()
+      // Set all scenarios as selected when runAllScenarios is true
+      if (runAllScenarios && scenarios.length > 0) {
+        setSelectedScenarios(scenarios.map(s => s.label))
+      }
+    }
+    init()
   }, [])
+
+  const loadBackstopReport = async () => {
+    try {
+      const response = await axios.get(`${API_BASE}/test-results`)
+      setBackstopReport(response.data)
+      
+      // Update scenario results from BackstopJS report
+      if (response.data?.tests) {
+        const results = {}
+        response.data.tests.forEach(test => {
+          results[test.pair.label] = {
+            status: test.status === 'pass' ? 'passed' : 'failed',
+            misMatchPercentage: test.misMatchPercentage,
+            isSameDimensions: test.isSameDimensions,
+            diff: test.pair.diffImage,
+            test: test.pair.test,
+            reference: test.pair.reference
+          }
+        })
+        setScenarioResults(results)
+      }
+    } catch (error) {
+      console.error('Error loading BackstopJS report:', error)
+    }
+  }
 
   const loadScenarios = async () => {
     try {
       const response = await axios.get(`${API_BASE}/scenarios`)
-      setScenarios(response.data.scenarios || response.data || [])
+      const loadedScenarios = response.data.scenarios || response.data || []
+      setScenarios(loadedScenarios)
+      // Set all scenarios as selected if in "Run All" mode
+      if (runAllScenarios) {
+        setSelectedScenarios(loadedScenarios.map(s => s.label))
+      }
     } catch (error) {
       console.error('Error loading scenarios:', error)
     }
@@ -110,22 +173,84 @@ function TestRunner() {
     setMessage('')
     setTestResult(null)
     
+    // Initialize results for all scenarios as pending
+    const scenariosToTest = runAllScenarios ? scenarios : scenarios.filter(s => selectedScenarios.includes(s.label));
+    const initialResults = {};
+    scenariosToTest.forEach(s => {
+      initialResults[s.label] = { status: 'pending' };
+    });
+    setScenarioResults(initialResults);
+    
     try {
       const filter = runAllScenarios ? undefined : selectedScenarios.join('|')
-      const response = await axios.post(`${API_BASE}/test`, { filter })
+      
+      // First check if we need to create any reference images
+      for (const scenario of scenariosToTest) {
+        setCurrentScenario(scenario.label);
+        setScenarioResults(prev => ({
+          ...prev,
+          [scenario.label]: { status: 'running' }
+        }));
+        
+        if (scenario.referenceUrl) {
+          try {
+            await axios.get(`${API_BASE}/check-reference/${encodeURIComponent(scenario.label)}?viewport=all`);
+          } catch (error) {
+            console.log('Reference check failed, will be created during test');
+          }
+        }
+      }
+      
+      // Run the test
+      const response = await axios.post(`${API_BASE}/test`, { filter });
+      
+      // Process test results
+      const results = {...scenarioResults}; // Preserve existing results
+      const testResults = response.data.result || {};
+      
+      // Mark all tested scenarios as passed if no differences found
+      if (response.data.success) {
+        scenariosToTest.forEach(scenario => {
+          results[scenario.label] = {
+            status: 'passed',
+            misMatchPercentage: 0,
+            isSameDimensions: true
+          };
+        });
+      } else {
+        // Update individual scenario results
+        Object.entries(testResults).forEach(([scenarioLabel, result]) => {
+          results[scenarioLabel] = {
+            status: result.success ? 'passed' : 'failed',
+            misMatchPercentage: result.misMatchPercentage,
+            isSameDimensions: result.isSameDimensions,
+            diff: result.diffImage,
+            test: result.testImage,
+            reference: result.referenceImage
+          };
+        });
+      }
+      
+      setScenarioResults(results);
       setMessage(response.data.message || 'Visual regression test completed!')
       setTestResult(response.data)
+      
+      // Load latest BackstopJS report after test completes
+      await loadBackstopReport()
       
     } catch (error) {
       const errorData = error.response?.data
       if (errorData?.reportPath) {
         setMessage(`Test completed with differences detected.`)
         setTestResult(errorData)
+        // Load latest BackstopJS report even if test had differences
+        await loadBackstopReport()
       } else {
         setMessage(`Error running test: ${errorData?.error || error.message}`)
       }
     } finally {
       setTestRunning(false)
+      setCurrentScenario(null)
     }
   }
 
@@ -165,10 +290,10 @@ function TestRunner() {
   return (
     <Box sx={{ 
       width: '100%', 
-      p: 3
+      p: 0
     }}>
       {/* Header Section */}
-      <Box sx={{ mb: 4 }}>
+      <Box sx={{ mb: 4, px: 3 }}>
         <Stack direction="row" alignItems="center" spacing={2} sx={{ mb: 2 }}>
           <Avatar sx={{ bgcolor: 'primary.main', width: 56, height: 56 }}>
             <RocketLaunch />
@@ -267,7 +392,7 @@ function TestRunner() {
           </Grid>
         </Grid>
 
-        {/* Message Alert */}
+      {/* Message Alert */}
         {message && (
           <Fade in={Boolean(message)}>
             <Alert 
@@ -290,17 +415,21 @@ function TestRunner() {
         )}
       </Box>
 
-      <Grid container spacing={4}>
-        {/* Left Panel - Scenario Configuration */}
-        <Grid item xs={12} lg={5}>
+      <Grid container spacing={4} sx={{ width: '100%', margin: 0 }}>
+        {/* Test Configuration Panel */}
+        <Grid item xs={12} sx={{ width: '100%', padding: 0 }}>
           <Card sx={{ 
-            height: 'fit-content',
             borderRadius: 3,
             boxShadow: '0 4px 20px rgba(0,0,0,0.1)',
             border: '1px solid',
-            borderColor: 'divider'
+            borderColor: 'divider',
+            width: '100%',
+            maxWidth: 'none'
           }}>
-            <CardContent sx={{ p: 3 }}>
+            <CardContent sx={{ 
+              p: 3, 
+              width: '100%'
+            }}>
               <Stack direction="row" alignItems="center" spacing={2} sx={{ mb: 3 }}>
                 <Avatar sx={{ bgcolor: 'secondary.main' }}>
                   <Settings />
@@ -323,7 +452,15 @@ function TestRunner() {
                 </Typography>
                 <RadioGroup
                   value={runAllScenarios ? 'all' : 'selected'}
-                  onChange={(e) => setRunAllScenarios(e.target.value === 'all')}
+                  onChange={(e) => {
+                    const isAll = e.target.value === 'all';
+                    setRunAllScenarios(isAll);
+                    if (isAll) {
+                      setSelectedScenarios(scenarios.map(s => s.label));
+                    } else {
+                      setSelectedScenarios([]);
+                    }
+                  }}
                 >
                   <FormControlLabel 
                     value="all" 
@@ -349,41 +486,59 @@ function TestRunner() {
                 </RadioGroup>
               </FormControl>
 
-              {!runAllScenarios && (
-                <Collapse in={!runAllScenarios}>
-                  <Box>
-                    <Stack direction="row" spacing={1} sx={{ mb: 2 }}>
-                      <Button 
-                        size="small"
-                        startIcon={<SelectAll />}
-                        onClick={selectAllScenarios}
-                        variant="outlined"
-                        sx={{ borderRadius: 2 }}
-                      >
-                        Select All
-                      </Button>
-                      <Button 
-                        size="small"
-                        startIcon={<Clear />}
-                        onClick={clearScenarioSelection}
-                        variant="outlined"
-                        color="secondary"
-                        sx={{ borderRadius: 2 }}
-                      >
-                        Clear All
-                      </Button>
-                    </Stack>
-                    
-                    <Paper 
-                      variant="outlined" 
-                      sx={{ 
-                        p: 2, 
-                        maxHeight: 280, 
-                        overflow: 'auto',
-                        borderRadius: 2,
-                        bgcolor: 'grey.50'
-                      }}
+              <Box>
+                {!runAllScenarios && (
+                  <Stack direction="row" spacing={1} sx={{ mb: 2 }}>
+                    <Button 
+                      size="small"
+                      startIcon={<SelectAll />}
+                      onClick={selectAllScenarios}
+                      variant="outlined"
+                      sx={{ borderRadius: 2 }}
                     >
+                      Select All
+                    </Button>
+                    <Button 
+                      size="small"
+                      startIcon={<Clear />}
+                      onClick={clearScenarioSelection}
+                      variant="outlined"
+                      color="secondary"
+                      sx={{ borderRadius: 2 }}
+                    >
+                      Clear All
+                    </Button>
+                  </Stack>
+                )}
+
+                <Paper 
+                  variant="outlined" 
+                  sx={{ 
+                    p: 2, 
+                    height: '400px', 
+                    overflowY: 'auto',
+                    borderRadius: 2,
+                    bgcolor: 'grey.50',
+                    opacity: runAllScenarios ? 0.7 : 1,
+                    pointerEvents: 'auto',
+                    width: '100%',
+                    '&::-webkit-scrollbar': {
+                      width: '8px',
+                      height: '8px'
+                    },
+                    '&::-webkit-scrollbar-track': {
+                      background: '#f1f1f1',
+                      borderRadius: '4px'
+                    },
+                    '&::-webkit-scrollbar-thumb': {
+                      background: '#888',
+                      borderRadius: '4px',
+                      '&:hover': {
+                        background: '#555'
+                      }
+                    }
+                  }}
+                >
                       {scenarios.length > 0 ? (
                         <Stack spacing={1}>
                           {scenarios.map((scenario) => (
@@ -410,12 +565,44 @@ function TestRunner() {
                                   <RadioButtonUnchecked color="disabled" />
                                 )}
                                 <Box sx={{ flex: 1 }}>
-                                  <Typography variant="body1" fontWeight={500}>
-                                    {scenario.label}
-                                  </Typography>
-                                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
-                                    {scenario.url}
-                                  </Typography>
+                                  <Stack spacing={1}>
+                                    <Stack direction="row" alignItems="center">
+                                      <Typography variant="body1" fontWeight={500}>
+                                        {scenario.label}
+                                      </Typography>
+                                      {getStatusChip(
+                                        scenarioResults[scenario.label]?.status || 'pending',
+                                        scenarioResults[scenario.label]?.misMatchPercentage
+                                      )}
+                                      {currentScenario === scenario.label && (
+                                        <CircularProgress size={16} sx={{ ml: 1 }} />
+                                      )}
+                                    </Stack>
+                                    <Box>
+                                      <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+                                        {scenario.url}
+                                      </Typography>
+                                      {scenario.referenceUrl && (
+                                        <Typography variant="caption" color="primary" sx={{ display: 'block' }}>
+                                          Reference URL: {scenario.referenceUrl}
+                                        </Typography>
+                                      )}
+                                    </Box>
+                                    {scenarioResults[scenario.label]?.status === 'failed' && (
+                                      <Alert severity="error" sx={{ mt: 1 }}>
+                                        <Stack direction="row" spacing={2} alignItems="center">
+                                          <Typography variant="caption">
+                                            Mismatch: {scenarioResults[scenario.label].misMatchPercentage}%
+                                          </Typography>
+                                          {!scenarioResults[scenario.label].isSameDimensions && (
+                                            <Typography variant="caption">
+                                              Different dimensions detected
+                                            </Typography>
+                                          )}
+                                        </Stack>
+                                      </Alert>
+                                    )}
+                                  </Stack>
                                 </Box>
                               </Stack>
                             </Paper>
@@ -428,228 +615,72 @@ function TestRunner() {
                         </Alert>
                       )}
                     </Paper>
-                  </Box>
-                </Collapse>
-              )}
-
-              {!runAllScenarios && selectedScenarios.length === 0 && (
-                <Alert severity="warning" sx={{ mt: 2, borderRadius: 2 }}>
-                  <AlertTitle>Selection Required</AlertTitle>
-                  Please select at least one scenario to run tests.
-                </Alert>
-              )}
-            </CardContent>
-          </Card>
-        </Grid>
-
-        {/* Right Panel - Test Execution */}
-        <Grid item xs={12} lg={7}>
-          <Stack spacing={3}>
-            {/* Test Actions Card */}
-            <Card sx={{ 
-              borderRadius: 3,
-              boxShadow: '0 4px 20px rgba(0,0,0,0.1)',
-              border: '1px solid',
-              borderColor: 'divider'
-            }}>
-              <CardContent sx={{ p: 3 }}>
-                <Stack direction="row" alignItems="center" spacing={2} sx={{ mb: 3 }}>
-                  <Avatar sx={{ bgcolor: 'success.main' }}>
-                    <Science />
-                  </Avatar>
-                  <Box>
-                    <Typography variant="h5" sx={{ fontWeight: 600 }}>
-                      Test Execution
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      Run visual regression tests and manage baselines
-                    </Typography>
-                  </Box>
-                </Stack>
-
-                <Divider sx={{ mb: 3 }} />
-
-                {!runAllScenarios && selectedScenarios.length > 0 && (
-                  <Box sx={{ mb: 3 }}>
-                    <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                      Selected scenarios for testing:
-                    </Typography>
-                    <Box>
-                      {selectedScenarios.map(name => (
-                        <Chip 
-                          key={name} 
-                          label={name} 
-                          size="small" 
-                          sx={{ mr: 0.5, mb: 0.5 }}
-                          color="primary"
-                          variant="outlined"
-                        />
-                      ))}
-                    </Box>
-                  </Box>
-                )}
-
-                <Stack spacing={2}>
-                  <Button
-                    variant="contained"
-                    size="large"
-                    startIcon={testRunning ? <CircularProgress size={20} color="inherit" /> : <PlayArrow />}
-                    onClick={runTest}
-                    disabled={testRunning || approveRunning || !canRunTest}
-                    fullWidth
-                    sx={{ 
-                      py: 2,
-                      borderRadius: 3,
-                      fontSize: '1.1rem',
-                      fontWeight: 600,
-                      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                      '&:hover': {
-                        background: 'linear-gradient(135deg, #5a6fd8 0%, #6a4190 100%)',
-                      }
-                    }}
-                  >
-                    {testRunning ? 'Running Visual Tests...' : 'Run Visual Regression Test'}
-                  </Button>
-
-                  <Button
-                    variant="contained"
-                    size="large"
-                    startIcon={approveRunning ? <CircularProgress size={20} color="inherit" /> : <AutoFixHigh />}
-                    onClick={runApprove}
-                    disabled={testRunning || approveRunning || !canRunTest}
-                    fullWidth
-                    color="success"
-                    sx={{ 
-                      py: 2,
-                      borderRadius: 3,
-                      fontSize: '1.1rem',
-                      fontWeight: 600,
-                      background: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
-                      '&:hover': {
-                        background: 'linear-gradient(135deg, #3d8bfe 0%, #00d9fe 100%)',
-                      }
-                    }}
-                  >
-                    {approveRunning ? 'Approving Changes...' : 'Approve & Update References'}
-                  </Button>
-                </Stack>
-
-                {/* Quick Info */}
-                <Alert 
-                  severity="info" 
-                  sx={{ 
-                    mt: 3, 
-                    borderRadius: 2,
-                    bgcolor: 'info.50',
-                    border: '1px solid',
-                    borderColor: 'info.200'
-                  }}
-                  icon={<InfoOutlined />}
-                >
-                  <AlertTitle sx={{ fontWeight: 600 }}>Quick Guide</AlertTitle>
-                  <Typography variant="body2" sx={{ mb: 1 }}>
-                    • <strong>Run Test:</strong> Compare current state with reference images
-                  </Typography>
-                  <Typography variant="body2">
-                    • <strong>Approve:</strong> Accept current images as new references when changes are intentional
-                  </Typography>
-                </Alert>
-              </CardContent>
-            </Card>
-
-            {/* Test Results Card */}
-            {testResult && (
-              <Fade in={Boolean(testResult)}>
-                <Card sx={{ 
-                  borderRadius: 3,
-                  boxShadow: '0 4px 20px rgba(0,0,0,0.1)',
-                  border: '1px solid',
-                  borderColor: testResult?.success === false ? 'error.main' : 'success.main'
-                }}>
-                  <CardContent sx={{ p: 3 }}>
-                    <Stack direction="row" alignItems="center" spacing={2} sx={{ mb: 3 }}>
-                      <Avatar sx={{ 
-                        bgcolor: testResult?.success === false ? 'error.main' : 'success.main'
-                      }}>
-                        {testResult?.success === false ? <BugReport /> : <CheckCircle />}
-                      </Avatar>
-                      <Box>
-                        <Typography variant="h5" sx={{ fontWeight: 600 }}>
-                          Test Results
-                        </Typography>
-                        <Typography variant="body2" color="text.secondary">
-                          {testResult?.success === false ? 'Visual differences detected' : 'All tests passed successfully'}
-                        </Typography>
-                      </Box>
-                    </Stack>
-
-                    <Divider sx={{ mb: 3 }} />
-
-                    {testResult.success === false && (
-                      <Alert 
-                        severity="error" 
-                        sx={{ mb: 2, borderRadius: 2 }}
-                        icon={<WarningAmber />}
-                      >
-                        <AlertTitle sx={{ fontWeight: 600 }}>Visual Differences Found</AlertTitle>
-                        Review the differences and approve if changes are intentional.
-                      </Alert>
-                    )}
                     
-                    {testResult.success === true && (
-                      <Alert 
-                        severity="success" 
-                        sx={{ mb: 2, borderRadius: 2 }}
-                        icon={<CheckCircle />}
-                      >
-                        <AlertTitle sx={{ fontWeight: 600 }}>Perfect Match!</AlertTitle>
-                        All visual regression tests passed without any differences.
+                    {!runAllScenarios && selectedScenarios.length === 0 && (
+                      <Alert severity="warning" sx={{ mt: 2, borderRadius: 2 }}>
+                        <AlertTitle>Selection Required</AlertTitle>
+                        Please select at least one scenario to run tests.
                       </Alert>
                     )}
+                  </Box>
 
-                    <Accordion 
-                      expanded={expandedResult}
-                      onChange={() => setExpandedResult(!expandedResult)}
-                      sx={{ borderRadius: 2, '&:before': { display: 'none' } }}
-                    >
-                      <AccordionSummary 
-                        expandIcon={<ExpandMore />}
-                        sx={{ borderRadius: 2 }}
-                      >
-                        <Typography variant="subtitle1" fontWeight={600}>
-                          Detailed Test Results
-                        </Typography>
-                      </AccordionSummary>
-                      <AccordionDetails>
-                        <Paper 
-                          variant="outlined" 
+                  {/* Test Execution Panel */}
+                  <Card sx={{ 
+                    mt: 4,
+                    borderRadius: 3,
+                    boxShadow: '0 4px 20px rgba(0,0,0,0.1)',
+                    border: '1px solid',
+                    borderColor: 'divider'
+                  }}>
+                    <CardContent sx={{ p: 3 }}>
+                      <Stack spacing={2}>
+                        <Button
+                          variant="contained"
+                          size="large"
+                          startIcon={testRunning ? <CircularProgress size={20} color="inherit" /> : <PlayArrow />}
+                          onClick={runTest}
+                          disabled={testRunning || approveRunning || !canRunTest}
+                          fullWidth
                           sx={{ 
-                            p: 2, 
-                            maxHeight: 300, 
-                            overflow: 'auto',
-                            borderRadius: 2,
-                            bgcolor: 'grey.50'
+                            py: 2,
+                            borderRadius: 3,
+                            fontSize: '1.1rem',
+                            fontWeight: 600,
+                            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                            '&:hover': {
+                              background: 'linear-gradient(135deg, #5a6fd8 0%, #6a4190 100%)',
+                            }
                           }}
                         >
-                          <Typography 
-                            component="pre" 
-                            variant="caption" 
-                            sx={{ 
-                              fontFamily: 'monospace', 
-                              whiteSpace: 'pre-wrap',
-                              fontSize: '0.75rem'
-                            }}
-                          >
-                            {JSON.stringify(testResult, null, 2)}
-                          </Typography>
-                        </Paper>
-                      </AccordionDetails>
-                    </Accordion>
-                  </CardContent>
-                </Card>
-              </Fade>
-            )}
-          </Stack>
+                          {testRunning ? 'Running Visual Tests...' : 'Run Visual Regression Test'}
+                        </Button>
+
+                        <Button
+                          variant="contained"
+                          size="large"
+                          startIcon={approveRunning ? <CircularProgress size={20} color="inherit" /> : <AutoFixHigh />}
+                          onClick={runApprove}
+                          disabled={testRunning || approveRunning || !canRunTest}
+                          fullWidth
+                          color="success"
+                          sx={{ 
+                            py: 2,
+                            borderRadius: 3,
+                            fontSize: '1.1rem',
+                            fontWeight: 600,
+                            background: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
+                            '&:hover': {
+                              background: 'linear-gradient(135deg, #3d8bfe 0%, #00d9fe 100%)',
+                            }
+                          }}
+                        >
+                          {approveRunning ? 'Approving Changes...' : 'Approve & Update References'}
+                        </Button>
+                      </Stack>
+                    </CardContent>
+                  </Card>
+            </CardContent>
+          </Card>
         </Grid>
       </Grid>
     </Box>

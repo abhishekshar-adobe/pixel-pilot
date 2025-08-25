@@ -284,7 +284,7 @@ function ScenarioManager() {
           <Avatar sx={{ bgcolor: 'secondary.main', width: 56, height: 56 }}>
             <Timeline />
           </Avatar>
-          <Box>
+          <Box sx={{ flex: 1 }}>
             <Typography variant="h3" component="h1" sx={{ fontWeight: 700, color: 'text.primary' }}>
               Scenario Management
             </Typography>
@@ -292,6 +292,48 @@ function ScenarioManager() {
               Create and manage visual testing scenarios for your application
             </Typography>
           </Box>
+          <Stack direction="row" spacing={2}>
+            <Button
+              variant="contained"
+              startIcon={<Add />}
+              onClick={addScenario}
+              sx={{
+                borderRadius: 2,
+                px: 3,
+                py: 1.5,
+                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                '&:hover': {
+                  background: 'linear-gradient(135deg, #5a6fd8 0%, #6a4190 100%)',
+                  transform: 'translateY(-1px)',
+                  boxShadow: '0 4px 12px rgba(102, 126, 234, 0.3)'
+                }
+              }}
+            >
+              Add New Scenario
+            </Button>
+            {hasUnsavedChanges && (
+              <Button
+                variant="contained"
+                color="success"
+                startIcon={saving ? <CircularProgress size={20} color="inherit" /> : <Save />}
+                onClick={saveScenarios}
+                disabled={saving}
+                sx={{
+                  borderRadius: 2,
+                  px: 3,
+                  py: 1.5,
+                  background: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
+                  '&:hover': {
+                    background: 'linear-gradient(135deg, #3d8bfe 0%, #00d9fe 100%)',
+                    transform: 'translateY(-1px)',
+                    boxShadow: '0 4px 12px rgba(79, 172, 254, 0.3)'
+                  }
+                }}
+              >
+                {saving ? 'Saving...' : 'Save All Changes'}
+              </Button>
+            )}
+          </Stack>
         </Stack>
 
         {/* Status Cards Row */}
@@ -397,58 +439,15 @@ function ScenarioManager() {
           </Fade>
         )}
 
-        {/* Action Buttons */}
-        <Stack direction="row" spacing={2} sx={{ mb: 3 }}>
-          <Button
-            variant="contained"
-            startIcon={<Add />}
-            onClick={addScenario}
-            sx={{
-              borderRadius: 2,
-              px: 3,
-              py: 1.5,
-              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-              '&:hover': {
-                background: 'linear-gradient(135deg, #5a6fd8 0%, #6a4190 100%)',
-                transform: 'translateY(-1px)',
-                boxShadow: '0 4px 12px rgba(102, 126, 234, 0.3)'
-              }
-            }}
-          >
-            Add New Scenario
-          </Button>
-          
-          {/* Render CSV Uploader */}
-          <CSVScenarioUploader 
-            onScenariosCreated={(newScenarios) => {
-              setScenarios([...scenarios, ...newScenarios]);
-              setHasUnsavedChanges(true);
-              setMessage(`Successfully imported ${newScenarios.length} scenarios from CSV`);
-              setTimeout(() => setMessage(''), 3000);
-            }} 
-          />
-          
-          {hasUnsavedChanges && (
-            <Button
-              variant="contained"
-              color="success"
-              startIcon={saving ? <CircularProgress size={20} color="inherit" /> : <Save />}
-              onClick={saveScenarios}
-              disabled={saving}
-              sx={{
-                borderRadius: 2,
-                px: 3,
-                py: 1.5,
-                '&:hover': {
-                  transform: 'translateY(-1px)',
-                  boxShadow: '0 4px 12px rgba(46, 125, 50, 0.3)'
-                }
-              }}
-            >
-              {saving ? 'Saving...' : 'Save All Changes'}
-            </Button>
-          )}
-        </Stack>
+        {/* CSV Import Section */}
+        <CSVScenarioUploader 
+          onScenariosCreated={(newScenarios) => {
+            setScenarios([...scenarios, ...newScenarios]);
+            setHasUnsavedChanges(true);
+            setMessage(`Successfully imported ${newScenarios.length} scenarios from CSV`);
+            setTimeout(() => setMessage(''), 3000);
+          }} 
+        />
       </Box>
 
       {/* Scenarios Accordion List */}

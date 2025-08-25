@@ -110,8 +110,15 @@ const CSVScenarioUploader = ({ onScenariosCreated }) => {
 
   return (
     <>
-      <Card sx={{ p: 3, mb: 3, border: '2px dashed', borderColor: 'divider' }}>
-        <Box display="flex" flexDirection="column" alignItems="center">
+      <Card sx={{ 
+          p: 3, 
+          mb: 3, 
+          border: '2px dashed', 
+          borderColor: 'divider',
+          width: '100%',
+          maxWidth: 'none'
+        }}>
+        <Box display="flex" flexDirection="column" alignItems="center" sx={{ width: '100%' }}>
           <Upload sx={{ fontSize: 48, color: 'primary.main', mb: 2 }} />
           <Typography variant="h6" gutterBottom>
             Import Scenarios from CSV
@@ -176,8 +183,14 @@ const CSVScenarioUploader = ({ onScenariosCreated }) => {
       <Dialog
         open={previewOpen}
         onClose={() => setPreviewOpen(false)}
-        maxWidth="lg"
+        maxWidth="xl"
         fullWidth
+        sx={{
+          '& .MuiDialog-paper': {
+            width: '95%',
+            maxWidth: 'none'
+          }
+        }}
       >
         <DialogTitle>Preview Scenarios from CSV</DialogTitle>
         <DialogContent>

@@ -8,6 +8,7 @@ const sharp = require('sharp');
 const axios = require('axios');
 const archiver = require('archiver');
 const { DesignComparisonEngine } = require('./design-comparison-engine');
+const { getLatestTestResults } = require('./utils/test-results');
 
 const app = express();
 const port = 5000;
@@ -19,6 +20,20 @@ app.use(express.json());
 app.use((req, res, next) => {
   console.log(`${new Date().toISOString()} - ${req.method} ${req.url}`);
   next();
+});
+
+// Get latest test results endpoint
+app.get('/api/test-results', async (req, res) => {
+  try {
+    const results = await getLatestTestResults();
+    if (!results) {
+      return res.status(404).json({ error: 'No test results found' });
+    }
+    res.json(results);
+  } catch (error) {
+    console.error('Error fetching test results:', error);
+    res.status(500).json({ error: 'Failed to fetch test results' });
+  }
 });
 
 // Default viewports configuration
