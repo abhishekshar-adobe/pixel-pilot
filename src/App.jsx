@@ -1,7 +1,15 @@
 import { BrowserRouter as Router, Routes, Route, useLocation, useNavigate } from 'react-router-dom'
 import { ThemeProvider } from '@mui/material/styles'
 import { CssBaseline, AppBar, Toolbar, Typography, Tabs, Tab, Box } from '@mui/material'
-import { SettingsOutlined, PlayArrowOutlined, UploadFileOutlined, CompareArrowsOutlined, CodeOutlined, ViewListOutlined } from '@mui/icons-material'
+import { 
+  SettingsOutlined, 
+  PlayArrowOutlined, 
+  UploadFileOutlined, 
+  CompareArrowsOutlined, 
+  CodeOutlined, 
+  ViewListOutlined,
+  DashboardOutlined 
+} from '@mui/icons-material'
 import ConfigEditor from './components/ConfigEditor'
 import ScenarioManager from './components/ScenarioManager'
 import ScreenshotUploader from './components/ScreenshotUploader'
@@ -11,6 +19,7 @@ import FigmaHTMLGenerator from './components/FigmaHTMLGenerator'
 import Footer from './components/Footer'
 import pixelPilotTheme from './theme/theme'
 import pixelPilotLogo from './assets/pixelpilot-logo.svg'
+import Dashboard from './components/Dashboard'
 
 function AppContent() {
   const location = useLocation()
@@ -19,17 +28,18 @@ function AppContent() {
   const getActiveTab = () => {
     switch (location.pathname) {
       case '/': return 0
-      case '/scenarios': return 1
-      case '/upload': return 2
-      case '/test': return 3
-      case '/design-comparison': return 4
-      case '/figma-generator': return 5
+      case '/dashboard': return 1
+      case '/scenarios': return 2
+      case '/upload': return 3
+      case '/test': return 4
+      case '/design-comparison': return 5
+      case '/figma-generator': return 6
       default: return 0
     }
   }
 
   const handleTabChange = (event, newValue) => {
-    const routes = ['/', '/scenarios', '/upload', '/test', '/design-comparison', '/figma-generator']
+    const routes = ['/', '/dashboard', '/scenarios', '/upload', '/test', '/design-comparison', '/figma-generator']
     navigate(routes[newValue])
   }
 
@@ -81,6 +91,8 @@ function AppContent() {
           <Tabs 
             value={getActiveTab()} 
             onChange={handleTabChange}
+            variant="scrollable"
+            scrollButtons="auto"
             sx={{ 
               borderBottom: 1, 
               borderColor: '#e5e7eb',
@@ -99,38 +111,41 @@ function AppContent() {
                 height: 2
               }
             }}
-            variant="scrollable"
-            scrollButtons="auto"
           >
             <Tab 
               icon={<SettingsOutlined />} 
-              label="Configuration" 
-              iconPosition="start"
+              label="Configuration"
+              sx={{ minWidth: 120 }}
             />
             <Tab 
-              icon={<ViewListOutlined />} 
-              label="Scenarios" 
-              iconPosition="start"
+              icon={<DashboardOutlined />} 
+              label="Dashboard"
+              sx={{ minWidth: 120 }}
             />
             <Tab 
-              icon={<UploadFileOutlined />} 
-              label="Upload Screenshots" 
-              iconPosition="start"
+              icon={<ViewListOutlined />}
+              label="Scenarios"
+              sx={{ minWidth: 120 }}
             />
             <Tab 
-              icon={<PlayArrowOutlined />} 
-              label="Run Tests" 
-              iconPosition="start"
+              icon={<UploadFileOutlined />}
+              label="Upload"
+              sx={{ minWidth: 120 }}
             />
             <Tab 
-              icon={<CompareArrowsOutlined />} 
-              label="Design Comparison" 
-              iconPosition="start"
+              icon={<PlayArrowOutlined />}
+              label="Test Runner"
+              sx={{ minWidth: 120 }}
             />
             <Tab 
-              icon={<CodeOutlined />} 
-              label="Figma Generator" 
-              iconPosition="start"
+              icon={<CompareArrowsOutlined />}
+              label="Compare"
+              sx={{ minWidth: 120 }}
+            />
+            <Tab 
+              icon={<CodeOutlined />}
+              label="Figma HTML"
+              sx={{ minWidth: 120 }}
             />
           </Tabs>
         </Box>
@@ -142,6 +157,7 @@ function AppContent() {
       }}>
         <Routes>
           <Route path="/" element={<ConfigEditor />} />
+          <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/scenarios" element={<ScenarioManager />} />
           <Route path="/upload" element={<ScreenshotUploader />} />
           <Route path="/test" element={<TestRunner />} />
