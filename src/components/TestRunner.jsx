@@ -87,13 +87,16 @@ const getStatusChip = (status, misMatchPercentage) => {
 };
 
 function TestRunner({ project, config }) {
+  const [searchTerm, setSearchTerm] = useState("");
+  const [showSelectedOnly, setShowSelectedOnly] = useState(false);
+  const [initialSelection, setInitialSelection] = useState([]);
   const [testRunning, setTestRunning] = useState(false)
   const [approveRunning, setApproveRunning] = useState(false)
   const [message, setMessage] = useState('')
   const [testResult, setTestResult] = useState(null)
   const [scenarios, setScenarios] = useState([])
   const [selectedScenarios, setSelectedScenarios] = useState([])
-  const [runAllScenarios, setRunAllScenarios] = useState(true)
+  // Removed runAllScenarios, always use selectedScenarios
   const [activeStep, setActiveStep] = useState(0)
   const [expandedResult, setExpandedResult] = useState(false)
   const [scenarioResults, setScenarioResults] = useState({}) // Track test results per scenario
@@ -104,10 +107,6 @@ function TestRunner({ project, config }) {
     const init = async () => {
       await loadScenarios();
       await loadBackstopReport();
-      // Set all scenarios as selected when runAllScenarios is true
-      if (runAllScenarios && scenarios.length > 0) {
-        setSelectedScenarios(scenarios.map(s => s.label));
-      }
     };
     init();
   }, []);
@@ -148,9 +147,10 @@ function TestRunner({ project, config }) {
       const response = await axios.get(`${API_BASE}/projects/${project.id}/scenarios`);
       const loadedScenarios = response.data.scenarios || response.data || [];
       setScenarios(loadedScenarios);
-      // Set all scenarios as selected if in "Run All" mode
-      if (runAllScenarios) {
+      // Set all scenarios as selected on first load
+      if (loadedScenarios.length > 0) {
         setSelectedScenarios(loadedScenarios.map(s => s.label));
+        setInitialSelection(loadedScenarios.map(s => s.label));
       }
     } catch (error) {
       console.error('Error loading scenarios:', error);
@@ -180,7 +180,7 @@ function TestRunner({ project, config }) {
     setTestResult(null);
 
     // Initialize results for all scenarios as pending
-    const scenariosToTest = runAllScenarios ? scenarios : scenarios.filter(s => selectedScenarios.includes(s.label));
+  const scenariosToTest = scenarios.filter(s => selectedScenarios.includes(s.label));
     const initialResults = {};
     scenariosToTest.forEach(s => {
       initialResults[s.label] = { status: "pending" };
@@ -188,7 +188,7 @@ function TestRunner({ project, config }) {
     setScenarioResults(initialResults);
 
     try {
-      const filter = runAllScenarios ? undefined : selectedScenarios.join("|");
+  const filter = selectedScenarios.join("|");
       // Actually trigger the backend test API
       const response = await axios.post(`${API_BASE}/projects/${project.id}/test`, { filter });
       setMessage("Test started. Please wait for results...");
@@ -216,6 +216,29 @@ function TestRunner({ project, config }) {
       setSelectedScenarios([...selectedScenarios, scenarioLabel]);
     }
   };
+
+  const handleSelectAll = () => {
+    setSelectedScenarios(scenarios.map(s => s.label));
+  };
+  const handleDeselectAll = () => {
+    setSelectedScenarios([]);
+  };
+  const handleResetSelection = () => {
+    setSelectedScenarios(initialSelection);
+  };
+  const handleSearchChange = (e) => {
+    setSearchTerm(e.target.value);
+  };
+  const handleShowSelectedOnly = (e) => {
+    setShowSelectedOnly(e.target.checked);
+  };
+  const filteredScenarios = scenarios.filter(s => {
+    const matchesSearch =
+      s.label?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      s.url?.toLowerCase().includes(searchTerm.toLowerCase());
+    const isSelected = selectedScenarios.includes(s.label);
+    return matchesSearch && (!showSelectedOnly || isSelected);
+  });
   return (
     <Box sx={{ mb: 4, px: 3 }}>
       {/* Header Section */}
@@ -259,7 +282,7 @@ function TestRunner({ project, config }) {
               size="large"
               startIcon={testRunning ? <CircularProgress size={20} color="inherit" /> : <PlayArrow />}
               onClick={runTest}
-              disabled={testRunning || approveRunning || scenarios.length === 0 || (!runAllScenarios && selectedScenarios.length === 0)}
+              disabled={testRunning || approveRunning || scenarios.length === 0 || selectedScenarios.length === 0}
               fullWidth
               sx={{ py: 2, borderRadius: 3, fontSize: '1.1rem', fontWeight: 600 }}
             >
@@ -274,31 +297,82 @@ function TestRunner({ project, config }) {
           Select Scenarios to Test
         </Typography>
         {scenarios.length > 0 ? (
-          <Stack spacing={1}>
-            {scenarios.map((scenario) => (
-              <Paper
-                key={scenario.label || scenario.url}
-                sx={{ p: 2, border: '1px solid', borderColor: selectedScenarios.includes(scenario.label) ? 'primary.main' : 'divider', borderRadius: 2, cursor: 'pointer', transition: 'all 0.2s', '&:hover': { borderColor: 'primary.main', boxShadow: 1 } }}
-                onClick={() => handleScenarioSelection(scenario.label)}
-              >
-                <Stack direction="row" alignItems="center" spacing={2}>
-                  {selectedScenarios.includes(scenario.label) ? (
-                    <CheckCircleRounded color="primary" />
-                  ) : (
-                    <RadioButtonUnchecked color="disabled" />
-                  )}
-                  <Box sx={{ flex: 1 }}>
-                    <Typography variant="body1" fontWeight={500}>
-                      {scenario.label}
-                    </Typography>
-                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
-                      {scenario.url}
-                    </Typography>
-                  </Box>
-                </Stack>
-              </Paper>
-            ))}
-          </Stack>
+          <Box>
+            <Box sx={{ mb: 2 }}>
+              <Grid container spacing={2} alignItems="center">
+                <Grid item xs={12} sm={6} md={3}>
+                  <Button variant="outlined" startIcon={<SelectAll />} onClick={handleSelectAll} fullWidth>Select All</Button>
+                </Grid>
+                <Grid item xs={12} sm={6} md={3}>
+                  <Button variant="outlined" startIcon={<Clear />} onClick={handleDeselectAll} fullWidth>Deselect All</Button>
+                </Grid>
+                <Grid item xs={12} sm={6} md={3}>
+                  <Button variant="outlined" startIcon={<Refresh />} onClick={handleResetSelection} fullWidth>Reset Selection</Button>
+                </Grid>
+                <Grid item xs={12} sm={6} md={3}>
+                  <FormControl fullWidth>
+                    <input
+                      type="text"
+                      placeholder="Search scenarios..."
+                      value={searchTerm}
+                      onChange={handleSearchChange}
+                      style={{ padding: '8px', borderRadius: '4px', border: '1px solid #ccc', width: '100%' }}
+                    />
+                  </FormControl>
+                </Grid>
+                <Grid item xs={12} sm={6} md={3}>
+                  <FormControlLabel
+                    control={<Checkbox checked={showSelectedOnly} onChange={handleShowSelectedOnly} />}
+                    label="Show Selected Only"
+                  />
+                </Grid>
+              </Grid>
+            </Box>
+            <Stack spacing={1}>
+              {filteredScenarios.map((scenario) => {
+                const result = scenarioResults[scenario.label] || {};
+                return (
+                  <Paper
+                    key={scenario.label || scenario.url}
+                    sx={{ p: 2, border: '1px solid', borderColor: selectedScenarios.includes(scenario.label) ? 'primary.main' : 'divider', borderRadius: 2, cursor: 'pointer', transition: 'all 0.2s', '&:hover': { borderColor: 'primary.main', boxShadow: 1 } }}
+                    onClick={() => handleScenarioSelection(scenario.label)}
+                  >
+                    <Stack direction="row" alignItems="center" spacing={2}>
+                      {selectedScenarios.includes(scenario.label) ? (
+                        <CheckCircleRounded color="primary" />
+                      ) : (
+                        <RadioButtonUnchecked color="disabled" />
+                      )}
+                      <Box sx={{ flex: 1 }}>
+                        <Typography variant="body1" fontWeight={500}>
+                          {scenario.label}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+                          {scenario.url}
+                        </Typography>
+                        {/* Show last test result details if available */}
+                        {result.status && (
+                          <Box sx={{ mt: 1, display: 'flex', alignItems: 'center', gap: 2 }}>
+                            {getStatusChip(result.status, result.misMatchPercentage)}
+                            {typeof result.misMatchPercentage !== 'undefined' && (
+                              <Typography variant="caption" color="text.secondary">
+                                Diff: {result.misMatchPercentage}%
+                              </Typography>
+                            )}
+                            {typeof result.isSameDimensions !== 'undefined' && (
+                              <Typography variant="caption" color="text.secondary">
+                                {result.isSameDimensions ? 'Dimensions OK' : 'Dimensions Mismatch'}
+                              </Typography>
+                            )}
+                          </Box>
+                        )}
+                      </Box>
+                    </Stack>
+                  </Paper>
+                );
+              })}
+            </Stack>
+          </Box>
         ) : (
           <Alert severity="info" variant="outlined" sx={{ borderRadius: 2 }}>
             <AlertTitle>No Scenarios Found</AlertTitle>
