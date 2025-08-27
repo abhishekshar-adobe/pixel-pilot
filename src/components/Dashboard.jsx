@@ -25,7 +25,7 @@ import {
   DashboardOutlined
 } from '@mui/icons-material';
 import Papa from 'papaparse';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend, PieChart, Pie, Cell } from 'recharts';
 import axios from 'axios';
 
 const API_BASE = 'http://localhost:5000/api';
@@ -166,6 +166,39 @@ const Dashboard = ({ project, config }) => {
               <Chip label={`Failed: ${testSummary.summary.failed}`} color="error" />
               <Chip label={`New: ${testSummary.summary.new}`} color="warning" />
               <Chip label={`Missing Ref: ${testSummary.summary.referenceMissing}`} color="default" />
+            </Box>
+            {/* Pass/Fail/Other Pie Chart */}
+            <Box mb={2}>
+              <Typography variant="subtitle1" color="textSecondary" gutterBottom>
+                Pass vs Fail Ratio
+              </Typography>
+              <ResponsiveContainer width="100%" height={220}>
+                <PieChart>
+                  <Pie
+                    data={[{
+                      name: 'Pass', value: testSummary.summary.passed
+                    }, {
+                      name: 'Fail', value: testSummary.summary.failed
+                    }, {
+                      name: 'Error', value: testSummary.summary.other
+                    }]}
+                    dataKey="value"
+                    nameKey="name"
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={60}
+                    outerRadius={90}
+                    fill="#8884d8"
+                    label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                  >
+                    <Cell key="pass" fill="#4caf50" />
+                    <Cell key="fail" fill="#f44336" />
+                    <Cell key="error" fill="#ff9800" />
+                  </Pie>
+                  <Tooltip />
+                  <Legend />
+                </PieChart>
+              </ResponsiveContainer>
             </Box>
             {/* Status Breakdown Graph */}
             <ResponsiveContainer width="100%" height={200}>
