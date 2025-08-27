@@ -21,14 +21,52 @@ import {
   ImageOutlined,
   CheckCircleOutlined,
   ErrorOutlined,
-  InfoOutlined
+  InfoOutlined,
+  DashboardOutlined
 } from '@mui/icons-material';
+import Papa from 'papaparse';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from 'recharts';
 import axios from 'axios';
 
 const API_BASE = 'http://localhost:5000/api';
 
 const Dashboard = ({ project, config }) => {
+  const handleExportReport = async () => {
+    try {
+      const response = await axios.get(`${API_BASE}/projects/${project.id}/test-results`);
+      const results = Array.isArray(response.data.results)
+        ? response.data.results
+        : Array.isArray(response.data.tests)
+          ? response.data.tests
+          : Array.isArray(response.data)
+            ? response.data
+            : [];
+      if (results.length === 0) {
+        alert('No test results found for this project.');
+        return;
+      }
+      // Flatten results so each pair property and status is a column
+      const flatResults = results.map(r => ({
+        ...r.pair,
+        ...(r.pair.diff || {}),
+        status: r.status
+      }));
+      const csv = Papa.unparse(flatResults);
+      // Trigger download
+      const blob = new Blob([csv], { type: 'text/csv' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `project_${project.id}_test_results.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      alert('Failed to export report.');
+      console.error('Export error:', err);
+    }
+  };
   const [scenarios, setScenarios] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -265,6 +303,17 @@ const Dashboard = ({ project, config }) => {
                   disabled={!config || scenarios.length === 0}
                 >
                   Run All Tests
+                </Button>
+                <Button
+                  variant="outlined"
+                  color="info"
+                  startIcon={<DashboardOutlined />}
+                  fullWidth
+                  onClick={handleExportReport}
+                  sx={{ mt: 1 }}
+                  disabled={!config}
+                >
+                  Export Report (CSV)
                 </Button>
               </Box>
             </CardContent>
