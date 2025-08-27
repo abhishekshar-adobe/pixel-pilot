@@ -31,6 +31,45 @@ import axios from 'axios';
 const API_BASE = 'http://localhost:5000/api';
 
 const Dashboard = ({ project, config }) => {
+  // Test summary state
+  const [testSummary, setTestSummary] = useState(null);
+  const [testSummaryLoading, setTestSummaryLoading] = useState(true);
+  const [testSummaryError, setTestSummaryError] = useState('');
+
+  useEffect(() => {
+    if (project?.id) {
+      fetchTestSummary();
+    }
+  }, [project]);
+
+  const fetchTestSummary = async () => {
+    setTestSummaryLoading(true);
+    setTestSummaryError('');
+    try {
+      const response = await axios.get(`${API_BASE}/projects/${project.id}/test-results`);
+      const results = Array.isArray(response.data.results)
+        ? response.data.results
+        : Array.isArray(response.data.tests)
+          ? response.data.tests
+          : Array.isArray(response.data)
+            ? response.data
+            : [];
+      // Summarize status counts
+      const summary = {
+        total: results.length,
+        passed: results.filter(r => r.status === 'pass').length,
+        failed: results.filter(r => r.status === 'fail').length,
+        new: results.filter(r => r.status === 'new').length,
+        referenceMissing: results.filter(r => r.status === 'referenceMissing').length,
+        other: results.filter(r => !['pass','fail','new','referenceMissing'].includes(r.status)).length
+      };
+      setTestSummary({ summary, results });
+    } catch (err) {
+      setTestSummaryError('Failed to load test summary');
+    } finally {
+      setTestSummaryLoading(false);
+    }
+  };
   const handleExportReport = async () => {
     try {
       const response = await axios.get(`${API_BASE}/projects/${project.id}/test-results`);
@@ -110,6 +149,60 @@ const Dashboard = ({ project, config }) => {
 
   return (
     <Box>
+      {/* Test Summary Section */}
+      <Box mb={4}>
+        <Typography variant="h6" color="primary" gutterBottom>
+          Test Summary
+        </Typography>
+        {testSummaryLoading ? (
+          <CircularProgress size={24} />
+        ) : testSummaryError ? (
+          <Alert severity="error">{testSummaryError}</Alert>
+        ) : testSummary ? (
+          <>
+            <Box display="flex" gap={2} mb={2}>
+              <Chip label={`Total: ${testSummary.summary.total}`} color="info" />
+              <Chip label={`Passed: ${testSummary.summary.passed}`} color="success" />
+              <Chip label={`Failed: ${testSummary.summary.failed}`} color="error" />
+              <Chip label={`New: ${testSummary.summary.new}`} color="warning" />
+              <Chip label={`Missing Ref: ${testSummary.summary.referenceMissing}`} color="default" />
+            </Box>
+            {/* Status Breakdown Graph */}
+            <ResponsiveContainer width="100%" height={200}>
+              <BarChart
+                data={[{
+                  status: 'Passed', value: testSummary.summary.passed
+                }, {
+                  status: 'Failed', value: testSummary.summary.failed
+                }, {
+                  status: 'New', value: testSummary.summary.new
+                }, {
+                  status: 'Missing Ref', value: testSummary.summary.referenceMissing
+                }]}
+                margin={{ top: 10, right: 30, left: 0, bottom: 5 }}
+              >
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="status" />
+                <YAxis allowDecimals={false} />
+                <Tooltip />
+                <Bar dataKey="value" fill="#1976d2" />
+              </BarChart>
+            </ResponsiveContainer>
+          </>
+        ) : null}
+      </Box>
+      {/* Export Report Button at Top */}
+      <Box sx={{ mb: 3, display: 'flex', justifyContent: 'flex-end' }}>
+        <Button
+          variant="outlined"
+          color="info"
+          startIcon={<DashboardOutlined />}
+          onClick={handleExportReport}
+          disabled={!config}
+        >
+          Export Report (CSV)
+        </Button>
+      </Box>
       {/* Scenarios per Viewport Bar Chart */}
       {config?.viewports && scenarios.length > 0 && (
         <Box mb={4}>
@@ -142,7 +235,6 @@ const Dashboard = ({ project, config }) => {
         <Typography variant="body1" color="textSecondary" paragraph>
           {project.description || 'BackstopJS visual regression testing project'}
         </Typography>
-        
         <Box display="flex" gap={1} mt={2}>
           <Chip
             icon={<InfoOutlined />}
@@ -224,104 +316,9 @@ const Dashboard = ({ project, config }) => {
           </Card>
         </Grid>
       </Grid>
-
-      {/* Quick Actions */}
-      <Grid container spacing={3}>
-        <Grid item xs={12} md={8}>
-          <Card>
-            <CardContent>
-              <Typography variant="h6" gutterBottom color="primary">
-                Test Scenarios
-              </Typography>
-              <Divider sx={{ mb: 2 }} />
-              
-              {scenarios.length === 0 ? (
-                <Typography variant="body2" color="textSecondary" textAlign="center" py={4}>
-                  No scenarios configured yet. Add scenarios to start testing.
-                </Typography>
-              ) : (
-                <List dense>
-                  {scenarios.slice(0, 5).map((scenario, index) => (
-                    <ListItem key={index}>
-                      <ListItemIcon>
-                        <CheckCircleOutlined color="success" fontSize="small" />
-                      </ListItemIcon>
-                      <ListItemText
-                        primary={scenario.label}
-                        secondary={scenario.url}
-                      />
-                    </ListItem>
-                  ))}
-                  {scenarios.length > 5 && (
-                    <ListItem>
-                      <ListItemText
-                        primary={`... and ${scenarios.length - 5} more scenarios`}
-                        sx={{ fontStyle: 'italic', color: 'textSecondary' }}
-                      />
-                    </ListItem>
-                  )}
-                </List>
-              )}
-            </CardContent>
-          </Card>
-        </Grid>
-
-        <Grid item xs={12} md={4}>
-          <Card>
-            <CardContent>
-              <Typography variant="h6" gutterBottom color="primary">
-                Quick Actions
-              </Typography>
-              <Divider sx={{ mb: 2 }} />
-              
-              <Box display="flex" flexDirection="column" gap={2}>
-                {!config && (
-                  <Button 
-                    variant="outlined" 
-                    color="warning"
-                    startIcon={<SettingsOutlined />}
-                    fullWidth
-                  >
-                    Configure Project
-                  </Button>
-                )}
-                
-                <Button 
-                  variant="outlined" 
-                  startIcon={<ViewListOutlined />}
-                  fullWidth
-                  disabled={!config}
-                >
-                  Manage Scenarios
-                </Button>
-                
-                <Button 
-                  variant="contained" 
-                  color="primary"
-                  startIcon={<CheckCircleOutlined />}
-                  fullWidth
-                  disabled={!config || scenarios.length === 0}
-                >
-                  Run All Tests
-                </Button>
-                <Button
-                  variant="outlined"
-                  color="info"
-                  startIcon={<DashboardOutlined />}
-                  fullWidth
-                  onClick={handleExportReport}
-                  sx={{ mt: 1 }}
-                  disabled={!config}
-                >
-                  Export Report (CSV)
-                </Button>
-              </Box>
-            </CardContent>
-          </Card>
-        </Grid>
-      </Grid>
-    </Box>
+  </Box>
   );
-};
+}
+
 
 export default Dashboard;
