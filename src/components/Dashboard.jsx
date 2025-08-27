@@ -149,6 +149,90 @@ const Dashboard = ({ project, config }) => {
 
   return (
     <Box>
+      {/* Project Info Header - top */}
+      <Box mb={4}>
+        <Typography variant="h4" gutterBottom color="primary">
+          Project Dashboard
+        </Typography>
+        <Typography variant="body1" color="textSecondary" paragraph>
+          {project.description || 'BackstopJS visual regression testing project'}
+        </Typography>
+        <Box display="flex" gap={1} mt={2}>
+          <Chip
+            icon={<InfoOutlined />}
+            label={`Created: ${new Date(project.created).toLocaleDateString()}`}
+            variant="outlined"
+            size="small"
+          />
+          <Chip
+            icon={<SettingsOutlined />}
+            label={config ? 'Config Available' : 'No Config'}
+            color={config ? 'success' : 'warning'}
+            variant="outlined"
+            size="small"
+          />
+        </Box>
+      </Box>
+
+      {/* Stats Cards - moved before Test Summary */}
+      <Grid container spacing={3} sx={{ mb: 4 }}>
+        <Grid item xs={12} sm={6} md={3}>
+          <Card>
+            <CardContent sx={{ textAlign: 'center' }}>
+              <ViewListOutlined color="primary" sx={{ fontSize: 40, mb: 1 }} />
+              <Typography variant="h4" color="primary">
+                {scenarios.length}
+              </Typography>
+              <Typography variant="body2" color="textSecondary">
+                Test Scenarios
+              </Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+
+        <Grid item xs={12} sm={6} md={3}>
+          <Card>
+            <CardContent sx={{ textAlign: 'center' }}>
+              <ImageOutlined color="secondary" sx={{ fontSize: 40, mb: 1 }} />
+              <Typography variant="h4" color="secondary">
+                {getViewportCount()}
+              </Typography>
+              <Typography variant="body2" color="textSecondary">
+                Viewports
+              </Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+
+        <Grid item xs={12} sm={6} md={3}>
+          <Card>
+            <CardContent sx={{ textAlign: 'center' }}>
+              <CheckCircleOutlined color="success" sx={{ fontSize: 40, mb: 1 }} />
+              <Typography variant="h4" color="success.main">
+                {getTotalTests()}
+              </Typography>
+              <Typography variant="body2" color="textSecondary">
+                Total Tests
+              </Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+
+        <Grid item xs={12} sm={6} md={3}>
+          <Card>
+            <CardContent sx={{ textAlign: 'center' }}>
+              <SettingsOutlined color="info" sx={{ fontSize: 40, mb: 1 }} />
+              <Typography variant="h4" color="info.main">
+                {config?.id ? '✓' : '✗'}
+              </Typography>
+              <Typography variant="body2" color="textSecondary">
+                Configuration
+              </Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+      </Grid>
+
       {/* Test Summary Section */}
       <Box mb={4}>
         <Typography variant="h6" color="primary" gutterBottom>
@@ -223,66 +307,6 @@ const Dashboard = ({ project, config }) => {
             </ResponsiveContainer>
           </>
         ) : null}
-      </Box>
-      {/* Export Report Button at Top */}
-      <Box sx={{ mb: 3, display: 'flex', justifyContent: 'flex-end' }}>
-        <Button
-          variant="outlined"
-          color="info"
-          startIcon={<DashboardOutlined />}
-          onClick={handleExportReport}
-          disabled={!config}
-        >
-          Export Report (CSV)
-        </Button>
-      </Box>
-      {/* Scenarios per Viewport Bar Chart */}
-      {config?.viewports && scenarios.length > 0 && (
-        <Box mb={4}>
-          <Typography variant="h6" gutterBottom color="primary">
-            Scenarios per Viewport
-          </Typography>
-          <ResponsiveContainer width="100%" height={250}>
-            <BarChart
-              data={config.viewports.map((vp, idx) => ({
-                viewport: vp.label,
-                scenarios: scenarios.length // Each scenario is tested on each viewport
-              }))}
-              margin={{ top: 20, right: 30, left: 0, bottom: 5 }}
-            >
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="viewport" />
-              <YAxis allowDecimals={false} />
-              <Tooltip />
-              <Legend />
-              <Bar dataKey="scenarios" fill="#1976d2" name="Scenarios" />
-            </BarChart>
-          </ResponsiveContainer>
-        </Box>
-      )}
-      {/* Project Info Header */}
-      <Box mb={4}>
-        <Typography variant="h4" gutterBottom color="primary">
-          Project Dashboard
-        </Typography>
-        <Typography variant="body1" color="textSecondary" paragraph>
-          {project.description || 'BackstopJS visual regression testing project'}
-        </Typography>
-        <Box display="flex" gap={1} mt={2}>
-          <Chip
-            icon={<InfoOutlined />}
-            label={`Created: ${new Date(project.created).toLocaleDateString()}`}
-            variant="outlined"
-            size="small"
-          />
-          <Chip
-            icon={<SettingsOutlined />}
-            label={config ? 'Config Available' : 'No Config'}
-            color={config ? 'success' : 'warning'}
-            variant="outlined"
-            size="small"
-          />
-        </Box>
       </Box>
 
       {error && (
