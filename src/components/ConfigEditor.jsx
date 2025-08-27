@@ -65,7 +65,7 @@ import {
 
 const API_BASE = 'http://localhost:5000/api'
 
-function ConfigEditor() {
+function ConfigEditor({ project, onConfigUpdate }) {
   const [config, setConfig] = useState(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -83,12 +83,14 @@ function ConfigEditor() {
   ]
 
   useEffect(() => {
-    loadConfig()
-  }, [])
+    if (project) {
+      loadConfig()
+    }
+  }, [project])
 
   const loadConfig = async () => {
     try {
-      const response = await axios.get(`${API_BASE}/config`)
+      const response = await axios.get(`${API_BASE}/projects/${project.id}/config`)
       const loadedConfig = response.data || {}
       
       // Ensure viewports array exists
@@ -107,9 +109,12 @@ function ConfigEditor() {
   const saveConfig = async () => {
     setSaving(true)
     try {
-      await axios.post(`${API_BASE}/config`, config)
+      await axios.post(`${API_BASE}/projects/${project.id}/config`, config)
       setMessage('✅ Configuration saved successfully!')
       setTimeout(() => setMessage(''), 4000)
+      if (onConfigUpdate) {
+        onConfigUpdate()
+      }
     } catch (error) {
       setMessage(`❌ Error saving config: ${error.message}`)
     } finally {

@@ -53,9 +53,9 @@ const API_BASE = 'http://localhost:5000/api'
 
 import CSVScenarioUploader from './CSVScenarioUploader';
 
-function ScenarioManager() {
+function ScenarioManager({ project, config: projectConfig, onConfigUpdate }) {
   const [scenarios, setScenarios] = useState([])
-  const [config, setConfig] = useState(null)
+  const [config, setConfig] = useState(projectConfig || null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
@@ -66,23 +66,34 @@ function ScenarioManager() {
   const [loadingPreview, setLoadingPreview] = useState(false)
 
   useEffect(() => {
-    loadData()
-  }, [])
+    setConfig(projectConfig)
+  }, [projectConfig])
+
+  useEffect(() => {
+    if (project) {
+      loadData()
+    }
+  }, [project])
 
   const loadData = async () => {
     try {
-      const [scenariosResponse, configResponse] = await Promise.all([
-        axios.get(`${API_BASE}/scenarios`),
-        axios.get(`${API_BASE}/config`)
-      ])
-      // Add unique IDs to existing scenarios if they don't have them
-      const scenariosData = scenariosResponse.data.scenarios || scenariosResponse.data || [];
+      const scenariosResponse = await axios.get(`${API_BASE}/projects/${project.id}/scenarios`)
+      // Defensive: ensure scenariosData is always an array
+      let scenariosData = scenariosResponse.data;
+      if (Array.isArray(scenariosData)) {
+        // already an array
+      } else if (scenariosData && Array.isArray(scenariosData.scenarios)) {
+        scenariosData = scenariosData.scenarios;
+      } else if (scenariosData == null) {
+        scenariosData = [];
+      } else {
+        scenariosData = [scenariosData];
+      }
       const scenariosWithIds = scenariosData.map((scenario, index) => ({
         ...scenario,
         id: scenario.id || `existing-${index}-${Date.now()}`
       }))
       setScenarios(scenariosWithIds)
-      setConfig(configResponse.data)
       setLoading(false)
     } catch (error) {
       setMessage(`Error loading data: ${error.message}`)
@@ -172,11 +183,14 @@ function ScenarioManager() {
         ...config,
         scenarios: scenarios
       }
-      await axios.post(`${API_BASE}/config`, updatedConfig)
+      await axios.post(`${API_BASE}/projects/${project.id}/config`, updatedConfig)
       setConfig(updatedConfig)
       setHasUnsavedChanges(false)
       setMessage('Scenarios saved successfully!')
       setTimeout(() => setMessage(''), 3000)
+      if (onConfigUpdate) {
+        onConfigUpdate()
+      }
     } catch (error) {
       setMessage(`Error saving scenarios: ${error.message}`)
     } finally {

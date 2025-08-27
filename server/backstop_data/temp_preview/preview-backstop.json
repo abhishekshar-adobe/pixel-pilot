@@ -2,41 +2,32 @@
   "id": "preview_backstop",
   "viewports": [
     {
-      "label": "Tablet Landscape",
+      "label": "desktop",
       "width": 1024,
-      "height": 768,
-      "icon": {
-        "type": {},
-        "compare": null
-      }
+      "height": 768
     }
   ],
   "onBeforeScript": "puppet/onBefore.js",
   "onReadyScript": "puppet/onReady.js",
   "scenarios": [
     {
+      "id": 1756225949441,
       "label": "preview_scenario",
-      "url": "https://www.adobe.com/in/creativecloud/buy/students/photoshop.html",
+      "url": "https://aem.enablementadobe.com/content/asset-share-commons/en/light.html",
       "referenceUrl": "",
       "selectors": [
         "document"
       ],
-      "delay": 3000,
-      "customBeforeScript": "",
+      "delay": 100,
       "misMatchThreshold": 0.1,
       "requireSameDimensions": true,
-      "hideSelectors": [],
       "removeSelectors": [],
-      "clickSelector": "",
-      "hoverSelector": "",
       "selectorExpansion": true,
-      "customScript": "",
-      "validationErrors": [],
-      "id": 1756011281654.5825,
-      "onReadyScript": "puppet/onReady.js",
-      "onBeforeScript": "puppet/onBefore.js",
       "readyEvent": "",
       "readySelector": "",
+      "hideSelectors": [],
+      "hoverSelector": "",
+      "clickSelector": "",
       "postInteractionWait": 0,
       "expect": 0
     }

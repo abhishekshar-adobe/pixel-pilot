@@ -7,8 +7,10 @@ const backstop = require('backstopjs');
 const sharp = require('sharp');
 const axios = require('axios');
 const archiver = require('archiver');
+const { v4: uuidv4 } = require('uuid');
 const { DesignComparisonEngine } = require('./design-comparison-engine');
 const { getLatestTestResults } = require('./utils/test-results');
+const { validateProject, PROJECTS_FILE } = require('./utils/project-utils');
 
 const app = express();
 const port = 5000;
@@ -16,25 +18,587 @@ const port = 5000;
 app.use(cors());
 app.use(express.json());
 
+// Ensure data directory exists
+async function ensureDataDir() {
+  try {
+    await fs.ensureDir(path.join(__dirname, 'data'));
+    // Initialize projects file if it doesn't exist
+    const exists = await fs.pathExists(PROJECTS_FILE);
+    if (!exists) {
+      await fs.writeJson(PROJECTS_FILE, [], { spaces: 2 });
+    }
+  } catch (err) {
+    console.error('Error initializing data directory:', err);
+  }
+}
+
+ensureDataDir();
+
 // Add request logging for debugging
 app.use((req, res, next) => {
   console.log(`${new Date().toISOString()} - ${req.method} ${req.url}`);
   next();
 });
 
-// Get latest test results endpoint
-app.get('/api/test-results', async (req, res) => {
+// Add error logging middleware
+app.use((err, req, res, next) => {
+  console.error('Error:', err);
+  console.error('Stack:', err.stack);
+  res.status(500).json({ error: err.message });
+});
+
+// =================== PROJECT MANAGEMENT ENDPOINTS ===================
+
+// Get all projects
+app.get('/api/projects', async (req, res) => {
   try {
-    const results = await getLatestTestResults();
-    if (!results) {
-      return res.status(404).json({ error: 'No test results found' });
+    console.log('Reading projects from:', PROJECTS_FILE);
+    if (!await fs.pathExists(PROJECTS_FILE)) {
+      console.log('Projects file does not exist');
+      return res.json([]);
     }
-    res.json(results);
-  } catch (error) {
-    console.error('Error fetching test results:', error);
-    res.status(500).json({ error: 'Failed to fetch test results' });
+    const projects = await fs.readJson(PROJECTS_FILE);
+    
+    // Add scenario count and status for each project
+    const projectsWithStats = await Promise.all(projects.map(async (project) => {
+      try {
+        const { configPath } = await validateProject(project.id);
+        if (await fs.pathExists(configPath)) {
+          const config = await fs.readJson(configPath);
+          return {
+            ...project,
+            scenarioCount: config.scenarios?.length || 0,
+            hasConfig: true
+          };
+        }
+        return { ...project, scenarioCount: 0, hasConfig: false };
+      } catch (err) {
+        return { ...project, scenarioCount: 0, hasConfig: false };
+      }
+    }));
+    
+    return res.json(projectsWithStats);
+  } catch (err) {
+    console.error('Error loading projects:', err);
+    return res.status(500).json({ error: 'Failed to load projects' });
   }
 });
+
+// Create new project
+app.post('/api/projects', async (req, res) => {
+  try {
+    const { name } = req.body;
+    if (!name) {
+      return res.status(400).json({ error: 'Project name is required' });
+    }
+
+    const projects = await fs.readJson(PROJECTS_FILE);
+    const newProject = {
+      id: uuidv4(),
+      name,
+      createdAt: new Date().toISOString()
+    };
+    
+    projects.push(newProject);
+    await fs.writeJson(PROJECTS_FILE, projects, { spaces: 2 });
+
+    // Create project directory structure
+    const projectDir = path.join(__dirname, 'backstop_data', newProject.id);
+    const projectPaths = {
+      base: projectDir,
+      reference: path.join(projectDir, 'bitmaps_reference'),
+      test: path.join(projectDir, 'bitmaps_test'),
+      scripts: path.join(projectDir, 'engine_scripts'),
+      html: path.join(projectDir, 'html_report'),
+      ci: path.join(projectDir, 'ci_report')
+    };
+
+    // Create directories
+    await Promise.all(Object.values(projectPaths).map(p => fs.ensureDir(p)));
+    
+    // Copy default engine scripts
+    const defaultScriptsDir = path.join(__dirname, 'backstop_data', 'engine_scripts');
+    if (await fs.pathExists(defaultScriptsDir)) {
+      await fs.copy(defaultScriptsDir, projectPaths.scripts, { overwrite: false });
+    }
+    
+    // Initialize backstop.json config
+    const config = {
+      id: `backstop_${newProject.id}`,
+      viewports: DEFAULT_VIEWPORTS,
+      scenarios: [],
+      paths: {
+        bitmaps_reference: projectPaths.reference,
+        bitmaps_test: projectPaths.test,
+        engine_scripts: projectPaths.scripts,
+        html_report: projectPaths.html,
+        ci_report: projectPaths.ci
+      },
+      report: ['browser'],
+      engine: 'puppeteer',
+      engineOptions: {
+        args: ['--no-sandbox', '--disable-setuid-sandbox'],
+        headless: 'new',
+        defaultViewport: null
+      },
+      asyncCaptureLimit: 1,
+      asyncCompareLimit: 50,
+      debug: false,
+      debugWindow: false,
+      scenarioLogsInReports: true,
+      puppeteerOffscreenCapture: true
+    };
+    
+    await fs.writeJson(path.join(projectDir, 'backstop.json'), config, { spaces: 2 });
+
+    res.status(201).json(newProject);
+  } catch (err) {
+    console.error('Error creating project:', err);
+    res.status(500).json({ 
+      error: 'Failed to create project',
+      details: err.message
+    });
+  }
+});
+
+// Delete project
+app.delete('/api/projects/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const projects = await fs.readJson(PROJECTS_FILE);
+    
+    const updatedProjects = projects.filter(p => p.id !== id);
+    await fs.writeJson(PROJECTS_FILE, updatedProjects, { spaces: 2 });
+
+    // Remove project directory
+    const projectDir = path.join(__dirname, 'backstop_data', id);
+    await fs.remove(projectDir);
+
+    res.status(204).send();
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to delete project' });
+  }
+});
+
+// Initialize project structure
+app.post('/api/projects/:projectId/initialize', async (req, res) => {
+  try {
+    const { projectId } = req.params;
+    await validateProject(projectId);
+    
+    const initializeDir = path.join(__dirname, 'backstop_data', projectId);
+    const initializePaths = {
+      base: initializeDir,
+      reference: path.join(initializeDir, 'bitmaps_reference'),
+      test: path.join(initializeDir, 'bitmaps_test'),
+      scripts: path.join(initializeDir, 'engine_scripts'),
+      html: path.join(initializeDir, 'html_report'),
+      ci: path.join(initializeDir, 'ci_report')
+    };
+
+    // Create directories
+    await Promise.all(Object.values(initializePaths).map(p => fs.ensureDir(p)));
+    
+    // Copy default engine scripts
+    const defaultScriptsDir = path.join(__dirname, 'backstop_data', 'engine_scripts');
+    if (await fs.pathExists(defaultScriptsDir)) {
+      await fs.copy(defaultScriptsDir, initializePaths.scripts, { overwrite: false });
+    }
+
+    res.json({ message: 'Project structure initialized successfully' });
+  } catch (err) {
+    console.error('Error initializing project structure:', err);
+    res.status(500).json({ error: 'Failed to initialize project structure' });
+  }
+});
+
+// =================== PROJECT-SCOPED CONFIG ENDPOINTS ===================
+
+// Get project config
+app.get('/api/projects/:projectId/config', async (req, res) => {
+  try {
+    const { projectId } = req.params;
+    const { configPath } = await validateProject(projectId);
+    const config = await fs.readJson(configPath);
+    res.json(config);
+  } catch (err) {
+    console.error('Error loading config:', err);
+    if (err.message.includes('not found')) {
+      res.status(404).json({ error: err.message });
+    } else {
+      res.status(500).json({ 
+        error: 'Failed to load config',
+        details: err.message
+      });
+    }
+  }
+});
+
+// Update project config
+app.post('/api/projects/:projectId/config', async (req, res) => {
+  try {
+    const { projectId } = req.params;
+    const { configPath } = await validateProject(projectId);
+    const incomingConfig = req.body;
+    
+    const config = {
+      ...incomingConfig,
+      id: `backstop_${projectId}`,
+      projectId,
+      paths: {
+        bitmaps_reference: path.join(__dirname, 'backstop_data', projectId, 'bitmaps_reference'),
+        bitmaps_test: path.join(__dirname, 'backstop_data', projectId, 'bitmaps_test'),
+        engine_scripts: path.join(__dirname, 'backstop_data', projectId, 'engine_scripts'),
+        html_report: path.join(__dirname, 'backstop_data', projectId, 'html_report'),
+        ci_report: path.join(__dirname, 'backstop_data', projectId, 'ci_report')
+      }
+    };
+    
+    await fs.writeJson(configPath, config, { spaces: 2 });
+    res.json({ message: 'Configuration updated successfully' });
+  } catch (err) {
+    console.error('Error updating config:', err);
+    if (err.message.includes('not found')) {
+      res.status(404).json({ error: err.message });
+    } else {
+      res.status(500).json({ 
+        error: 'Failed to update config',
+        details: err.message
+      });
+    }
+  }
+});
+
+// =================== PROJECT-SCOPED SCENARIO ENDPOINTS ===================
+
+// Get project scenarios
+app.get('/api/projects/:projectId/scenarios', async (req, res) => {
+  try {
+    const { projectId } = req.params;
+    const { configPath } = await validateProject(projectId);
+    const config = await fs.readJson(configPath);
+    res.json({ scenarios: config.scenarios || [] });
+  } catch (err) {
+    console.error('Error loading scenarios:', err);
+    if (err.message.includes('not found')) {
+      res.status(404).json({ error: err.message });
+    } else {
+      res.status(500).json({ 
+        error: 'Failed to load scenarios',
+        details: err.message
+      });
+    }
+  }
+});
+
+// Update project scenarios
+app.post('/api/projects/:projectId/scenarios', async (req, res) => {
+  try {
+    const { projectId } = req.params;
+    const { configPath } = await validateProject(projectId);
+    const config = await fs.readJson(configPath);
+    config.scenarios = req.body.scenarios;
+    await fs.writeJson(configPath, config, { spaces: 2 });
+    res.json({ message: 'Scenarios saved successfully' });
+  } catch (err) {
+    console.error('Error saving scenarios:', err);
+    if (err.message.includes('not found')) {
+      res.status(404).json({ error: err.message });
+    } else {
+      res.status(500).json({ 
+        error: 'Failed to save scenarios',
+        details: err.message
+      });
+    }
+  }
+});
+
+// =================== PROJECT-SCOPED TEST ENDPOINTS ===================
+
+// Get project test results
+app.get('/api/projects/:projectId/test-results', async (req, res) => {
+  try {
+    const { projectId } = req.params;
+    console.log('Getting test results for project:', projectId);
+    
+    await validateProject(projectId);
+    const results = await getLatestTestResults(projectId);
+    
+    if (!results) {
+      return res.status(404).json({ error: 'No test results found for this project' });
+    }
+    res.json(results);
+  } catch (err) {
+    console.error('Error fetching test results:', err);
+    if (err.message.includes('not found')) {
+      res.status(404).json({ error: err.message });
+    } else {
+      res.status(500).json({ 
+        error: 'Failed to fetch test results',
+        details: err.message
+      });
+    }
+  }
+});
+
+// Run BackstopJS test for project
+app.post('/api/projects/:projectId/test', async (req, res) => {
+  try {
+    const { projectId } = req.params;
+    const { configPath } = await validateProject(projectId);
+    
+    if (!await fs.pathExists(configPath)) {
+      return res.status(404).json({ error: 'Config not found for this project' });
+    }
+    
+    const config = await fs.readJson(configPath);
+    // Ensure all paths exist
+    await Promise.all([
+      fs.ensureDir(config.paths.bitmaps_reference),
+      fs.ensureDir(config.paths.bitmaps_test),
+      fs.ensureDir(config.paths.html_report)
+    ]);
+
+    // Check for missing reference images and auto-generate if needed
+    const bitmapsRefDir = config.paths.bitmaps_reference;
+    let missingReference = false;
+    if (Array.isArray(config.scenarios)) {
+      for (const scenario of config.scenarios) {
+        // Build expected reference image filename (BackstopJS default convention)
+        // Example: backstop_default_<label>_<index>_<scenarioLabel>_<breakpoint>.png
+        // We'll check for each scenario label and viewport
+        if (scenario.referenceUrl && scenario.label && Array.isArray(config.viewports)) {
+          for (let v = 0; v < config.viewports.length; v++) {
+            const viewport = config.viewports[v];
+            const refName = `backstop_default_${scenario.label}_${v}_${scenario.label}_${viewport.label}.png`;
+            const refPath = path.join(bitmapsRefDir, refName);
+            if (!await fs.pathExists(refPath)) {
+              missingReference = true;
+              break;
+            }
+          }
+        }
+        if (missingReference) break;
+      }
+    }
+    if (missingReference) {
+      // Auto-generate reference images before running test
+      await backstop('reference', { config: configPath });
+    }
+
+    const result = await backstop('test', {
+      config: configPath,
+      filter: req.body.filter || undefined
+    });
+
+    res.json({
+      success: true,
+      result,
+      message: 'Test completed successfully',
+      reportPath: `/api/projects/${projectId}/report/index.html`
+    });
+  } catch (error) {
+    // BackstopJS throws error when there are visual differences, but this is expected
+    console.error('BackstopJS test error (may be expected):', error);
+    
+    try {
+      const { configPath } = await validateProject(projectId);
+      const config = await fs.readJson(configPath);
+      const reportPath = path.join(config.paths.html_report, 'index.html');
+      const reportExists = await fs.pathExists(reportPath);
+      
+      res.status(200).json({ 
+        success: false, 
+        error: error.message,
+        reportPath: reportExists ? `/api/projects/${projectId}/report/index.html` : null,
+        message: 'Test completed with visual differences detected'
+      });
+    } catch (configError) {
+      res.status(500).json({ 
+        success: false,
+        error: `Configuration error: ${configError.message}`,
+        reportPath: null,
+        message: 'Test failed due to configuration error'
+      });
+    }
+  }
+});
+
+// Run BackstopJS reference for project
+app.post('/api/projects/:projectId/reference', async (req, res) => {
+  try {
+    const { projectId } = req.params;
+    const { configPath } = await validateProject(projectId);
+    const config = await fs.readJson(configPath);
+    
+    // Ensure reference paths exist
+    await fs.ensureDir(config.paths.bitmaps_reference);
+    
+    const result = await backstop('reference', { 
+      config: configPath,
+      filter: req.body.filter || undefined
+    });
+    
+    res.json({ 
+      success: true, 
+      result,
+      message: 'Reference screenshots generated successfully'
+    });
+  } catch (error) {
+    console.error('Error creating reference:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Run BackstopJS approve for project
+app.post('/api/projects/:projectId/approve', async (req, res) => {
+  try {
+    const { projectId } = req.params;
+    const { configPath } = await validateProject(projectId);
+    const config = await fs.readJson(configPath);
+    
+    // Ensure reference paths exist
+    await fs.ensureDir(config.paths.bitmaps_reference);
+    
+    const result = await backstop('approve', { 
+      config: configPath,
+      filter: req.body.filter || undefined
+    });
+    
+    res.json({ 
+      success: true, 
+      result,
+      message: 'Reference screenshots updated successfully - test images approved as new references'
+    });
+  } catch (error) {
+    console.error('Error approving test results:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// =================== PROJECT-SCOPED SCREENSHOT ENDPOINTS ===================
+
+// Configure multer for screenshot uploads
+const uploadsDir = path.join(__dirname, 'uploads');
+fs.ensureDirSync(uploadsDir);
+
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, uploadsDir);
+  },
+  filename: (req, file, cb) => {
+    const { scenario, viewport } = req.body || {};
+    const timestamp = Date.now();
+    const sanitizedScenario = scenario ? scenario.replace(/[^a-zA-Z0-9]/g, '_') : 'unknown';
+    const sanitizedViewport = viewport ? viewport.replace(/[^a-zA-Z0-9]/g, '_') : 'unknown';
+    const sanitizedOriginalName = file.originalname.replace(/[<>:"/\\|?*]/g, '_');
+    
+    const filename = `${sanitizedScenario}_${sanitizedViewport}_${timestamp}_${sanitizedOriginalName}`;
+    cb(null, filename);
+  }
+});
+
+const upload = multer({ 
+  storage,
+  limits: {
+    fileSize: 10 * 1024 * 1024, // 10MB limit
+    files: 1
+  }
+});
+
+// Upload screenshot for project
+app.post('/api/projects/:projectId/screenshots/upload', upload.single('screenshot'), async (req, res) => {
+  try {
+    const { projectId } = req.params;
+    await validateProject(projectId);
+    
+    if (!req.file) {
+      return res.status(400).json({ error: 'No file uploaded' });
+    }
+    
+    const { scenario, viewport, isReference } = req.body;
+    
+    if (!scenario || !viewport) {
+      return res.status(400).json({ error: 'Scenario and viewport are required' });
+    }
+    
+    // Store screenshot metadata
+    const scenarioDataPath = path.join(__dirname, 'backstop_data', projectId, 'scenario_screenshots.json');
+    let scenarioScreenshots = {};
+    
+    if (await fs.pathExists(scenarioDataPath)) {
+      scenarioScreenshots = await fs.readJson(scenarioDataPath);
+    }
+    
+    const scenarioKey = `${scenario}_${viewport}`;
+    if (!scenarioScreenshots[scenarioKey]) {
+      scenarioScreenshots[scenarioKey] = {
+        scenario,
+        viewport,
+        screenshots: [],
+        referenceScreenshot: null
+      };
+    }
+
+    const screenshotData = {
+      filename: req.file.filename,
+      originalName: req.file.originalname,
+      path: req.file.path,
+      uploadedAt: new Date().toISOString(),
+      size: req.file.size,
+      isReference: isReference === 'true'
+    };
+    
+    scenarioScreenshots[scenarioKey].screenshots.push(screenshotData);
+    
+    if (isReference === 'true') {
+      scenarioScreenshots[scenarioKey].referenceScreenshot = screenshotData;
+    }
+    
+    await fs.writeJson(scenarioDataPath, scenarioScreenshots, { spaces: 2 });
+    
+    res.json({
+      message: 'Screenshot uploaded successfully',
+      filename: req.file.filename,
+      scenarioKey,
+      isReference: isReference === 'true',
+      screenshotCount: scenarioScreenshots[scenarioKey].screenshots.length
+    });
+  } catch (error) {
+    console.error('Error uploading screenshot:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get project screenshots
+app.get('/api/projects/:projectId/screenshots', async (req, res) => {
+  try {
+    const { projectId } = req.params;
+    await validateProject(projectId);
+    
+    const scenarioDataPath = path.join(__dirname, 'backstop_data', projectId, 'scenario_screenshots.json');
+    
+    if (!await fs.pathExists(scenarioDataPath)) {
+      return res.json({});
+    }
+    
+    const scenarioScreenshots = await fs.readJson(scenarioDataPath);
+    res.json(scenarioScreenshots);
+  } catch (error) {
+    console.error('Error getting project screenshots:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Serve project reports
+app.use('/api/projects/:projectId/report', (req, res, next) => {
+  const { projectId } = req.params;
+  const reportDir = path.join(__dirname, 'backstop_data', projectId, 'html_report');
+  express.static(reportDir)(req, res, next);
+});
+
+// Serve uploaded screenshots
+app.use('/uploads', express.static(uploadsDir));
 
 // Default viewports configuration
 const DEFAULT_VIEWPORTS = [
@@ -233,46 +797,7 @@ app.post('/api/reference', async (req, res) => {
 
 // Create necessary directories
 const configDir = path.join(__dirname, 'backstop_data');
-const uploadsDir = path.join(__dirname, 'uploads');
 fs.ensureDirSync(configDir);
-fs.ensureDirSync(uploadsDir);
-
-// Configure multer for screenshot uploads
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, uploadsDir);
-  },
-  filename: (req, file, cb) => {
-    const { scenario, viewport } = req.body || {};
-    const timestamp = Date.now();
-    const sanitizedScenario = scenario ? scenario.replace(/[^a-zA-Z0-9]/g, '_') : 'unknown';
-    const sanitizedViewport = viewport ? viewport.replace(/[^a-zA-Z0-9]/g, '_') : 'unknown';
-    
-    // Sanitize the original filename to remove invalid characters for Windows
-    const sanitizedOriginalName = file.originalname.replace(/[<>:"/\\|?*]/g, '_');
-    
-    console.log('Multer filename generation:', {
-      originalname: file.originalname,
-      sanitizedOriginalName,
-      scenario,
-      viewport,
-      sanitizedScenario,
-      sanitizedViewport,
-      timestamp
-    });
-    
-    const filename = `${sanitizedScenario}_${sanitizedViewport}_${timestamp}_${sanitizedOriginalName}`;
-    console.log('Generated filename:', filename);
-    cb(null, filename);
-  }
-});
-const upload = multer({ 
-  storage,
-  limits: {
-    fileSize: 10 * 1024 * 1024, // 10MB limit
-    files: 1
-  }
-});
 
 // Utility function to clean up old reference files for a scenario
 const cleanupOldReferenceFiles = async (scenarioLabel, viewportLabel) => {
@@ -706,29 +1231,39 @@ app.get('/api/config', async (req, res) => {
     let config = defaultConfig;
     
     if (await fs.pathExists(configPath)) {
-      config = await fs.readJson(configPath);
-    }
-    
-    res.json(config);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
+      let config = await fs.readJson(configPath);
+      // Ensure projectId is set in config for downstream usage
+      config.projectId = projectId;
+      await fs.writeJson(configPath, config, { spaces: 2 });
+      // Ensure all paths exist
+      await Promise.all([
+        fs.ensureDir(config.paths.bitmaps_reference),
+        fs.ensureDir(config.paths.bitmaps_test),
+        fs.ensureDir(config.paths.html_report)
+      ]);
 
-// Update BackstopJS configuration
-app.post('/api/config', async (req, res) => {
-  try {
-    const configPath = path.join(configDir, 'backstop.json');
-    const incomingConfig = req.body;
-    
-    // Merge with default configuration to ensure all required settings are present
-    const config = {
-      ...defaultConfig,
-      ...incomingConfig, // Override with incoming settings
-      paths: {
-        ...defaultConfig.paths,
-        ...(incomingConfig.paths || {})
+      // Check if reference images exist for all scenarios
+      const referenceImagesMissing = config.scenarios.some(scenario => {
+        const refImageName = `${config.id}_${scenario.label}_0_${scenario.selectors[0]}_0_${config.viewports[0].label}.png`;
+        const refImagePath = path.join(config.paths.bitmaps_reference, refImageName);
+        return !fs.existsSync(refImagePath) && scenario.referenceUrl;
+      });
+
+      if (referenceImagesMissing) {
+        await backstop('reference', { config: configPath, filter: req.body.filter || undefined });
       }
+
+      const result = await backstop('test', { 
+        config: configPath,
+        filter: req.body.filter || undefined
+      });
+      res.json({ 
+        success: true, 
+        result,
+        message: 'Test completed successfully',
+        reportPath: `/api/projects/${projectId}/report/index.html`
+      });
+      paths: Object.assign({}, defaultConfig.paths, incomingConfig.paths || {})
     };
     
     // Generate custom onReady scripts for scenarios with custom scripts
@@ -3741,12 +4276,54 @@ process.on('uncaughtException', (error) => {
   // Don't exit the process, just log the error
 });
 
+// =================== GENERAL ENDPOINTS ===================
+
+// Server health check
+app.get('/api/health', async (req, res) => {
+  try {
+    const projectsCount = await fs.readJson(PROJECTS_FILE).then(p => p.length).catch(() => 0);
+    
+    res.json({
+      success: true,
+      message: 'PixelPilot BackstopJS Dashboard is running',
+      timestamp: new Date().toISOString(),
+      projectsCount,
+      endpoints: {
+        projects: '/api/projects',
+        config: '/api/projects/:projectId/config',
+        scenarios: '/api/projects/:projectId/scenarios',
+        test: '/api/projects/:projectId/test',
+        reference: '/api/projects/:projectId/reference',
+        screenshots: '/api/projects/:projectId/screenshots/upload'
+      }
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Server error',
+      error: error.message
+    });
+  }
+});
+
+// 404 handler - should be after all other routes
+app.use((req, res, next) => {
+  if (!res.headersSent) {
+    console.log(`404 Not Found: ${req.method} ${req.url}`);
+    return res.status(404).json({ error: 'Endpoint not found' });
+  }
+});
+
 process.on('unhandledRejection', (reason, promise) => {
   console.error('Unhandled Rejection at:', promise, 'reason:', reason);
   // Don't exit the process, just log the error
 });
 
 app.listen(port, async () => {
-  console.log(`Server running on http://localhost:${port}`);
-  await initializeServer();
+  console.log('🚀 PixelPilot BackstopJS Dashboard Started!');
+  console.log(`📡 Server running on http://localhost:${port}`);
+  console.log(`🔍 Health Check: http://localhost:${port}/api/health`);
+  console.log(`📁 Projects API: http://localhost:${port}/api/projects`);
+  console.log('🎯 Multi-project BackstopJS dashboard ready!');
+  await ensureDataDir();
 });

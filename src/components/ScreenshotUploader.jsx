@@ -50,7 +50,7 @@ import axios from 'axios'
 
 const API_BASE = 'http://localhost:5000/api'
 
-const ScreenshotUploader = () => {
+const ScreenshotUploader = ({ project, config }) => {
   // State management
   const [viewports, setViewports] = useState([])
   const [scenarios, setScenarios] = useState([])
@@ -120,10 +120,9 @@ const ScreenshotUploader = () => {
 
   const loadConfiguration = async () => {
     try {
-      const response = await axios.get(`${API_BASE}/config`)
-      if (response.data && response.data.viewports && response.data.scenarios) {
-        setViewports(response.data.viewports)
-        setScenarios(response.data.scenarios)
+      if (config) {
+        setViewports(config.viewports || [])
+        setScenarios(config.scenarios || [])
       }
     } catch (error) {
       setMessage('Error loading configuration: ' + error.message)
