@@ -25,7 +25,8 @@ import {
   Delete as DeleteIcon,
   Settings as SettingsIcon,
   Folder as FolderIcon,
-  PlayArrow as PlayArrowIcon
+  PlayArrow as PlayArrowIcon,
+  Info as InfoOutlined
 } from '@mui/icons-material';
 import axios from 'axios';
 
@@ -109,120 +110,339 @@ const ProjectSelector = ({ onProjectSelect }) => {
 
   if (loading) {
     return (
-      <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
-        <CircularProgress />
+      <Box 
+        sx={{
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'center',
+          alignItems: 'center',
+          minHeight: '400px',
+          gap: 2
+        }}
+      >
+        <CircularProgress 
+          size={40} 
+          thickness={4}
+          sx={{
+            color: 'primary.main'
+          }}
+        />
+        <Typography
+          variant="body1"
+          sx={{
+            color: 'text.secondary',
+            fontWeight: 500
+          }}
+        >
+          Loading projects...
+        </Typography>
       </Box>
     );
   }
 
   return (
-    <Box sx={{ maxWidth: 800, mx: 'auto', p: 3 }}>
-      <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
-        <Typography variant="h4" component="h1" gutterBottom>
-          PixelPilot Projects
-        </Typography>
+    <Box 
+      sx={{ 
+        maxWidth: '1000px', 
+        mx: 'auto', 
+        p: { xs: 2, sm: 3, md: 4 },
+        minHeight: '100vh',
+        bgcolor: 'background.default'
+      }}
+    >
+      <Box 
+        sx={{
+          display: 'flex',
+          flexDirection: { xs: 'column', sm: 'row' },
+          justifyContent: 'space-between',
+          alignItems: { xs: 'stretch', sm: 'center' },
+          gap: 2,
+          mb: 4
+        }}
+      >
+        <Box>
+          <Typography 
+            variant="h4" 
+            component="h1" 
+            sx={{
+              fontWeight: 700,
+              color: 'text.primary',
+              letterSpacing: '-0.025em',
+              mb: 1
+            }}
+          >
+            PixelPilot Projects
+          </Typography>
+          <Typography 
+            variant="body1" 
+            sx={{ 
+              color: 'text.secondary',
+              maxWidth: '600px'
+            }}
+          >
+            Manage your BackstopJS visual regression testing projects
+          </Typography>
+        </Box>
         <Button
           variant="contained"
           startIcon={<AddIcon />}
           onClick={() => setCreateDialogOpen(true)}
-          sx={{ minWidth: 140 }}
+          sx={{ 
+            minWidth: 140,
+            height: '48px',
+            borderRadius: '12px',
+            textTransform: 'none',
+            fontSize: '1rem',
+            fontWeight: 600,
+            boxShadow: 'none',
+            '&:hover': {
+              boxShadow: '0 4px 8px -2px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.06)'
+            }
+          }}
         >
           New Project
         </Button>
       </Box>
 
       {error && (
-        <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError('')}>
+        <Alert 
+          severity="error" 
+          onClose={() => setError('')}
+          sx={{ 
+            mb: 3,
+            borderRadius: '12px',
+            '& .MuiAlert-icon': {
+              fontSize: '24px'
+            },
+            '& .MuiAlert-message': {
+              fontSize: '0.875rem',
+              fontWeight: 500
+            }
+          }}
+          variant="filled"
+        >
           {error}
         </Alert>
       )}
 
       {success && (
-        <Alert severity="success" sx={{ mb: 2 }} onClose={() => setSuccess('')}>
+        <Alert 
+          severity="success" 
+          onClose={() => setSuccess('')}
+          sx={{ 
+            mb: 3,
+            borderRadius: '12px',
+            '& .MuiAlert-icon': {
+              fontSize: '24px'
+            },
+            '& .MuiAlert-message': {
+              fontSize: '0.875rem',
+              fontWeight: 500
+            }
+          }}
+          variant="filled"
+        >
           {success}
         </Alert>
       )}
 
       {projects.length === 0 ? (
-        <Card>
-          <CardContent sx={{ textAlign: 'center', py: 6 }}>
-            <FolderIcon sx={{ fontSize: 64, color: 'text.secondary', mb: 2 }} />
-            <Typography variant="h6" color="text.secondary" gutterBottom>
+        <Card
+          sx={{
+            borderRadius: '16px',
+            boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.06)',
+            overflow: 'hidden',
+            background: theme => `linear-gradient(145deg, ${theme.palette.background.paper} 0%, ${theme.palette.background.default} 100%)`
+          }}
+        >
+          <CardContent sx={{ 
+            textAlign: 'center', 
+            py: 8,
+            px: { xs: 3, sm: 6 }
+          }}>
+            <FolderIcon sx={{ 
+              fontSize: 80, 
+              color: 'primary.light',
+              mb: 3,
+              opacity: 0.8
+            }} />
+            <Typography 
+              variant="h5" 
+              sx={{ 
+                color: 'text.primary',
+                fontWeight: 600,
+                mb: 2
+              }}
+            >
               No projects found
             </Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+            <Typography 
+              variant="body1" 
+              sx={{ 
+                color: 'text.secondary',
+                mb: 4,
+                maxWidth: '400px',
+                mx: 'auto'
+              }}
+            >
               Create your first BackstopJS project to get started with visual regression testing.
             </Typography>
             <Button
               variant="contained"
               startIcon={<AddIcon />}
               onClick={() => setCreateDialogOpen(true)}
+              sx={{ 
+                borderRadius: '12px',
+                textTransform: 'none',
+                fontSize: '1rem',
+                fontWeight: 600,
+                py: 1.5,
+                px: 4,
+                boxShadow: 'none',
+                '&:hover': {
+                  boxShadow: '0 4px 8px -2px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.06)'
+                }
+              }}
             >
               Create First Project
             </Button>
           </CardContent>
         </Card>
       ) : (
-        <List>
+        <Box 
+          sx={{
+            display: 'grid',
+            gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' },
+            gap: 3
+          }}
+        >
           {projects.map((project) => (
-            <Card key={project.id} sx={{ mb: 2 }}>
-              <ListItem>
-                <ListItemText
-                  primary={
-                    <Box display="flex" alignItems="center" gap={1}>
-                      <Typography variant="h6">{project.name}</Typography>
+            <Card 
+              key={project.id} 
+              sx={{
+                borderRadius: '16px',
+                boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.06)',
+                transition: 'all 0.2s ease-in-out',
+                '&:hover': {
+                  transform: 'translateY(-2px)',
+                  boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.05)'
+                }
+              }}
+            >
+              <CardContent sx={{ p: 3 }}>
+                <Box sx={{ mb: 2 }}>
+                  <Box sx={{ 
+                    display: 'flex', 
+                    alignItems: 'flex-start',
+                    justifyContent: 'space-between',
+                    mb: 2
+                  }}>
+                    <Typography 
+                      variant="h6" 
+                      sx={{ 
+                        fontWeight: 600,
+                        color: 'text.primary',
+                        mb: 1
+                      }}
+                    >
+                      {project.name}
+                    </Typography>
+                    <Box sx={{ display: 'flex', gap: 1 }}>
                       {project.hasConfig && (
                         <Chip 
                           label={`${project.scenarioCount} scenarios`} 
-                          size="small" 
-                          color="primary" 
-                          variant="outlined" 
+                          size="small"
+                          sx={{
+                            borderRadius: '8px',
+                            bgcolor: 'primary.main',
+                            color: 'white',
+                            fontWeight: 500,
+                            '& .MuiChip-label': { px: 2 }
+                          }}
                         />
                       )}
                       {!project.hasConfig && (
                         <Chip 
                           label="Not configured" 
-                          size="small" 
-                          color="warning" 
-                          variant="outlined" 
+                          size="small"
+                          sx={{
+                            borderRadius: '8px',
+                            bgcolor: 'warning.light',
+                            color: 'warning.dark',
+                            fontWeight: 500,
+                            '& .MuiChip-label': { px: 2 }
+                          }}
                         />
                       )}
                     </Box>
-                  }
-                  secondary={
-                    <Box>
-                      <Typography variant="body2" color="text.secondary">
-                        Created: {new Date(project.createdAt).toLocaleDateString()}
-                      </Typography>
-                      <Typography variant="body2" color="text.secondary">
-                        ID: {project.id}
-                      </Typography>
-                    </Box>
-                  }
-                />
-                <ListItemSecondaryAction>
-                  <Box display="flex" gap={1}>
-                    <Button
-                      variant="contained"
-                      size="small"
-                      startIcon={<SettingsIcon />}
-                      onClick={() => selectProject(project)}
-                    >
-                      Open
-                    </Button>
-                    <IconButton
-                      edge="end"
-                      color="error"
-                      onClick={() => deleteProject(project.id, project.name)}
-                    >
-                      <DeleteIcon />
-                    </IconButton>
                   </Box>
-                </ListItemSecondaryAction>
-              </ListItem>
+                  <Typography 
+                    variant="body2" 
+                    sx={{ 
+                      color: 'text.secondary',
+                      mb: 0.5,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 1
+                    }}
+                  >
+                    <Box component="span" sx={{ opacity: 0.7 }}>Created:</Box>
+                    {new Date(project.createdAt).toLocaleDateString()}
+                  </Typography>
+                  <Typography 
+                    variant="body2" 
+                    sx={{ 
+                      color: 'text.secondary',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 1
+                    }}
+                  >
+                    <Box component="span" sx={{ opacity: 0.7 }}>ID:</Box>
+                    {project.id}
+                  </Typography>
+                </Box>
+                <Box 
+                  sx={{ 
+                    display: 'flex',
+                    justifyContent: 'flex-end',
+                    gap: 2,
+                    mt: 3
+                  }}
+                >
+                  <Button
+                    variant="contained"
+                    startIcon={<SettingsIcon />}
+                    onClick={() => selectProject(project)}
+                    sx={{
+                      borderRadius: '8px',
+                      textTransform: 'none',
+                      fontWeight: 500,
+                      boxShadow: 'none',
+                      '&:hover': {
+                        boxShadow: '0 4px 8px -2px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.06)'
+                      }
+                    }}
+                  >
+                    Open Project
+                  </Button>
+                  <IconButton
+                    color="error"
+                    onClick={() => deleteProject(project.id, project.name)}
+                    sx={{
+                      borderRadius: '8px',
+                      '&:hover': {
+                        bgcolor: 'error.lighter'
+                      }
+                    }}
+                  >
+                    <DeleteIcon />
+                  </IconButton>
+                </Box>
+              </CardContent>
             </Card>
           ))}
-        </List>
+        </Box>
       )}
 
       {/* Create Project Dialog */}
@@ -231,38 +451,124 @@ const ProjectSelector = ({ onProjectSelect }) => {
         onClose={() => setCreateDialogOpen(false)}
         maxWidth="sm"
         fullWidth
+        PaperProps={{
+          sx: {
+            borderRadius: '16px',
+            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)'
+          }
+        }}
       >
-        <DialogTitle>Create New Project</DialogTitle>
-        <DialogContent>
+        <DialogTitle 
+          sx={{
+            p: 3,
+            pb: 0,
+            '& .MuiTypography-root': {
+              fontSize: '1.5rem',
+              fontWeight: 700,
+              color: 'text.primary',
+              letterSpacing: '-0.025em'
+            }
+          }}
+        >
+          Create New Project
+        </DialogTitle>
+        <DialogContent sx={{ p: 3 }}>
           <TextField
             autoFocus
-            margin="dense"
             label="Project Name"
             fullWidth
             variant="outlined"
             value={newProjectName}
             onChange={(e) => setNewProjectName(e.target.value)}
             onKeyPress={(e) => {
-              if (e.key === 'Enter') {
+              if (e.key === 'Enter' && newProjectName.trim()) {
                 createProject();
               }
             }}
-            sx={{ mt: 2 }}
+            sx={{ 
+              mt: 2,
+              '& .MuiOutlinedInput-root': {
+                borderRadius: '12px',
+                '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                  borderWidth: '2px'
+                }
+              }
+            }}
           />
-          <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
-            This will create a new BackstopJS project with its own configuration, scenarios, and test results.
-          </Typography>
+          <Box sx={{ 
+            mt: 3,
+            p: 2,
+            bgcolor: 'primary.lighter',
+            borderRadius: '12px',
+            border: '1px solid',
+            borderColor: 'primary.light'
+          }}>
+            <Typography 
+              variant="body2" 
+              sx={{ 
+                color: 'primary.dark',
+                fontWeight: 500,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 1
+              }}
+            >
+              <InfoOutlined sx={{ fontSize: 20 }} />
+              Project Details
+            </Typography>
+            <Typography 
+              variant="body2" 
+              sx={{ 
+                color: 'primary.dark',
+                mt: 1,
+                opacity: 0.9
+              }}
+            >
+              This will create a new BackstopJS project with its own configuration, scenarios, and test results.
+            </Typography>
+          </Box>
         </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setCreateDialogOpen(false)}>
+        <DialogActions 
+          sx={{ 
+            p: 3,
+            pt: 2,
+            gap: 2
+          }}
+        >
+          <Button 
+            onClick={() => setCreateDialogOpen(false)}
+            sx={{
+              borderRadius: '8px',
+              textTransform: 'none',
+              fontWeight: 500,
+              color: 'text.primary'
+            }}
+          >
             Cancel
           </Button>
           <Button 
             onClick={createProject} 
             variant="contained"
             disabled={creating || !newProjectName.trim()}
+            sx={{
+              borderRadius: '8px',
+              textTransform: 'none',
+              fontWeight: 600,
+              px: 4,
+              boxShadow: 'none',
+              '&:hover': {
+                boxShadow: '0 4px 8px -2px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.06)'
+              }
+            }}
           >
-            {creating ? <CircularProgress size={20} /> : 'Create Project'}
+            {creating ? (
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <CircularProgress size={16} thickness={4} sx={{ color: 'inherit' }} />
+                Creating...
+              </Box>
+            ) : (
+              'Create Project'
+            )}
           </Button>
         </DialogActions>
       </Dialog>

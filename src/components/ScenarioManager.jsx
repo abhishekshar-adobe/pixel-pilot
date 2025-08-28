@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import axios from 'axios'
+import { alpha, darken } from '@mui/material/styles'
 import {
   Box,
   Typography,
@@ -38,6 +39,7 @@ import {
   Settings, 
   Web as WebIcon,
   Code as CodeIcon,
+  Close,
   Timeline,
   Visibility,
   TouchApp,
@@ -471,34 +473,62 @@ function ScenarioManager({ project, config: projectConfig, onConfigUpdate }) {
             key={scenario.id || `scenario-${index}`}
             defaultExpanded={scenarios.length === 1}
             sx={{ 
-              borderRadius: 3,
-              boxShadow: '0 4px 20px rgba(0,0,0,0.1)',
+              borderRadius: 4,
+              backdropFilter: 'blur(8px)',
+              background: (theme) => alpha(theme.palette.background.paper, 0.8),
+              boxShadow: (theme) => `0 4px 20px ${alpha(theme.palette.common.black, 0.05)}`,
               border: '1px solid',
               borderColor: 'divider',
               '&:before': { display: 'none' },
               '&.Mui-expanded': {
-                transform: 'translateY(-1px)',
-                boxShadow: '0 8px 30px rgba(0,0,0,0.15)',
-                borderColor: 'primary.main'
+                transform: 'translateY(-4px)',
+                boxShadow: (theme) => `0 12px 36px ${alpha(theme.palette.primary.main, 0.15)}`,
+                borderColor: 'primary.main',
+                borderWidth: 2,
+                background: (theme) => alpha(theme.palette.background.paper, 0.95)
               },
-              transition: 'all 0.3s ease'
+              '&:hover': {
+                borderColor: 'primary.main',
+                transform: 'translateY(-2px)',
+                boxShadow: (theme) => `0 8px 28px ${alpha(theme.palette.primary.main, 0.12)}`
+              },
+              transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+              mb: 2
             }}
           >
             <AccordionSummary 
-              expandIcon={<ExpandMore />}
+              expandIcon={
+                <ExpandMore sx={{
+                  transition: 'transform 0.3s ease',
+                  transform: 'rotate(0deg)',
+                  '.Mui-expanded &': {
+                    transform: 'rotate(-180deg)'
+                  }
+                }} />
+              }
               sx={{ 
-                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                background: (theme) => `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.dark} 100%)`,
                 color: 'white',
-                minHeight: 72,
+                minHeight: { xs: 64, sm: 72 },
+                borderRadius: '12px 12px 0 0',
+                transition: 'all 0.3s ease',
                 '&.Mui-expanded': {
-                  minHeight: 72
+                  minHeight: { xs: 64, sm: 72 },
+                  background: (theme) => `linear-gradient(135deg, ${darken(theme.palette.primary.main, 0.1)} 0%, ${darken(theme.palette.primary.dark, 0.1)} 100%)`
+                },
+                '&:hover': {
+                  background: (theme) => `linear-gradient(135deg, ${darken(theme.palette.primary.main, 0.05)} 0%, ${darken(theme.palette.primary.dark, 0.05)} 100%)`
                 },
                 '& .MuiAccordionSummary-content': {
                   alignItems: 'center',
-                  my: 2
+                  my: { xs: 1.5, sm: 2 }
                 },
                 '& .MuiAccordionSummary-expandIconWrapper': {
-                  color: 'white'
+                  color: 'white',
+                  opacity: 0.8,
+                  '&:hover': {
+                    opacity: 1
+                  }
                 }
               }}
             >
@@ -519,15 +549,29 @@ function ScenarioManager({ project, config: projectConfig, onConfigUpdate }) {
                   {/* Status Chips */}
                   <Stack direction="row" spacing={1} flexWrap="wrap" sx={{ mr: 2 }}>
                     <Chip
-                      icon={<AccessTime />}
+                      icon={<AccessTime sx={{ fontSize: '0.9rem' }} />}
                       label={`${scenario.delay || 0}ms`}
                       size="small"
                       sx={{ 
-                        bgcolor: 'rgba(255,255,255,0.15)',
+                        bgcolor: 'rgba(255,255,255,0.12)',
                         color: 'white',
-                        border: '1px solid rgba(255,255,255,0.3)',
+                        border: '1px solid rgba(255,255,255,0.25)',
                         fontSize: '0.7rem',
-                        height: 20
+                        height: 22,
+                        backdropFilter: 'blur(4px)',
+                        transition: 'all 0.2s ease',
+                        '&:hover': {
+                          bgcolor: 'rgba(255,255,255,0.18)',
+                          borderColor: 'rgba(255,255,255,0.35)'
+                        },
+                        '& .MuiChip-label': {
+                          px: 1,
+                          lineHeight: 1.2
+                        },
+                        '& .MuiChip-icon': {
+                          fontSize: '0.9rem',
+                          mr: 0.3
+                        }
                       }}
                     />
                     <Chip
@@ -870,27 +914,71 @@ function ScenarioManager({ project, config: projectConfig, onConfigUpdate }) {
       {/* Empty State */}
       {scenarios.length === 0 && (
         <Card sx={{ 
-          p: 6, 
+          p: { xs: 4, sm: 6 }, 
           textAlign: 'center',
-          borderRadius: 3,
+          borderRadius: 4,
           border: '2px dashed',
           borderColor: 'divider',
-          bgcolor: 'grey.50'
+          bgcolor: 'background.paper',
+          backdropFilter: 'blur(8px)',
+          transition: 'all 0.3s ease',
+          '&:hover': {
+            borderColor: 'primary.main',
+            transform: 'translateY(-4px)',
+            boxShadow: (theme) => `0 12px 24px ${alpha(theme.palette.primary.main, 0.15)}`
+          }
         }}>
           <Avatar sx={{ 
-            width: 80, 
-            height: 80, 
+            width: { xs: 64, sm: 80 }, 
+            height: { xs: 64, sm: 80 }, 
             mx: 'auto', 
             mb: 3,
-            bgcolor: 'primary.light',
-            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
+            boxShadow: '0 8px 32px rgba(0,0,0,0.1)',
+            background: (theme) => `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.dark} 100%)`,
+            animation: 'pulse 2s infinite',
+            '@keyframes pulse': {
+              '0%': {
+                transform: 'scale(1)',
+                boxShadow: '0 8px 32px rgba(0,0,0,0.1)'
+              },
+              '50%': {
+                transform: 'scale(1.05)',
+                boxShadow: (theme) => `0 12px 36px ${alpha(theme.palette.primary.main, 0.3)}`
+              },
+              '100%': {
+                transform: 'scale(1)',
+                boxShadow: '0 8px 32px rgba(0,0,0,0.1)'
+              }
+            }
           }}>
-            <Timeline sx={{ fontSize: 40 }} />
+            <Timeline sx={{ 
+              fontSize: { xs: 32, sm: 40 },
+              color: 'white'
+            }} />
           </Avatar>
-          <Typography variant="h5" sx={{ mb: 2, fontWeight: 600 }}>
+          <Typography 
+            variant="h5" 
+            sx={{ 
+              mb: 2, 
+              fontWeight: 700,
+              background: (theme) => `linear-gradient(135deg, ${theme.palette.text.primary} 0%, ${alpha(theme.palette.text.primary, 0.8)} 100%)`,
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+            }}
+          >
             No Scenarios Yet
           </Typography>
-          <Typography variant="body1" color="text.secondary" sx={{ mb: 3, maxWidth: 400, mx: 'auto' }}>
+          <Typography 
+            variant="body1" 
+            color="text.secondary" 
+            sx={{ 
+              mb: 4, 
+              maxWidth: 400, 
+              mx: 'auto',
+              lineHeight: 1.6,
+              opacity: 0.8
+            }}
+          >
             Create your first visual testing scenario to start capturing and comparing screenshots of your application.
           </Typography>
           <Button
@@ -899,14 +987,22 @@ function ScenarioManager({ project, config: projectConfig, onConfigUpdate }) {
             onClick={addScenario}
             size="large"
             sx={{
-              borderRadius: 2,
-              px: 4,
-              py: 1.5,
-              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+              borderRadius: 3,
+              px: { xs: 3, sm: 4 },
+              py: 1.75,
+              fontSize: '1rem',
+              fontWeight: 600,
+              textTransform: 'none',
+              background: (theme) => `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.dark} 100%)`,
+              boxShadow: (theme) => `0 8px 24px ${alpha(theme.palette.primary.main, 0.25)}`,
               '&:hover': {
-                background: 'linear-gradient(135deg, #5a6fd8 0%, #6a4190 100%)',
-                transform: 'translateY(-1px)',
-                boxShadow: '0 6px 20px rgba(102, 126, 234, 0.3)'
+                background: (theme) => `linear-gradient(135deg, ${theme.palette.primary.dark} 0%, ${darken(theme.palette.primary.dark, 0.2)} 100%)`,
+                transform: 'translateY(-2px)',
+                boxShadow: (theme) => `0 12px 32px ${alpha(theme.palette.primary.main, 0.35)}`
+              },
+              '&:active': {
+                transform: 'translateY(0)',
+                boxShadow: (theme) => `0 6px 16px ${alpha(theme.palette.primary.main, 0.2)}`
               }
             }}
           >
@@ -921,20 +1017,91 @@ function ScenarioManager({ project, config: projectConfig, onConfigUpdate }) {
         onClose={() => setPreviewDialogOpen(false)}
         maxWidth="md"
         fullWidth
+        PaperProps={{
+          sx: {
+            borderRadius: 3,
+            boxShadow: (theme) => `0 24px 48px ${alpha(theme.palette.common.black, 0.2)}`,
+            background: (theme) => `linear-gradient(to bottom right, ${alpha(theme.palette.background.paper, 0.9)}, ${alpha(theme.palette.background.paper, 0.95)})`,
+            backdropFilter: 'blur(10px)',
+            border: '1px solid',
+            borderColor: 'divider'
+          }
+        }}
+        TransitionComponent={Fade}
+        TransitionProps={{ timeout: 300 }}
       >
-        <DialogTitle>
-          <Stack direction="row" alignItems="center" spacing={2}>
-            <Avatar sx={{ bgcolor: 'primary.main' }}>
+        <DialogTitle sx={{ p: { xs: 2, sm: 3 } }}>
+          <Stack 
+            direction="row" 
+            alignItems="center" 
+            spacing={2}
+            sx={{
+              position: 'relative',
+              '&::after': {
+                content: '""',
+                position: 'absolute',
+                bottom: -16,
+                left: 0,
+                right: 0,
+                height: 1,
+                background: (theme) => `linear-gradient(to right, ${theme.palette.primary.main}, transparent)`,
+                opacity: 0.3
+              }
+            }}
+          >
+            <Avatar 
+              sx={{ 
+                bgcolor: 'primary.main',
+                background: (theme) => `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.dark} 100%)`,
+                boxShadow: (theme) => `0 8px 16px ${alpha(theme.palette.primary.main, 0.25)}`,
+                width: { xs: 48, sm: 56 },
+                height: { xs: 48, sm: 56 }
+              }}
+            >
               <Visibility />
             </Avatar>
-            <Box>
-              <Typography variant="h5" sx={{ fontWeight: 600 }}>
+            <Box sx={{ flex: 1 }}>
+              <Typography 
+                variant="h5" 
+                sx={{ 
+                  fontWeight: 700,
+                  background: (theme) => `linear-gradient(135deg, ${theme.palette.text.primary} 0%, ${alpha(theme.palette.text.primary, 0.8)} 100%)`,
+                  WebkitBackgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent'
+                }}
+              >
                 Scenario Preview
               </Typography>
-              <Typography variant="body2" color="text.secondary">
+              <Typography 
+                variant="body2" 
+                sx={{ 
+                  color: 'text.secondary',
+                  opacity: 0.8,
+                  fontWeight: 500
+                }}
+              >
                 {previewScenarioData?.label || 'Preview Configuration'}
               </Typography>
             </Box>
+            <IconButton 
+              onClick={() => setPreviewDialogOpen(false)}
+              sx={{
+                position: 'absolute',
+                right: -8,
+                top: -8,
+                bgcolor: 'background.paper',
+                boxShadow: (theme) => `0 4px 12px ${alpha(theme.palette.common.black, 0.1)}`,
+                border: '1px solid',
+                borderColor: 'divider',
+                '&:hover': {
+                  bgcolor: 'background.paper',
+                  transform: 'scale(1.1)'
+                },
+                transition: 'all 0.2s ease'
+              }}
+            >
+              <Close fontSize="small" />
+            </IconButton>
           </Stack>
         </DialogTitle>
         

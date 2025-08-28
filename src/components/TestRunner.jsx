@@ -59,7 +59,9 @@ import {
   Settings,
   Refresh,
   InfoOutlined,
-  WarningAmber
+  WarningAmber,
+  Search,
+  Link
 } from '@mui/icons-material'
 
 const API_BASE = 'http://localhost:5000/api'
@@ -240,30 +242,93 @@ function TestRunner({ project, config }) {
     return matchesSearch && (!showSelectedOnly || isSelected);
   });
   return (
-    <Box sx={{ mb: 4, px: 3 }}>
+    <Box 
+      sx={{ 
+        mb: 4, 
+        px: { xs: 2, sm: 3, md: 4 },
+        maxWidth: '1600px',
+        mx: 'auto'
+      }}
+    >
       {/* Header Section */}
-      <Stack direction="row" alignItems="center" spacing={2} sx={{ mb: 2 }}>
-        <Avatar sx={{ bgcolor: 'primary.main', width: 56, height: 56 }}>
-          <RocketLaunch />
+      <Box 
+        sx={{ 
+          display: 'flex',
+          flexDirection: { xs: 'column', sm: 'row' },
+          alignItems: { xs: 'flex-start', sm: 'center' },
+          gap: 3,
+          mb: 4,
+          pt: 2
+        }}
+      >
+        <Avatar 
+          sx={{ 
+            bgcolor: 'primary.main',
+            width: 64,
+            height: 64,
+            borderRadius: '16px',
+            boxShadow: '0 8px 16px -4px rgba(59, 130, 246, 0.2)'
+          }}
+        >
+          <RocketLaunch sx={{ fontSize: 32 }} />
         </Avatar>
-        <Box>
-          <Typography variant="h3" component="h1" sx={{ fontWeight: 700, color: 'text.primary' }}>
+        <Box sx={{ flex: 1 }}>
+          <Typography 
+            variant="h3" 
+            component="h1" 
+            sx={{ 
+              fontWeight: 700, 
+              color: 'text.primary',
+              fontSize: { xs: '1.75rem', sm: '2rem', md: '2.25rem' },
+              letterSpacing: '-0.025em',
+              mb: 1
+            }}
+          >
             Test Runner
           </Typography>
-          <Typography variant="h6" color="text.secondary" sx={{ fontWeight: 400 }}>
+          <Typography 
+            variant="h6" 
+            sx={{ 
+              color: 'text.secondary',
+              fontWeight: 400,
+              fontSize: { xs: '1rem', sm: '1.1rem' },
+              maxWidth: '600px'
+            }}
+          >
             Execute visual regression tests and manage reference baselines
           </Typography>
         </Box>
-      </Stack>
+      </Box>
 
       {/* Message Alert */}
       {message && (
         <Fade in={Boolean(message)}>
           <Alert 
             severity={message.includes('Error') ? 'error' : 'info'}
-            sx={{ mb: 3, borderRadius: 2 }}
+            sx={{ 
+              mb: 4,
+              borderRadius: '12px',
+              boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.06)',
+              '& .MuiAlert-icon': {
+                fontSize: '24px'
+              },
+              '& .MuiAlert-message': {
+                fontSize: '0.9375rem',
+                fontWeight: 500
+              }
+            }}
+            variant="filled"
             action={
-              <IconButton color="inherit" size="small" onClick={() => setMessage('')}>
+              <IconButton 
+                color="inherit" 
+                size="small" 
+                onClick={() => setMessage('')}
+                sx={{
+                  '&:hover': {
+                    bgcolor: 'rgba(255, 255, 255, 0.15)'
+                  }
+                }}
+              >
                 <Clear />
               </IconButton>
             }
@@ -274,95 +339,341 @@ function TestRunner({ project, config }) {
       )}
 
       {/* Test Execution Panel */}
-      <Card sx={{ mt: 2, borderRadius: 3, boxShadow: '0 4px 20px rgba(0,0,0,0.1)', border: '1px solid', borderColor: 'divider' }}>
-        <CardContent sx={{ p: 3 }}>
-          <Stack spacing={2}>
+      <Card 
+        elevation={0}
+        sx={{ 
+          mt: 2,
+          borderRadius: '16px',
+          border: '1px solid',
+          borderColor: 'divider',
+          background: theme => `linear-gradient(145deg, ${theme.palette.background.paper} 0%, ${theme.palette.background.default} 100%)`,
+          position: 'relative',
+          overflow: 'visible'
+        }}
+      >
+        <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
+          <Stack spacing={3}>
+            <Box>
+              <Typography 
+                variant="h6" 
+                sx={{ 
+                  mb: 1,
+                  fontWeight: 600,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 1
+                }}
+              >
+                <Science sx={{ color: 'primary.main' }} />
+                Visual Regression Testing
+              </Typography>
+              <Typography 
+                variant="body2" 
+                sx={{ 
+                  color: 'text.secondary',
+                  maxWidth: '600px'
+                }}
+              >
+                Compare your current UI state against approved reference images to detect visual changes.
+              </Typography>
+            </Box>
             <Button
               variant="contained"
               size="large"
-              startIcon={testRunning ? <CircularProgress size={20} color="inherit" /> : <PlayArrow />}
+              startIcon={testRunning ? (
+                <CircularProgress 
+                  size={20} 
+                  color="inherit" 
+                  thickness={4}
+                  sx={{ color: 'white' }} 
+                />
+              ) : (
+                <PlayArrow />
+              )}
               onClick={runTest}
               disabled={testRunning || approveRunning || scenarios.length === 0 || selectedScenarios.length === 0}
               fullWidth
-              sx={{ py: 2, borderRadius: 3, fontSize: '1.1rem', fontWeight: 600 }}
+              sx={{ 
+                py: 2,
+                borderRadius: '12px',
+                fontSize: '1.1rem',
+                fontWeight: 600,
+                textTransform: 'none',
+                boxShadow: 'none',
+                '&:hover': {
+                  boxShadow: '0 8px 16px -4px rgba(59, 130, 246, 0.2)'
+                },
+                '&:disabled': {
+                  bgcolor: 'action.disabledBackground'
+                }
+              }}
             >
-              {testRunning ? 'Running Visual Tests...' : 'Run Visual Regression Test'}
+              {testRunning ? (
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                  Running Visual Tests...
+                  <Typography 
+                    variant="caption" 
+                    sx={{ 
+                      color: 'rgba(255, 255, 255, 0.8)',
+                      fontWeight: 500
+                    }}
+                  >
+                    This may take a few moments
+                  </Typography>
+                </Box>
+              ) : (
+                'Run Visual Regression Test'
+              )}
             </Button>
           </Stack>
         </CardContent>
       </Card>
       {/* Scenario Selection UI */}
-      <Box sx={{ mt: 4 }}>
-        <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
-          Select Scenarios to Test
-        </Typography>
+      <Box sx={{ mt: 6 }}>
+        <Box 
+          sx={{ 
+            display: 'flex',
+            alignItems: 'center',
+            gap: 2,
+            mb: 3
+          }}
+        >
+          <Typography 
+            variant="h5" 
+            sx={{ 
+              fontWeight: 600,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 1
+            }}
+          >
+            <Assessment sx={{ color: 'primary.main' }} />
+            Select Scenarios to Test
+          </Typography>
+          <Box 
+            sx={{ 
+              display: 'flex',
+              alignItems: 'center',
+              gap: 1,
+              bgcolor: 'primary.lighter',
+              color: 'primary.dark',
+              py: 0.5,
+              px: 2,
+              borderRadius: '8px',
+              fontSize: '0.875rem',
+              fontWeight: 500
+            }}
+          >
+            {selectedScenarios.length} selected
+          </Box>
+        </Box>
         {scenarios.length > 0 ? (
           <Box>
-            <Box sx={{ mb: 2 }}>
-              <Grid container spacing={2} alignItems="center">
-                <Grid item xs={12} sm={6} md={3}>
-                  <Button variant="outlined" startIcon={<SelectAll />} onClick={handleSelectAll} fullWidth>Select All</Button>
-                </Grid>
-                <Grid item xs={12} sm={6} md={3}>
-                  <Button variant="outlined" startIcon={<Clear />} onClick={handleDeselectAll} fullWidth>Deselect All</Button>
-                </Grid>
-                <Grid item xs={12} sm={6} md={3}>
-                  <Button variant="outlined" startIcon={<Refresh />} onClick={handleResetSelection} fullWidth>Reset Selection</Button>
-                </Grid>
-                <Grid item xs={12} sm={6} md={3}>
-                  <FormControl fullWidth>
-                    <input
-                      type="text"
-                      placeholder="Search scenarios..."
-                      value={searchTerm}
-                      onChange={handleSearchChange}
-                      style={{ padding: '8px', borderRadius: '4px', border: '1px solid #ccc', width: '100%' }}
+            <Card
+              elevation={0}
+              sx={{
+                mb: 3,
+                borderRadius: '12px',
+                border: '1px solid',
+                borderColor: 'divider',
+                bgcolor: 'background.paper'
+              }}
+            >
+              <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
+                <Grid container spacing={2} alignItems="center">
+                  <Grid item xs={12} md={9}>
+                    <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                      <Button
+                        variant="outlined"
+                        startIcon={<SelectAll />}
+                        onClick={handleSelectAll}
+                        sx={{
+                          borderRadius: '8px',
+                          textTransform: 'none',
+                          fontWeight: 500
+                        }}
+                      >
+                        Select All
+                      </Button>
+                      <Button
+                        variant="outlined"
+                        startIcon={<Clear />}
+                        onClick={handleDeselectAll}
+                        sx={{
+                          borderRadius: '8px',
+                          textTransform: 'none',
+                          fontWeight: 500
+                        }}
+                      >
+                        Deselect All
+                      </Button>
+                      <Button
+                        variant="outlined"
+                        startIcon={<Refresh />}
+                        onClick={handleResetSelection}
+                        sx={{
+                          borderRadius: '8px',
+                          textTransform: 'none',
+                          fontWeight: 500
+                        }}
+                      >
+                        Reset Selection
+                      </Button>
+                    </Box>
+                  </Grid>
+                  <Grid item xs={12} md={3}>
+                    <Box 
+                      sx={{ 
+                        position: 'relative',
+                        width: '100%'
+                      }}
+                    >
+                      <input
+                        type="text"
+                        placeholder="Search scenarios..."
+                        value={searchTerm}
+                        onChange={handleSearchChange}
+                        style={{
+                          padding: '12px',
+                          paddingLeft: '40px',
+                          borderRadius: '8px',
+                          border: '1px solid',
+                          borderColor: 'rgba(0, 0, 0, 0.23)',
+                          width: '100%',
+                          fontSize: '0.9375rem',
+                          transition: 'all 0.2s'
+                        }}
+                      />
+                      <Search 
+                        sx={{ 
+                          position: 'absolute',
+                          left: '12px',
+                          top: '50%',
+                          transform: 'translateY(-50%)',
+                          color: 'text.secondary'
+                        }} 
+                      />
+                    </Box>
+                  </Grid>
+                  <Grid item xs={12}>
+                    <FormControlLabel
+                      control={
+                        <Checkbox 
+                          checked={showSelectedOnly} 
+                          onChange={handleShowSelectedOnly}
+                          sx={{
+                            '&.Mui-checked': {
+                              color: 'primary.main'
+                            }
+                          }}
+                        />
+                      }
+                      label={
+                        <Typography sx={{ fontWeight: 500 }}>
+                          Show Selected Only
+                        </Typography>
+                      }
                     />
-                  </FormControl>
+                  </Grid>
                 </Grid>
-                <Grid item xs={12} sm={6} md={3}>
-                  <FormControlLabel
-                    control={<Checkbox checked={showSelectedOnly} onChange={handleShowSelectedOnly} />}
-                    label="Show Selected Only"
-                  />
-                </Grid>
-              </Grid>
-            </Box>
-            <Stack spacing={1}>
+              </CardContent>
+            </Card>
+            <Box sx={{ display: 'grid', gap: 2 }}>
               {filteredScenarios.map((scenario) => {
                 const result = scenarioResults[scenario.label] || {};
                 return (
                   <Paper
                     key={scenario.label || scenario.url}
-                    sx={{ p: 2, border: '1px solid', borderColor: selectedScenarios.includes(scenario.label) ? 'primary.main' : 'divider', borderRadius: 2, cursor: 'pointer', transition: 'all 0.2s', '&:hover': { borderColor: 'primary.main', boxShadow: 1 } }}
+                    elevation={0}
+                    sx={{ 
+                      p: 3, 
+                      border: '1px solid', 
+                      borderColor: selectedScenarios.includes(scenario.label) ? 'primary.main' : 'divider', 
+                      borderRadius: '12px', 
+                      cursor: 'pointer', 
+                      transition: 'all 0.2s',
+                      bgcolor: selectedScenarios.includes(scenario.label) ? 'primary.lighter' : 'background.paper',
+                      '&:hover': { 
+                        borderColor: 'primary.main',
+                        transform: 'translateY(-1px)',
+                        boxShadow: '0 4px 8px -2px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.06)'
+                      }
+                    }}
                     onClick={() => handleScenarioSelection(scenario.label)}
                   >
-                    <Stack direction="row" alignItems="center" spacing={2}>
+                    <Stack direction="row" alignItems="flex-start" spacing={2}>
                       {selectedScenarios.includes(scenario.label) ? (
-                        <CheckCircleRounded color="primary" />
+                        <CheckCircleRounded 
+                          sx={{ 
+                            color: 'primary.main',
+                            fontSize: 24
+                          }} 
+                        />
                       ) : (
-                        <RadioButtonUnchecked color="disabled" />
+                        <RadioButtonUnchecked 
+                          sx={{ 
+                            color: 'text.secondary',
+                            fontSize: 24
+                          }} 
+                        />
                       )}
                       <Box sx={{ flex: 1 }}>
-                        <Typography variant="body1" fontWeight={500}>
+                        <Typography 
+                          variant="h6" 
+                          sx={{ 
+                            fontWeight: 600,
+                            color: selectedScenarios.includes(scenario.label) ? 'primary.dark' : 'text.primary',
+                            mb: 0.5
+                          }}
+                        >
                           {scenario.label}
                         </Typography>
-                        <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+                        <Typography 
+                          variant="body2" 
+                          sx={{ 
+                            color: 'text.secondary',
+                            mb: 2,
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 1
+                          }}
+                        >
+                          <Link sx={{ fontSize: 16 }} />
                           {scenario.url}
                         </Typography>
                         {/* Show last test result details if available */}
                         {result.status && (
-                          <Box sx={{ mt: 1, display: 'flex', alignItems: 'center', gap: 2 }}>
+                          <Box 
+                            sx={{ 
+                              display: 'flex', 
+                              alignItems: 'center', 
+                              flexWrap: 'wrap',
+                              gap: 2 
+                            }}
+                          >
                             {getStatusChip(result.status, result.misMatchPercentage)}
                             {typeof result.misMatchPercentage !== 'undefined' && (
-                              <Typography variant="caption" color="text.secondary">
-                                Diff: {result.misMatchPercentage}%
-                              </Typography>
+                              <Chip
+                                size="small"
+                                label={`Diff: ${result.misMatchPercentage}%`}
+                                sx={{
+                                  borderRadius: '8px',
+                                  bgcolor: 'background.paper',
+                                  fontWeight: 500
+                                }}
+                              />
                             )}
                             {typeof result.isSameDimensions !== 'undefined' && (
-                              <Typography variant="caption" color="text.secondary">
-                                {result.isSameDimensions ? 'Dimensions OK' : 'Dimensions Mismatch'}
-                              </Typography>
+                              <Chip
+                                size="small"
+                                icon={result.isSameDimensions ? <CheckCircle /> : <WarningAmber />}
+                                label={result.isSameDimensions ? 'Dimensions OK' : 'Dimensions Mismatch'}
+                                color={result.isSameDimensions ? 'success' : 'warning'}
+                                sx={{
+                                  borderRadius: '8px',
+                                  fontWeight: 500
+                                }}
+                              />
                             )}
                           </Box>
                         )}
@@ -371,13 +682,61 @@ function TestRunner({ project, config }) {
                   </Paper>
                 );
               })}
-            </Stack>
+            </Box>
           </Box>
         ) : (
-          <Alert severity="info" variant="outlined" sx={{ borderRadius: 2 }}>
-            <AlertTitle>No Scenarios Found</AlertTitle>
-            Please configure scenarios in the Scenario Manager first.
-          </Alert>
+          <Card
+            elevation={0}
+            sx={{ 
+              borderRadius: '16px',
+              border: '1px solid',
+              borderColor: 'divider',
+              bgcolor: 'background.paper',
+              p: 4,
+              textAlign: 'center'
+            }}
+          >
+            <Assessment 
+              sx={{ 
+                fontSize: 48,
+                color: 'text.secondary',
+                mb: 2,
+                opacity: 0.5
+              }} 
+            />
+            <Typography 
+              variant="h6" 
+              sx={{ 
+                fontWeight: 600,
+                mb: 1
+              }}
+            >
+              No Scenarios Found
+            </Typography>
+            <Typography 
+              variant="body1" 
+              sx={{ 
+                color: 'text.secondary',
+                mb: 3,
+                maxWidth: '400px',
+                mx: 'auto'
+              }}
+            >
+              Please configure scenarios in the Scenario Manager first to start running visual regression tests.
+            </Typography>
+            <Button
+              variant="outlined"
+              startIcon={<Settings />}
+              sx={{
+                borderRadius: '8px',
+                textTransform: 'none',
+                fontWeight: 500
+              }}
+              onClick={() => navigate('/scenarios')}
+            >
+              Go to Scenario Manager
+            </Button>
+          </Card>
         )}
       </Box>
     </Box>

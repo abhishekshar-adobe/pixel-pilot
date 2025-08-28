@@ -5,49 +5,105 @@ export const pixelPilotTheme = createTheme({
   palette: {
     mode: 'light',
     primary: {
-      main: '#2563eb', // Clean blue
-      light: '#3b82f6',
-      dark: '#1d4ed8',
+      main: '#3b82f6', // Modern blue
+      light: '#60a5fa',
+      dark: '#2563eb',
       contrastText: '#ffffff',
     },
     secondary: {
-      main: '#6b7280', // Clean gray
-      light: '#9ca3af',
-      dark: '#4b5563',
+      main: '#6366f1', // Modern indigo
+      light: '#818cf8',
+      dark: '#4f46e5',
       contrastText: '#ffffff',
     },
     success: {
-      main: '#059669', // Clean green
-      light: '#10b981',
-      dark: '#047857',
+      main: '#10b981', // Modern green
+      light: '#34d399',
+      dark: '#059669',
     },
     warning: {
-      main: '#d97706', // Clean orange
-      light: '#f59e0b',
-      dark: '#b45309',
+      main: '#f59e0b', // Modern amber
+      light: '#fbbf24',
+      dark: '#d97706',
     },
     error: {
-      main: '#dc2626', // Clean red
-      light: '#ef4444',
-      dark: '#b91c1c',
+      main: '#ef4444', // Modern red
+      light: '#f87171',
+      dark: '#dc2626',
     },
     info: {
-      main: '#0891b2', // Clean cyan
-      light: '#06b6d4',
-      dark: '#0e7490',
+      main: '#06b6d4', // Modern cyan
+      light: '#22d3ee',
+      dark: '#0891b2',
     },
     background: {
-      default: '#ffffff', // Pure white background
+      default: '#f8fafc', // Very light blue-gray
       paper: '#ffffff',
     },
     text: {
-      primary: '#111827', // Very dark gray for high contrast
-      secondary: '#6b7280', // Medium gray
+      primary: '#0f172a', // Modern slate
+      secondary: '#475569', // Modern gray
     },
-    divider: '#e5e7eb', // Light gray divider
+    divider: '#e2e8f0', // Modern slate divider
+  },
+  components: {
+    MuiCard: {
+      styleOverrides: {
+        root: {
+          borderRadius: '1rem',
+          boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)',
+          transition: 'transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out',
+          '&:hover': {
+            transform: 'translateY(-2px)',
+            boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1)',
+          },
+        },
+      },
+    },
+    MuiButton: {
+      styleOverrides: {
+        root: {
+          borderRadius: '0.75rem',
+          textTransform: 'none',
+          fontWeight: 500,
+          padding: '0.625rem 1.25rem',
+        },
+        contained: {
+          boxShadow: '0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1)',
+          '&:hover': {
+            boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)',
+          },
+        },
+      },
+    },
+    MuiChip: {
+      styleOverrides: {
+        root: {
+          borderRadius: '0.75rem',
+          '&.MuiChip-filled': {
+            backgroundColor: 'rgba(99, 102, 241, 0.1)',
+          },
+        },
+      },
+    },
   },
   typography: {
     fontFamily: '"Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+    h1: {
+      fontWeight: 700,
+      letterSpacing: '-0.025em',
+    },
+    h2: {
+      fontWeight: 600,
+      letterSpacing: '-0.025em',
+    },
+    h3: {
+      fontWeight: 600,
+      letterSpacing: '-0.025em',
+    },
+    button: {
+      fontWeight: 500,
+    },
     h1: {
       fontSize: '2.5rem',
       fontWeight: 700,

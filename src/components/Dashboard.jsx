@@ -141,28 +141,73 @@ const Dashboard = ({ project, config }) => {
 
   if (loading) {
     return (
-      <Box display="flex" justifyContent="center" alignItems="center" minHeight="200px">
-        <CircularProgress />
+      <Box 
+        sx={{
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          minHeight: '200px',
+          width: '100%',
+          bgcolor: 'background.default',
+          borderRadius: '1rem',
+          p: 3
+        }}
+      >
+        <CircularProgress size={40} thickness={4} />
       </Box>
     );
   }
 
   return (
-    <Box>
+    <Box sx={{ 
+      minHeight: '100vh',
+      bgcolor: 'background.default',
+      py: { xs: 3, md: 4 },
+      px: { xs: 2, sm: 3, md: 4 }
+    }}>
       {/* Project Info Header - top */}
-      <Box mb={4}>
-        <Typography variant="h4" gutterBottom color="primary">
+      <Box
+        sx={{
+          mb: 4,
+          p: { xs: 3, md: 4 },
+          borderRadius: '1rem',
+          bgcolor: 'background.paper',
+          boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)',
+        }}
+      >
+        <Typography 
+          variant="h4" 
+          gutterBottom 
+          sx={{
+            color: 'text.primary',
+            fontWeight: 700,
+            letterSpacing: '-0.025em'
+          }}
+        >
           Project Dashboard
         </Typography>
-        <Typography variant="body1" color="textSecondary" paragraph>
+        <Typography 
+          variant="body1" 
+          sx={{ 
+            color: 'text.secondary',
+            mb: 3
+          }}
+        >
           {project.description || 'BackstopJS visual regression testing project'}
         </Typography>
-        <Box display="flex" gap={1} mt={2}>
+        <Box 
+          sx={{
+            display: 'flex',
+            gap: 2,
+            flexWrap: 'wrap',
+            alignItems: 'center'
+          }}>
           <Chip
             icon={<InfoOutlined />}
             label={`Created: ${new Date(project.created).toLocaleDateString()}`}
             variant="outlined"
             size="small"
+            sx={{ bgcolor: 'background.paper' }}
           />
           <Chip
             icon={<SettingsOutlined />}
@@ -170,20 +215,32 @@ const Dashboard = ({ project, config }) => {
             color={config ? 'success' : 'warning'}
             variant="outlined"
             size="small"
+            sx={{ bgcolor: 'background.paper' }}
           />
         </Box>
       </Box>
 
-      {/* Stats Cards - moved before Test Summary */}
+      {/* Stats Cards */}
       <Grid container spacing={3} sx={{ mb: 4 }}>
         <Grid item xs={12} sm={6} md={3}>
-          <Card>
-            <CardContent sx={{ textAlign: 'center' }}>
-              <ViewListOutlined color="primary" sx={{ fontSize: 40, mb: 1 }} />
-              <Typography variant="h4" color="primary">
+          <Card sx={{
+            height: '100%',
+            background: 'linear-gradient(135deg, #3b82f6 0%, #60a5fa 100%)',
+          }}>
+            <CardContent sx={{ 
+              height: '100%',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              p: 3,
+              '&:last-child': { pb: 3 }
+            }}>
+              <ViewListOutlined sx={{ fontSize: 48, mb: 2, color: 'rgba(255, 255, 255, 0.9)' }} />
+              <Typography variant="h4" sx={{ fontWeight: 700, color: 'white', mb: 1 }}>
                 {scenarios.length}
               </Typography>
-              <Typography variant="body2" color="textSecondary">
+              <Typography variant="body1" sx={{ color: 'rgba(255, 255, 255, 0.9)', fontWeight: 500 }}>
                 Test Scenarios
               </Typography>
             </CardContent>
@@ -191,13 +248,24 @@ const Dashboard = ({ project, config }) => {
         </Grid>
 
         <Grid item xs={12} sm={6} md={3}>
-          <Card>
-            <CardContent sx={{ textAlign: 'center' }}>
-              <ImageOutlined color="secondary" sx={{ fontSize: 40, mb: 1 }} />
-              <Typography variant="h4" color="secondary">
+          <Card sx={{
+            height: '100%',
+            background: 'linear-gradient(135deg, #6366f1 0%, #818cf8 100%)',
+          }}>
+            <CardContent sx={{ 
+              height: '100%',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              p: 3,
+              '&:last-child': { pb: 3 }
+            }}>
+              <ImageOutlined sx={{ fontSize: 48, mb: 2, color: 'rgba(255, 255, 255, 0.9)' }} />
+              <Typography variant="h4" sx={{ fontWeight: 700, color: 'white', mb: 1 }}>
                 {getViewportCount()}
               </Typography>
-              <Typography variant="body2" color="textSecondary">
+              <Typography variant="body1" sx={{ color: 'rgba(255, 255, 255, 0.9)', fontWeight: 500 }}>
                 Viewports
               </Typography>
             </CardContent>
@@ -205,13 +273,24 @@ const Dashboard = ({ project, config }) => {
         </Grid>
 
         <Grid item xs={12} sm={6} md={3}>
-          <Card>
-            <CardContent sx={{ textAlign: 'center' }}>
-              <CheckCircleOutlined color="success" sx={{ fontSize: 40, mb: 1 }} />
-              <Typography variant="h4" color="success.main">
+          <Card sx={{
+            height: '100%',
+            background: 'linear-gradient(135deg, #10b981 0%, #34d399 100%)',
+          }}>
+            <CardContent sx={{ 
+              height: '100%',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              p: 3,
+              '&:last-child': { pb: 3 }
+            }}>
+              <CheckCircleOutlined sx={{ fontSize: 48, mb: 2, color: 'rgba(255, 255, 255, 0.9)' }} />
+              <Typography variant="h4" sx={{ fontWeight: 700, color: 'white', mb: 1 }}>
                 {getTotalTests()}
               </Typography>
-              <Typography variant="body2" color="textSecondary">
+              <Typography variant="body1" sx={{ color: 'rgba(255, 255, 255, 0.9)', fontWeight: 500 }}>
                 Total Tests
               </Typography>
             </CardContent>
@@ -219,13 +298,24 @@ const Dashboard = ({ project, config }) => {
         </Grid>
 
         <Grid item xs={12} sm={6} md={3}>
-          <Card>
-            <CardContent sx={{ textAlign: 'center' }}>
-              <SettingsOutlined color="info" sx={{ fontSize: 40, mb: 1 }} />
-              <Typography variant="h4" color="info.main">
+          <Card sx={{
+            height: '100%',
+            background: 'linear-gradient(135deg, #06b6d4 0%, #22d3ee 100%)',
+          }}>
+            <CardContent sx={{ 
+              height: '100%',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              p: 3,
+              '&:last-child': { pb: 3 }
+            }}>
+              <SettingsOutlined sx={{ fontSize: 48, mb: 2, color: 'rgba(255, 255, 255, 0.9)' }} />
+              <Typography variant="h4" sx={{ fontWeight: 700, color: 'white', mb: 1 }}>
                 {config?.id ? '✓' : '✗'}
               </Typography>
-              <Typography variant="body2" color="textSecondary">
+              <Typography variant="body1" sx={{ color: 'rgba(255, 255, 255, 0.9)', fontWeight: 500 }}>
                 Configuration
               </Typography>
             </CardContent>
@@ -234,14 +324,45 @@ const Dashboard = ({ project, config }) => {
       </Grid>
 
       {/* Test Summary Section */}
-      <Box mb={4}>
-        <Typography variant="h6" color="primary" gutterBottom>
+      <Box
+        sx={{
+          mb: 4,
+          p: { xs: 2, md: 3 },
+          borderRadius: '1rem',
+          bgcolor: 'background.paper',
+          boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)',
+        }}
+      >
+        <Typography
+          variant="h5"
+          sx={{
+            mb: 3,
+            fontWeight: 600,
+            color: 'text.primary',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 1
+          }}
+        >
+          <DashboardOutlined sx={{ color: 'primary.main' }} />
           Test Summary
         </Typography>
         {testSummaryLoading ? (
-          <CircularProgress size={24} />
+          <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
+            <CircularProgress size={30} />
+          </Box>
         ) : testSummaryError ? (
-          <Alert severity="error">{testSummaryError}</Alert>
+          <Alert 
+            severity="error"
+            sx={{ 
+              borderRadius: '0.75rem',
+              '& .MuiAlert-icon': {
+                fontSize: '24px'
+              }
+            }}
+          >
+            {testSummaryError}
+          </Alert>
         ) : testSummary ? (
           <>
             <Box display="flex" gap={2} mb={2}>
