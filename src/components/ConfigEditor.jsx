@@ -503,6 +503,28 @@ function ConfigEditor({ project, onConfigUpdate }) {
                     helperText="Wait time before taking screenshots"
                     sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
                   />
+
+                  <TextField
+                    label="Async Capture Limit"
+                    type="number"
+                    value={safeConfig.asyncCaptureLimit || 5}
+                    onChange={(e) => updateConfig('asyncCaptureLimit', parseInt(e.target.value))}
+                    fullWidth
+                    inputProps={{ min: 1, step: 1 }}
+                    helperText="Maximum number of screenshots captured in parallel. Default: 5."
+                    sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
+                  />
+
+                  <TextField
+                    label="Async Compare Limit"
+                    type="number"
+                    value={safeConfig.asyncCompareLimit || 50}
+                    onChange={(e) => updateConfig('asyncCompareLimit', parseInt(e.target.value))}
+                    fullWidth
+                    inputProps={{ min: 1, step: 1 }}
+                    helperText="Maximum number of screenshot comparisons in parallel. Default: 50."
+                    sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
+                  />
                 </Stack>
               </CardContent>
             </Card>

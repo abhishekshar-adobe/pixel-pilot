@@ -220,109 +220,6 @@ const Dashboard = ({ project, config }) => {
         </Box>
       </Box>
 
-      {/* Stats Cards */}
-      <Grid container spacing={3} sx={{ mb: 4 }}>
-        <Grid item xs={12} sm={6} md={3}>
-          <Card sx={{
-            height: '100%',
-            background: 'linear-gradient(135deg, #3b82f6 0%, #60a5fa 100%)',
-          }}>
-            <CardContent sx={{ 
-              height: '100%',
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-              p: 3,
-              '&:last-child': { pb: 3 }
-            }}>
-              <ViewListOutlined sx={{ fontSize: 48, mb: 2, color: 'rgba(255, 255, 255, 0.9)' }} />
-              <Typography variant="h4" sx={{ fontWeight: 700, color: 'white', mb: 1 }}>
-                {scenarios.length}
-              </Typography>
-              <Typography variant="body1" sx={{ color: 'rgba(255, 255, 255, 0.9)', fontWeight: 500 }}>
-                Test Scenarios
-              </Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-
-        <Grid item xs={12} sm={6} md={3}>
-          <Card sx={{
-            height: '100%',
-            background: 'linear-gradient(135deg, #6366f1 0%, #818cf8 100%)',
-          }}>
-            <CardContent sx={{ 
-              height: '100%',
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-              p: 3,
-              '&:last-child': { pb: 3 }
-            }}>
-              <ImageOutlined sx={{ fontSize: 48, mb: 2, color: 'rgba(255, 255, 255, 0.9)' }} />
-              <Typography variant="h4" sx={{ fontWeight: 700, color: 'white', mb: 1 }}>
-                {getViewportCount()}
-              </Typography>
-              <Typography variant="body1" sx={{ color: 'rgba(255, 255, 255, 0.9)', fontWeight: 500 }}>
-                Viewports
-              </Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-
-        <Grid item xs={12} sm={6} md={3}>
-          <Card sx={{
-            height: '100%',
-            background: 'linear-gradient(135deg, #10b981 0%, #34d399 100%)',
-          }}>
-            <CardContent sx={{ 
-              height: '100%',
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-              p: 3,
-              '&:last-child': { pb: 3 }
-            }}>
-              <CheckCircleOutlined sx={{ fontSize: 48, mb: 2, color: 'rgba(255, 255, 255, 0.9)' }} />
-              <Typography variant="h4" sx={{ fontWeight: 700, color: 'white', mb: 1 }}>
-                {getTotalTests()}
-              </Typography>
-              <Typography variant="body1" sx={{ color: 'rgba(255, 255, 255, 0.9)', fontWeight: 500 }}>
-                Total Tests
-              </Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-
-        <Grid item xs={12} sm={6} md={3}>
-          <Card sx={{
-            height: '100%',
-            background: 'linear-gradient(135deg, #06b6d4 0%, #22d3ee 100%)',
-          }}>
-            <CardContent sx={{ 
-              height: '100%',
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-              p: 3,
-              '&:last-child': { pb: 3 }
-            }}>
-              <SettingsOutlined sx={{ fontSize: 48, mb: 2, color: 'rgba(255, 255, 255, 0.9)' }} />
-              <Typography variant="h4" sx={{ fontWeight: 700, color: 'white', mb: 1 }}>
-                {config?.id ? '✓' : '✗'}
-              </Typography>
-              <Typography variant="body1" sx={{ color: 'rgba(255, 255, 255, 0.9)', fontWeight: 500 }}>
-                Configuration
-              </Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-      </Grid>
-
       {/* Test Summary Section */}
       <Box
         sx={{
@@ -371,6 +268,14 @@ const Dashboard = ({ project, config }) => {
               <Chip label={`Failed: ${testSummary.summary.failed}`} color="error" />
               <Chip label={`New: ${testSummary.summary.new}`} color="warning" />
               <Chip label={`Missing Ref: ${testSummary.summary.referenceMissing}`} color="default" />
+              <Button
+                variant="contained"
+                color="primary"
+                onClick={handleExportReport}
+                sx={{ ml: 'auto', borderRadius: 2 }}
+              >
+                Export Report
+              </Button>
             </Box>
             {/* Pass/Fail/Other Pie Chart */}
             <Box mb={2}>
@@ -436,64 +341,6 @@ const Dashboard = ({ project, config }) => {
         </Alert>
       )}
 
-      {/* Stats Cards */}
-      <Grid container spacing={3} sx={{ mb: 4 }}>
-        <Grid item xs={12} sm={6} md={3}>
-          <Card>
-            <CardContent sx={{ textAlign: 'center' }}>
-              <ViewListOutlined color="primary" sx={{ fontSize: 40, mb: 1 }} />
-              <Typography variant="h4" color="primary">
-                {scenarios.length}
-              </Typography>
-              <Typography variant="body2" color="textSecondary">
-                Test Scenarios
-              </Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-
-        <Grid item xs={12} sm={6} md={3}>
-          <Card>
-            <CardContent sx={{ textAlign: 'center' }}>
-              <ImageOutlined color="secondary" sx={{ fontSize: 40, mb: 1 }} />
-              <Typography variant="h4" color="secondary">
-                {getViewportCount()}
-              </Typography>
-              <Typography variant="body2" color="textSecondary">
-                Viewports
-              </Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-
-        <Grid item xs={12} sm={6} md={3}>
-          <Card>
-            <CardContent sx={{ textAlign: 'center' }}>
-              <CheckCircleOutlined color="success" sx={{ fontSize: 40, mb: 1 }} />
-              <Typography variant="h4" color="success.main">
-                {getTotalTests()}
-              </Typography>
-              <Typography variant="body2" color="textSecondary">
-                Total Tests
-              </Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-
-        <Grid item xs={12} sm={6} md={3}>
-          <Card>
-            <CardContent sx={{ textAlign: 'center' }}>
-              <SettingsOutlined color="info" sx={{ fontSize: 40, mb: 1 }} />
-              <Typography variant="h4" color="info.main">
-                {config?.id ? '✓' : '✗'}
-              </Typography>
-              <Typography variant="body2" color="textSecondary">
-                Configuration
-              </Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-      </Grid>
   </Box>
   );
 }

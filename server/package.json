@@ -17,7 +17,8 @@
     "multer": "^2.0.2",
     "puppeteer": "^21.0.0",
     "react-syntax-highlighter": "^15.6.1",
-    "sharp": "^0.34.3"
+    "sharp": "^0.34.3",
+    "uuid": "^11.1.0"
   },
   "devDependencies": {
     "nodemon": "^3.1.10"
