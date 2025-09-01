@@ -420,25 +420,71 @@ app.post('/api/projects/:projectId/test', async (req, res) => {
 
     // Simulate scenario-by-scenario progress
     const scenariosToTest = config.scenarios || [];
+    const viewports = config.viewports || [];
+    
     for (let i = 0; i < scenariosToTest.length; i++) {
       const scenario = scenariosToTest[i];
       const progressPercent = 30 + ((i / scenariosToTest.length) * 60);
       
-      io.emit('test-progress', {
-        status: 'running',
-        percent: progressPercent,
-        scenario: scenario.label,
-        message: `Testing scenario: ${scenario.label}`
-      });
-      
-      // Small delay to make progress visible
-      await new Promise(resolve => setTimeout(resolve, 100));
+      // Emit progress for each viewport of this scenario
+      for (const viewport of viewports) {
+        io.emit('test-progress', {
+          status: 'running',
+          percent: progressPercent,
+          scenario: scenario.label,
+          viewport: {
+            width: viewport.width,
+            height: viewport.height,
+            label: viewport.label
+          },
+          message: `Testing scenario: ${scenario.label} (${viewport.width}x${viewport.height})`
+        });
+        
+        // Small delay to make progress visible
+        await new Promise(resolve => setTimeout(resolve, 50));
+      }
     }
 
     const result = await backstop('test', {
       config: configPath,
       filter: req.body.filter || undefined
     });
+
+    // Parse and emit individual scenario results
+    if (result && result.tests) {
+      for (const test of result.tests) {
+        const scenarioName = test.pair.label;
+        const viewport = test.pair.viewport;
+        const status = test.status === 'pass' ? 'passed' : 'failed';
+        const mismatchPercentage = test.diff ? parseFloat(test.diff.misMatchPercentage || 0) : 0;
+        
+        // Extract additional test details
+        const testDetails = {
+          executionTime: test.duration || null,
+          dimensions: test.pair.viewportSize || viewport,
+          selector: test.pair.selector || 'document',
+          engineOptions: test.pair.engineOptions || {},
+          hasInteractions: !!(test.pair.clickSelector || test.pair.hoverSelector),
+          hasDelay: !!(test.pair.delay && test.pair.delay > 0),
+          requiresSameDimensions: test.pair.requireSameDimensions || false
+        };
+        
+        io.emit('test-progress', {
+          status: 'scenario-complete',
+          scenario: scenarioName,
+          scenarioStatus: status,
+          mismatchPercentage,
+          viewport: {
+            width: viewport.width,
+            height: viewport.height,
+            label: viewport.label
+          },
+          testDetails,
+          timestamp: new Date().toISOString(),
+          message: `${scenarioName} (${viewport.width}x${viewport.height}) - ${status === 'passed' ? 'Passed' : `Failed (${mismatchPercentage}% mismatch)`}`
+        });
+      }
+    }
 
     // Emit completion
     io.emit('test-complete', {
@@ -4368,6 +4414,308 @@ app.get('/api/health', async (req, res) => {
     });
   }
 });
+
+// ============================================
+// BACKUP MANAGEMENT SYSTEM
+// ============================================
+
+// Create backup of current test results
+app.post('/api/projects/:projectId/backups', async (req, res) => {
+  try {
+    const { projectId } = req.params;
+    const { backupName, description } = req.body;
+    
+    const { configPath } = await validateProject(projectId);
+    const config = await fs.readJson(configPath);
+    
+    // Check if there are recent test results to backup
+    const reportPath = path.join(config.paths.html_report, 'config.js');
+    if (!await fs.pathExists(reportPath)) {
+      return res.status(404).json({ error: 'No test results found to backup. Please run a test first.' });
+    }
+    
+    // Create backup directory with timestamp
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const backupId = `${timestamp}_${backupName?.replace(/[^a-zA-Z0-9]/g, '_') || 'backup'}`;
+    const backupDir = path.join(__dirname, 'backstop_data', projectId, 'backups', backupId);
+    
+    await fs.ensureDir(backupDir);
+    
+    // Parse current test results for metadata
+    const resultsContent = await fs.readFile(reportPath, 'utf8');
+    const testResults = parseBackstopResults(resultsContent);
+    
+    // Create backup metadata
+    const backupMetadata = {
+      id: backupId,
+      name: backupName || `Backup ${timestamp}`,
+      description: description || 'Automated test results backup',
+      projectId,
+      timestamp: new Date().toISOString(),
+      testSummary: {
+        totalTests: testResults?.tests?.length || 0,
+        passedTests: testResults?.tests?.filter(t => t.status === 'pass')?.length || 0,
+        failedTests: testResults?.tests?.filter(t => t.status === 'fail')?.length || 0,
+        avgMismatch: testResults?.tests?.filter(t => t.status === 'fail')
+          .reduce((acc, t) => acc + parseFloat(t.pair?.diff?.misMatchPercentage || 0), 0) / 
+          (testResults?.tests?.filter(t => t.status === 'fail')?.length || 1)
+      },
+      scenarios: testResults?.tests?.map(test => ({
+        label: test.pair.label,
+        viewport: test.pair.viewportLabel,
+        status: test.status,
+        mismatchPercentage: test.pair?.diff?.misMatchPercentage || 0,
+        url: test.pair.url
+      })) || []
+    };
+    
+    // Copy all test artifacts
+    await Promise.all([
+      // Copy HTML report
+      fs.copy(path.join(config.paths.html_report), path.join(backupDir, 'html_report')),
+      // Copy test images
+      fs.copy(path.join(config.paths.bitmaps_test), path.join(backupDir, 'bitmaps_test')),
+      // Copy reference images
+      fs.copy(path.join(config.paths.bitmaps_reference), path.join(backupDir, 'bitmaps_reference')),
+      // Save metadata
+      fs.writeJson(path.join(backupDir, 'backup-metadata.json'), backupMetadata, { spaces: 2 }),
+      // Save raw config
+      fs.copy(configPath, path.join(backupDir, 'backstop-config.json'))
+    ]);
+    
+    res.json({
+      success: true,
+      backup: backupMetadata,
+      message: `Backup created successfully: ${backupName || backupId}`
+    });
+    
+  } catch (error) {
+    console.error('Error creating backup:', error);
+    res.status(500).json({ error: `Failed to create backup: ${error.message}` });
+  }
+});
+
+// Get list of all backups for a project
+app.get('/api/projects/:projectId/backups', async (req, res) => {
+  try {
+    const { projectId } = req.params;
+    const backupsDir = path.join(__dirname, 'backstop_data', projectId, 'backups');
+    
+    if (!await fs.pathExists(backupsDir)) {
+      return res.json([]);
+    }
+    
+    const backupFolders = await fs.readdir(backupsDir);
+    const backups = [];
+    
+    for (const folder of backupFolders) {
+      const metadataPath = path.join(backupsDir, folder, 'backup-metadata.json');
+      if (await fs.pathExists(metadataPath)) {
+        const metadata = await fs.readJson(metadataPath);
+        const folderStats = await fs.stat(path.join(backupsDir, folder));
+        
+        backups.push({
+          ...metadata,
+          // Flatten test summary data for frontend consumption
+          testCount: metadata.testSummary?.totalTests || 0,
+          passedTests: metadata.testSummary?.passedTests || 0,
+          failedTests: metadata.testSummary?.failedTests || 0,
+          avgMismatch: metadata.testSummary?.avgMismatch || 0,
+          size: await getFolderSize(path.join(backupsDir, folder)),
+          createdAt: folderStats.birthtime,
+          hasReport: await fs.pathExists(path.join(backupsDir, folder, 'html_report', 'index.html'))
+        });
+      }
+    }
+    
+    // Sort by timestamp descending (newest first)
+    backups.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+    
+    res.json(backups);
+  } catch (error) {
+    console.error('Error listing backups:', error);
+    res.status(500).json({ error: `Failed to list backups: ${error.message}` });
+  }
+});
+
+// Get backup statistics for a project (must come before individual backup route)
+app.get('/api/projects/:projectId/backups/stats', async (req, res) => {
+  try {
+    const { projectId } = req.params;
+    const backupsDir = path.join(__dirname, 'backstop_data', projectId, 'backups');
+    
+    if (!await fs.pathExists(backupsDir)) {
+      return res.json({
+        totalBackups: 0,
+        totalTests: 0,
+        totalSize: 0,
+        averageFailureRate: 0
+      });
+    }
+    
+    const backupFolders = await fs.readdir(backupsDir);
+    let totalBackups = 0;
+    let totalTests = 0;
+    let totalSize = 0;
+    let totalFailures = 0;
+    
+    for (const folder of backupFolders) {
+      const metadataPath = path.join(backupsDir, folder, 'backup-metadata.json');
+      if (await fs.pathExists(metadataPath)) {
+        totalBackups++;
+        const folderSize = await getFolderSize(path.join(backupsDir, folder));
+        totalSize += folderSize;
+        
+        try {
+          const metadata = await fs.readJSON(metadataPath);
+          if (metadata.testCount) {
+            totalTests += metadata.testCount;
+          }
+          if (metadata.failedTests) {
+            totalFailures += metadata.failedTests;
+          }
+        } catch (metaError) {
+          console.warn(`Failed to read metadata for backup ${folder}:`, metaError);
+        }
+      }
+    }
+    
+    const averageFailureRate = totalTests > 0 ? totalFailures / totalTests : 0;
+    
+    res.json({
+      totalBackups,
+      totalTests,
+      totalSize,
+      averageFailureRate
+    });
+  } catch (error) {
+    console.error('Error getting backup stats:', error);
+    res.status(500).json({ error: `Failed to get backup stats: ${error.message}` });
+  }
+});
+
+// Get specific backup details
+app.get('/api/projects/:projectId/backups/:backupId', async (req, res) => {
+  try {
+    const { projectId, backupId } = req.params;
+    const backupDir = path.join(__dirname, 'backstop_data', projectId, 'backups', backupId);
+    const metadataPath = path.join(backupDir, 'backup-metadata.json');
+    
+    if (!await fs.pathExists(metadataPath)) {
+      return res.status(404).json({ error: 'Backup not found' });
+    }
+    
+    const metadata = await fs.readJson(metadataPath);
+    res.json(metadata);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Download backup as CSV
+app.get('/api/projects/:projectId/backups/:backupId/csv', async (req, res) => {
+  try {
+    const { projectId, backupId } = req.params;
+    const backupDir = path.join(__dirname, 'backstop_data', projectId, 'backups', backupId);
+    const metadataPath = path.join(backupDir, 'backup-metadata.json');
+    
+    if (!await fs.pathExists(metadataPath)) {
+      return res.status(404).json({ error: 'Backup not found' });
+    }
+    
+    const metadata = await fs.readJson(metadataPath);
+    
+    // Generate CSV content
+    const csvHeader = 'Scenario,Viewport,Status,Mismatch%,URL,Timestamp\n';
+    const csvRows = metadata.scenarios.map(scenario => 
+      `"${scenario.label}","${scenario.viewport}","${scenario.status}","${scenario.mismatchPercentage}","${scenario.url}","${metadata.timestamp}"`
+    ).join('\n');
+    
+    const csvContent = csvHeader + csvRows;
+    
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', `attachment; filename="backstop-results-${backupId}.csv"`);
+    res.send(csvContent);
+    
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Serve backup HTML reports and assets
+app.use('/api/projects/:projectId/backups/:backupId/report', (req, res, next) => {
+  const { projectId, backupId } = req.params;
+  const backupDir = path.join(__dirname, 'backstop_data', projectId, 'backups', backupId);
+  const projectDir = path.join(__dirname, 'backstop_data', projectId);
+  
+  // First try to serve from backup directory
+  express.static(backupDir)(req, res, (err) => {
+    if (err || res.headersSent) {
+      return next(err);
+    }
+    // If file not found in backup, try main project directory (for reference images)
+    express.static(projectDir)(req, res, next);
+  });
+});
+
+// Delete backup
+app.delete('/api/projects/:projectId/backups/:backupId', async (req, res) => {
+  try {
+    const { projectId, backupId } = req.params;
+    const backupDir = path.join(__dirname, 'backstop_data', projectId, 'backups', backupId);
+    
+    if (!await fs.pathExists(backupDir)) {
+      return res.status(404).json({ error: 'Backup not found' });
+    }
+    
+    await fs.remove(backupDir);
+    res.json({ success: true, message: 'Backup deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Helper function to parse BackstopJS results from config.js
+function parseBackstopResults(resultsContent) {
+  try {
+    const jsonStart = resultsContent.indexOf('report(') + 7;
+    const jsonEnd = resultsContent.lastIndexOf(');');
+    
+    if (jsonStart > 6 && jsonEnd > jsonStart) {
+      const jsonString = resultsContent.substring(jsonStart, jsonEnd);
+      return JSON.parse(jsonString);
+    }
+    
+    return null;
+  } catch (error) {
+    console.error('Error parsing BackstopJS results:', error);
+    return null;
+  }
+}
+
+// Helper function to calculate folder size
+async function getFolderSize(folderPath) {
+  let size = 0;
+  
+  try {
+    const items = await fs.readdir(folderPath);
+    
+    for (const item of items) {
+      const itemPath = path.join(folderPath, item);
+      const stats = await fs.stat(itemPath);
+      
+      if (stats.isDirectory()) {
+        size += await getFolderSize(itemPath);
+      } else {
+        size += stats.size;
+      }
+    }
+  } catch (error) {
+    console.error('Error calculating folder size:', error);
+  }
+  
+  return size;
+}
 
 // 404 handler - should be after all other routes
 app.use((req, res, next) => {

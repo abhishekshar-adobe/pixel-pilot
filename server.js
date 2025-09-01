@@ -518,6 +518,312 @@ app.post('/api/design-comparison/download-figma-layer', (req, res) => {
   }, 1000);
 });
 
+// ==================== BACKUP MANAGEMENT ENDPOINTS ====================
+
+// Helper function to get folder size
+async function getFolderSize(folderPath) {
+  let totalSize = 0;
+  
+  try {
+    const files = await fs.promises.readdir(folderPath, { withFileTypes: true });
+    
+    for (const file of files) {
+      const filePath = path.join(folderPath, file.name);
+      if (file.isDirectory()) {
+        totalSize += await getFolderSize(filePath);
+      } else {
+        const stats = await fs.promises.stat(filePath);
+        totalSize += stats.size;
+      }
+    }
+  } catch (error) {
+    console.warn('Error calculating folder size:', error);
+  }
+  
+  return totalSize;
+}
+
+// Helper function to parse BackstopJS results from config.js
+function parseBackstopResults(resultsContent) {
+  try {
+    const jsonStart = resultsContent.indexOf('report(') + 7;
+    const jsonEnd = resultsContent.lastIndexOf(');');
+    
+    if (jsonStart > 6 && jsonEnd > jsonStart) {
+      const jsonString = resultsContent.substring(jsonStart, jsonEnd);
+      return JSON.parse(jsonString);
+    }
+    
+    return null;
+  } catch (error) {
+    console.error('Error parsing BackstopJS results:', error);
+    return null;
+  }
+}
+
+// Create backup
+app.post('/api/projects/:projectId/backups', async (req, res) => {
+  try {
+    const { projectId } = req.params;
+    const { name, description } = req.body;
+    
+    const backupId = `backup_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const projectBackstopDir = path.join(__dirname, 'backstop_data');
+    const backupsDir = path.join(__dirname, 'backstop_data', projectId, 'backups');
+    const backupDir = path.join(backupsDir, backupId);
+    
+    // Create backup directory
+    await fs.promises.mkdir(backupDir, { recursive: true });
+    
+    // Copy current backstop_data contents to backup
+    const sourceDirs = ['bitmaps_reference', 'bitmaps_test', 'html_report'];
+    for (const dir of sourceDirs) {
+      const sourcePath = path.join(projectBackstopDir, dir);
+      const destPath = path.join(backupDir, dir);
+      if (fs.existsSync(sourcePath)) {
+        await fs.promises.cp(sourcePath, destPath, { recursive: true });
+      }
+    }
+    
+    // Copy result config files
+    const configFiles = ['backstop.json', 'ci_report/config.js'];
+    for (const file of configFiles) {
+      const sourcePath = path.join(projectBackstopDir, file);
+      const destPath = path.join(backupDir, file);
+      if (fs.existsSync(sourcePath)) {
+        await fs.promises.mkdir(path.dirname(destPath), { recursive: true });
+        await fs.promises.copyFile(sourcePath, destPath);
+      }
+    }
+    
+    // Parse test results and create metadata
+    let testCount = 0;
+    let passedTests = 0;
+    let failedTests = 0;
+    
+    try {
+      const configPath = path.join(projectBackstopDir, 'ci_report/config.js');
+      if (fs.existsSync(configPath)) {
+        const configContent = await fs.promises.readFile(configPath, 'utf8');
+        const results = parseBackstopResults(configContent);
+        if (results && results.tests) {
+          testCount = results.tests.length;
+          passedTests = results.tests.filter(t => t.status === 'pass').length;
+          failedTests = results.tests.filter(t => t.status === 'fail').length;
+        }
+      }
+    } catch (parseError) {
+      console.warn('Failed to parse test results for backup metadata:', parseError);
+    }
+    
+    const metadata = {
+      id: backupId,
+      name: name || `Backup ${new Date().toISOString().split('T')[0]}`,
+      description: description || 'Manual backup',
+      createdAt: new Date().toISOString(),
+      testCount,
+      passedTests,
+      failedTests,
+      projectId
+    };
+    
+    await fs.promises.writeFile(
+      path.join(backupDir, 'backup-metadata.json'),
+      JSON.stringify(metadata, null, 2)
+    );
+    
+    res.json({ success: true, backup: metadata });
+  } catch (error) {
+    console.error('Error creating backup:', error);
+    res.status(500).json({ error: `Failed to create backup: ${error.message}` });
+  }
+});
+
+// Get backup statistics for a project (must come before individual backup route)
+app.get('/api/projects/:projectId/backups/stats', async (req, res) => {
+  try {
+    const { projectId } = req.params;
+    const backupsDir = path.join(__dirname, 'backstop_data', projectId, 'backups');
+    
+    if (!fs.existsSync(backupsDir)) {
+      return res.json({
+        totalBackups: 0,
+        totalTests: 0,
+        totalSize: 0,
+        averageFailureRate: 0
+      });
+    }
+    
+    const backupFolders = await fs.promises.readdir(backupsDir);
+    let totalBackups = 0;
+    let totalTests = 0;
+    let totalSize = 0;
+    let totalFailures = 0;
+    
+    for (const folder of backupFolders) {
+      const metadataPath = path.join(backupsDir, folder, 'backup-metadata.json');
+      if (fs.existsSync(metadataPath)) {
+        totalBackups++;
+        const folderSize = await getFolderSize(path.join(backupsDir, folder));
+        totalSize += folderSize;
+        
+        try {
+          const metadata = JSON.parse(await fs.promises.readFile(metadataPath, 'utf8'));
+          if (metadata.testCount) {
+            totalTests += metadata.testCount;
+          }
+          if (metadata.failedTests) {
+            totalFailures += metadata.failedTests;
+          }
+        } catch (metaError) {
+          console.warn(`Failed to read metadata for backup ${folder}:`, metaError);
+        }
+      }
+    }
+    
+    const averageFailureRate = totalTests > 0 ? totalFailures / totalTests : 0;
+    
+    res.json({
+      totalBackups,
+      totalTests,
+      totalSize,
+      averageFailureRate
+    });
+  } catch (error) {
+    console.error('Error getting backup stats:', error);
+    res.status(500).json({ error: `Failed to get backup stats: ${error.message}` });
+  }
+});
+
+// Get list of all backups for a project
+app.get('/api/projects/:projectId/backups', async (req, res) => {
+  try {
+    const { projectId } = req.params;
+    const backupsDir = path.join(__dirname, 'backstop_data', projectId, 'backups');
+    
+    if (!fs.existsSync(backupsDir)) {
+      return res.json([]);
+    }
+    
+    const backupFolders = await fs.promises.readdir(backupsDir);
+    const backups = [];
+    
+    for (const folder of backupFolders) {
+      const metadataPath = path.join(backupsDir, folder, 'backup-metadata.json');
+      if (fs.existsSync(metadataPath)) {
+        const metadata = JSON.parse(await fs.promises.readFile(metadataPath, 'utf8'));
+        metadata.size = await getFolderSize(path.join(backupsDir, folder));
+        metadata.hasReport = fs.existsSync(path.join(backupsDir, folder, 'html_report', 'index.html'));
+        backups.push(metadata);
+      }
+    }
+    
+    backups.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    res.json(backups);
+  } catch (error) {
+    console.error('Error listing backups:', error);
+    res.status(500).json({ error: `Failed to list backups: ${error.message}` });
+  }
+});
+
+// Get specific backup details
+app.get('/api/projects/:projectId/backups/:backupId', async (req, res) => {
+  try {
+    const { projectId, backupId } = req.params;
+    const backupDir = path.join(__dirname, 'backstop_data', projectId, 'backups', backupId);
+    const metadataPath = path.join(backupDir, 'backup-metadata.json');
+    
+    if (!fs.existsSync(metadataPath)) {
+      return res.status(404).json({ error: 'Backup not found' });
+    }
+    
+    const metadata = JSON.parse(await fs.promises.readFile(metadataPath, 'utf8'));
+    res.json(metadata);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Download backup as CSV
+app.get('/api/projects/:projectId/backups/:backupId/csv', async (req, res) => {
+  try {
+    const { projectId, backupId } = req.params;
+    const backupDir = path.join(__dirname, 'backstop_data', projectId, 'backups', backupId);
+    const configPath = path.join(backupDir, 'ci_report/config.js');
+    
+    if (!fs.existsSync(configPath)) {
+      return res.status(404).json({ error: 'Backup report not found' });
+    }
+    
+    const configContent = await fs.promises.readFile(configPath, 'utf8');
+    const results = parseBackstopResults(configContent);
+    
+    if (!results || !results.tests) {
+      return res.status(404).json({ error: 'No test results found in backup' });
+    }
+    
+    // Convert to CSV format
+    const csvData = results.tests.map(test => ({
+      scenario: test.pair?.label || 'Unknown',
+      selector: test.pair?.selector || 'document',
+      viewport: test.pair?.viewportLabel || 'Unknown',
+      status: test.status || 'Unknown',
+      mismatchPercentage: test.pair?.diff?.misMatchPercentage || 0,
+      referenceImage: test.pair?.reference || '',
+      testImage: test.pair?.test || '',
+      diffImage: test.pair?.diffImage || ''
+    }));
+    
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', `attachment; filename="backup-${backupId}.csv"`);
+    
+    const headers = Object.keys(csvData[0] || {}).join(',');
+    const rows = csvData.map(row => Object.values(row).join(','));
+    const csv = [headers, ...rows].join('\n');
+    
+    res.send(csv);
+  } catch (error) {
+    console.error('Error generating CSV:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// View backup HTML report
+app.get('/api/projects/:projectId/backups/:backupId/report', async (req, res) => {
+  try {
+    const { projectId, backupId } = req.params;
+    const backupReportDir = path.join(__dirname, 'backstop_data', projectId, 'backups', backupId, 'html_report');
+    const reportPath = path.join(backupReportDir, 'index.html');
+    
+    if (!fs.existsSync(reportPath)) {
+      return res.status(404).json({ error: 'HTML report not found in backup' });
+    }
+    
+    const htmlContent = await fs.promises.readFile(reportPath, 'utf8');
+    res.setHeader('Content-Type', 'text/html');
+    res.send(htmlContent);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Delete backup
+app.delete('/api/projects/:projectId/backups/:backupId', async (req, res) => {
+  try {
+    const { projectId, backupId } = req.params;
+    const backupDir = path.join(__dirname, 'backstop_data', projectId, 'backups', backupId);
+    
+    if (!fs.existsSync(backupDir)) {
+      return res.status(404).json({ error: 'Backup not found' });
+    }
+    
+    await fs.promises.rm(backupDir, { recursive: true, force: true });
+    res.json({ success: true, message: 'Backup deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // BackstopJS Health Check API
 app.get('/api/health', (req, res) => {
   res.json({ 

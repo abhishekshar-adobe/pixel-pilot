@@ -62,7 +62,12 @@ import {
   InfoOutlined,
   WarningAmber,
   Search,
-  Link
+  Link,
+  PhoneIphone,
+  Tablet,
+  Computer,
+  AccessTime,
+  Error
 } from '@mui/icons-material'
 
 const API_BASE = 'http://localhost:5000/api'
@@ -96,6 +101,7 @@ function TestRunner({ project, config }) {
   const [realTimeProgress, setRealTimeProgress] = useState(0);
   const [realTimeScenario, setRealTimeScenario] = useState(null);
   const [realTimeMessage, setRealTimeMessage] = useState('');
+  const [liveScenarioResults, setLiveScenarioResults] = useState({}); // Real-time scenario status with viewport details
   
   const [searchTerm, setSearchTerm] = useState("");
   const [showSelectedOnly, setShowSelectedOnly] = useState(false);
@@ -141,17 +147,63 @@ function TestRunner({ project, config }) {
       setRealTimeScenario(progress.scenario || null);
       setRealTimeMessage(progress.message || '');
       setTestRunning(progress.status === 'running' || progress.status === 'started');
+      
+      // Update individual scenario status with enhanced details
+      if (progress.scenario && progress.status === 'scenario-complete') {
+        setLiveScenarioResults(prev => ({
+          ...prev,
+          [progress.scenario]: {
+            status: progress.scenarioStatus,
+            mismatchPercentage: progress.mismatchPercentage,
+            viewport: progress.viewport,
+            timestamp: progress.timestamp,
+            executionTime: progress.testDetails?.executionTime,
+            selector: progress.testDetails?.selector,
+            hasInteractions: progress.testDetails?.hasInteractions,
+            hasDelay: progress.testDetails?.hasDelay,
+            requiresSameDimensions: progress.testDetails?.requiresSameDimensions
+          }
+        }));
+      } else if (progress.scenario && progress.viewport) {
+        // For running scenarios, show running status
+        const scenarioKey = `${progress.scenario}_${progress.viewport}`;
+        setLiveScenarioResults(prev => ({
+          ...prev,
+          [progress.scenario]: {
+            scenario: progress.scenario,
+            viewport: progress.viewport,
+            status: 'running',
+            timestamp: new Date().toISOString()
+          }
+        }));
+      }
     });
     
-    socketRef.current.on('test-complete', (result) => {
+    socketRef.current.on('test-complete', async (result) => {
       console.log('Test complete:', result);
       setTestRunning(false);
       setRealTimeProgress(100);
       setMessage(result.message || 'Test completed');
+      
       // Reload test results after completion
       setTimeout(() => {
         loadBackstopReport();
       }, 1000);
+      
+      // Auto-create backup if test was successful
+      if (result.success) {
+        try {
+          const timestamp = new Date().toISOString().split('T')[0];
+          const backupName = `Auto-backup-${timestamp}`;
+          await axios.post(`${API_BASE}/projects/${project.id}/backups`, {
+            name: backupName,
+            description: `Automatic backup created after successful test run on ${timestamp}`
+          });
+          console.log('Auto-backup created successfully');
+        } catch (backupError) {
+          console.warn('Failed to create auto-backup:', backupError);
+        }
+      }
     });
     
     return () => {
@@ -224,13 +276,51 @@ function TestRunner({ project, config }) {
     }
   }
 
+  // Helper function to get viewport icon based on width
+  const getViewportIcon = (viewport) => {
+    if (!viewport || !viewport.width) return <Computer sx={{ fontSize: 16 }} />;
+    
+    const width = viewport.width;
+    if (width <= 768) return <PhoneIphone sx={{ fontSize: 16 }} />;
+    if (width <= 1024) return <Tablet sx={{ fontSize: 16 }} />;
+    return <Computer sx={{ fontSize: 16 }} />;
+  };
+
+  const getStatusIcon = (status, mismatchPercentage = 0) => {
+    switch (status) {
+      case 'passed':
+        return <CheckCircle sx={{ color: '#4caf50', fontSize: 16 }} />;
+      case 'failed':
+        return <Error sx={{ color: '#f44336', fontSize: 16 }} />;
+      case 'running':
+        return <AccessTime sx={{ color: '#ff9800', fontSize: 16 }} />;
+      default:
+        return <RadioButtonUnchecked sx={{ color: '#9e9e9e', fontSize: 16 }} />;
+    }
+  };
+
   const runTest = async () => {
     setTestRunning(true);
     setMessage("");
     setTestResult(null);
 
+    // Step 1: Create backup of last test results before running new test
+    try {
+      const timestamp = new Date().toISOString().split('T')[0];
+      const backupName = `Pre-test-backup-${timestamp}`;
+      await axios.post(`${API_BASE}/projects/${project.id}/backups`, {
+        name: backupName,
+        description: `Backup created before test run on ${timestamp}`
+      });
+      console.log('Pre-test backup created successfully');
+      setMessage("Backing up previous results...");
+    } catch (backupError) {
+      console.warn('Failed to create pre-test backup:', backupError);
+      // Continue with test even if backup fails
+    }
+
     // Initialize results for all scenarios as pending
-  const scenariosToTest = scenarios.filter(s => selectedScenarios.includes(s.label));
+    const scenariosToTest = scenarios.filter(s => selectedScenarios.includes(s.label));
     const initialResults = {};
     scenariosToTest.forEach(s => {
       initialResults[s.label] = { status: "pending" };
@@ -238,7 +328,7 @@ function TestRunner({ project, config }) {
     setScenarioResults(initialResults);
 
     try {
-  const filter = selectedScenarios.join("|");
+      const filter = selectedScenarios.join("|");
       // Actually trigger the backend test API
       const response = await axios.post(`${API_BASE}/projects/${project.id}/test`, { filter });
       setMessage("Test started. Please wait for results...");
@@ -396,6 +486,151 @@ function TestRunner({ project, config }) {
         </Fade>
       )}
 
+      {/* Test Overview Statistics */}
+      <Grid container spacing={3} sx={{ mb: 4 }}>
+        <Grid item xs={12} sm={6} md={3}>
+          <Card elevation={0} sx={{ p: 2, borderRadius: '12px', border: '1px solid', borderColor: 'divider' }}>
+            <Stack direction="row" alignItems="center" spacing={2}>
+              <Avatar sx={{ bgcolor: 'primary.light', width: 48, height: 48 }}>
+                <Assessment sx={{ color: 'primary.main' }} />
+              </Avatar>
+              <Box>
+                <Typography variant="h4" sx={{ fontWeight: 700, color: 'text.primary' }}>
+                  {scenarios.length}
+                </Typography>
+                <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                  Total Scenarios
+                </Typography>
+              </Box>
+            </Stack>
+          </Card>
+        </Grid>
+        
+        <Grid item xs={12} sm={6} md={3}>
+          <Card elevation={0} sx={{ p: 2, borderRadius: '12px', border: '1px solid', borderColor: 'divider' }}>
+            <Stack direction="row" alignItems="center" spacing={2}>
+              <Avatar sx={{ bgcolor: 'success.light', width: 48, height: 48 }}>
+                <CheckCircle sx={{ color: 'success.main' }} />
+              </Avatar>
+              <Box>
+                <Typography variant="h4" sx={{ fontWeight: 700, color: 'text.primary' }}>
+                  {Object.values(scenarioResults).filter(r => r.status === 'passed').length}
+                </Typography>
+                <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                  Passed Tests
+                </Typography>
+              </Box>
+            </Stack>
+          </Card>
+        </Grid>
+        
+        <Grid item xs={12} sm={6} md={3}>
+          <Card elevation={0} sx={{ p: 2, borderRadius: '12px', border: '1px solid', borderColor: 'divider' }}>
+            <Stack direction="row" alignItems="center" spacing={2}>
+              <Avatar sx={{ bgcolor: 'error.light', width: 48, height: 48 }}>
+                <BugReport sx={{ color: 'error.main' }} />
+              </Avatar>
+              <Box>
+                <Typography variant="h4" sx={{ fontWeight: 700, color: 'text.primary' }}>
+                  {Object.values(scenarioResults).filter(r => r.status === 'failed').length}
+                </Typography>
+                <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                  Failed Tests
+                </Typography>
+              </Box>
+            </Stack>
+          </Card>
+        </Grid>
+        
+        <Grid item xs={12} sm={6} md={3}>
+          <Card elevation={0} sx={{ p: 2, borderRadius: '12px', border: '1px solid', borderColor: 'divider' }}>
+            <Stack direction="row" alignItems="center" spacing={2}>
+              <Avatar sx={{ bgcolor: 'warning.light', width: 48, height: 48 }}>
+                <Speed sx={{ color: 'warning.main' }} />
+              </Avatar>
+              <Box>
+                <Typography variant="h4" sx={{ fontWeight: 700, color: 'text.primary' }}>
+                  {Object.values(liveScenarioResults).filter(r => r.status === 'running').length}
+                </Typography>
+                <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                  Running Now
+                </Typography>
+              </Box>
+            </Stack>
+          </Card>
+        </Grid>
+      </Grid>
+
+      {/* Test History & Performance Trends */}
+      {Object.keys(scenarioResults).length > 0 && (
+        <Card elevation={0} sx={{ mb: 4, borderRadius: '12px', border: '1px solid', borderColor: 'divider' }}>
+          <CardContent sx={{ p: 3 }}>
+            <Typography variant="h6" sx={{ mb: 2, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 1 }}>
+              <TrendingUp sx={{ color: 'primary.main' }} />
+              Test Performance Overview
+            </Typography>
+            
+            <Grid container spacing={3}>
+              {/* Success Rate */}
+              <Grid item xs={12} sm={6} md={3}>
+                <Box sx={{ textAlign: 'center', p: 2, bgcolor: 'background.default', borderRadius: '8px' }}>
+                  <Typography variant="h4" sx={{ fontWeight: 700, color: 'success.main' }}>
+                    {Math.round((Object.values(scenarioResults).filter(r => r.status === 'passed').length / 
+                    Object.values(scenarioResults).length) * 100) || 0}%
+                  </Typography>
+                  <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+                    Success Rate
+                  </Typography>
+                </Box>
+              </Grid>
+              
+              {/* Average Mismatch */}
+              <Grid item xs={12} sm={6} md={3}>
+                <Box sx={{ textAlign: 'center', p: 2, bgcolor: 'background.default', borderRadius: '8px' }}>
+                  <Typography variant="h4" sx={{ fontWeight: 700, color: 'warning.main' }}>
+                    {(Object.values(scenarioResults)
+                      .filter(r => typeof r.misMatchPercentage !== 'undefined' && r.misMatchPercentage > 0)
+                      .reduce((acc, r) => acc + r.misMatchPercentage, 0) / 
+                      Object.values(scenarioResults).filter(r => typeof r.misMatchPercentage !== 'undefined' && r.misMatchPercentage > 0).length
+                    ).toFixed(1) || 0}%
+                  </Typography>
+                  <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+                    Avg Mismatch
+                  </Typography>
+                </Box>
+              </Grid>
+              
+              {/* Dimension Issues */}
+              <Grid item xs={12} sm={6} md={3}>
+                <Box sx={{ textAlign: 'center', p: 2, bgcolor: 'background.default', borderRadius: '8px' }}>
+                  <Typography variant="h4" sx={{ fontWeight: 700, color: 'error.main' }}>
+                    {Object.values(scenarioResults).filter(r => r.isSameDimensions === false).length}
+                  </Typography>
+                  <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+                    Dimension Issues
+                  </Typography>
+                </Box>
+              </Grid>
+              
+              {/* Last Test Run */}
+              <Grid item xs={12} sm={6} md={3}>
+                <Box sx={{ textAlign: 'center', p: 2, bgcolor: 'background.default', borderRadius: '8px' }}>
+                  <Typography variant="body2" sx={{ fontWeight: 700, color: 'text.primary' }}>
+                    {backstopReport?.testSuite?.date ? 
+                      new Date(backstopReport.testSuite.date).toLocaleDateString() : 
+                      'Never'
+                    }
+                  </Typography>
+                  <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+                    Last Test Run
+                  </Typography>
+                </Box>
+              </Grid>
+            </Grid>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Test Execution Panel */}
       <Card 
         elevation={0}
@@ -518,6 +753,78 @@ function TestRunner({ project, config }) {
                 Real-time connection lost. Progress may not be accurate.
               </Alert>
             )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Enhanced Test Configuration Overview */}
+      {scenarios.length > 0 && (
+        <Card elevation={0} sx={{ mb: 4, borderRadius: '12px', border: '1px solid', borderColor: 'divider' }}>
+          <CardContent sx={{ p: 3 }}>
+            <Typography variant="h6" sx={{ mb: 2, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 1 }}>
+              <InfoOutlined sx={{ color: 'primary.main' }} />
+              Test Configuration Details
+            </Typography>
+            
+            <Grid container spacing={3}>
+              {/* Engine Information */}
+              <Grid item xs={12} md={4}>
+                <Stack spacing={1}>
+                  <Typography variant="subtitle2" sx={{ fontWeight: 600, color: 'text.primary' }}>
+                    Test Engine
+                  </Typography>
+                  <Chip
+                    label="Puppeteer"
+                    icon={<Speed />}
+                    sx={{ borderRadius: '8px', bgcolor: 'rgba(33, 150, 243, 0.1)', color: '#2196f3' }}
+                  />
+                  <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+                    Headless Chrome automation
+                  </Typography>
+                </Stack>
+              </Grid>
+              
+              {/* Viewport Coverage */}
+              <Grid item xs={12} md={4}>
+                <Stack spacing={1}>
+                  <Typography variant="subtitle2" sx={{ fontWeight: 600, color: 'text.primary' }}>
+                    Viewport Coverage
+                  </Typography>
+                  <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                    {scenarios.length > 0 && scenarios[0].viewports?.map((viewport, index) => (
+                      <Chip
+                        key={index}
+                        size="small"
+                        icon={getViewportIcon(viewport)}
+                        label={`${viewport.width}x${viewport.height}`}
+                        sx={{ borderRadius: '6px', bgcolor: 'background.default' }}
+                      />
+                    ))}
+                  </Box>
+                </Stack>
+              </Grid>
+              
+              {/* Test Complexity */}
+              <Grid item xs={12} md={4}>
+                <Stack spacing={1}>
+                  <Typography variant="subtitle2" sx={{ fontWeight: 600, color: 'text.primary' }}>
+                    Test Complexity
+                  </Typography>
+                  <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                    <Chip
+                      size="small"
+                      label={`${scenarios.filter(s => s.selectors?.length > 1).length} Multi-selector`}
+                      sx={{ borderRadius: '6px', bgcolor: 'rgba(156, 39, 176, 0.1)', color: '#9c27b0' }}
+                    />
+                    <Chip
+                      size="small"
+                      label={`${scenarios.filter(s => s.delay > 0).length} With Delays`}
+                      sx={{ borderRadius: '6px', bgcolor: 'rgba(255, 152, 0, 0.1)', color: '#ff9800' }}
+                    />
+                  </Box>
+                </Stack>
+              </Grid>
+            </Grid>
           </CardContent>
         </Card>
       )}
@@ -672,9 +979,85 @@ function TestRunner({ project, config }) {
                 </Grid>
               </CardContent>
             </Card>
+            
+            {/* Test Performance Insights */}
+            {Object.keys(liveScenarioResults).length > 0 && (
+              <Card elevation={0} sx={{ mb: 3, borderRadius: '12px', border: '1px solid', borderColor: 'divider' }}>
+                <CardContent sx={{ p: 3 }}>
+                  <Typography variant="h6" sx={{ mb: 2, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <Timeline sx={{ color: 'primary.main' }} />
+                    Real-Time Test Insights
+                  </Typography>
+                  
+                  <Grid container spacing={2}>
+                    {/* Average execution time */}
+                    <Grid item xs={12} sm={6} md={3}>
+                      <Box sx={{ textAlign: 'center', p: 2, bgcolor: 'background.default', borderRadius: '8px' }}>
+                        <Typography variant="h5" sx={{ fontWeight: 700, color: 'primary.main' }}>
+                          {Math.round(Object.values(liveScenarioResults)
+                            .filter(r => r.executionTime)
+                            .reduce((acc, r) => acc + r.executionTime, 0) / 
+                            Object.values(liveScenarioResults).filter(r => r.executionTime).length) || 0}ms
+                        </Typography>
+                        <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+                          Avg Execution Time
+                        </Typography>
+                      </Box>
+                    </Grid>
+                    
+                    {/* Interactive scenarios count */}
+                    <Grid item xs={12} sm={6} md={3}>
+                      <Box sx={{ textAlign: 'center', p: 2, bgcolor: 'background.default', borderRadius: '8px' }}>
+                        <Typography variant="h5" sx={{ fontWeight: 700, color: 'warning.main' }}>
+                          {Object.values(liveScenarioResults).filter(r => r.hasInteractions).length}
+                        </Typography>
+                        <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+                          Interactive Tests
+                        </Typography>
+                      </Box>
+                    </Grid>
+                    
+                    {/* Scenarios with delays */}
+                    <Grid item xs={12} sm={6} md={3}>
+                      <Box sx={{ textAlign: 'center', p: 2, bgcolor: 'background.default', borderRadius: '8px' }}>
+                        <Typography variant="h5" sx={{ fontWeight: 700, color: 'info.main' }}>
+                          {Object.values(liveScenarioResults).filter(r => r.hasDelay).length}
+                        </Typography>
+                        <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+                          With Delays
+                        </Typography>
+                      </Box>
+                    </Grid>
+                    
+                    {/* Average mismatch percentage */}
+                    <Grid item xs={12} sm={6} md={3}>
+                      <Box sx={{ textAlign: 'center', p: 2, bgcolor: 'background.default', borderRadius: '8px' }}>
+                        <Typography variant="h5" sx={{ fontWeight: 700, color: 'error.main' }}>
+                          {(Object.values(liveScenarioResults)
+                            .filter(r => r.mismatchPercentage > 0)
+                            .reduce((acc, r) => acc + r.mismatchPercentage, 0) / 
+                            Object.values(liveScenarioResults).filter(r => r.mismatchPercentage > 0).length).toFixed(1) || 0}%
+                        </Typography>
+                        <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+                          Avg Mismatch
+                        </Typography>
+                      </Box>
+                    </Grid>
+                  </Grid>
+                </CardContent>
+              </Card>
+            )}
+            
             <Box sx={{ display: 'grid', gap: 2 }}>
               {filteredScenarios.map((scenario) => {
                 const result = scenarioResults[scenario.label] || {};
+                const liveResult = liveScenarioResults[scenario.label];
+                
+                // Use live result if available, otherwise fall back to static result
+                const displayStatus = liveResult?.status || result.status;
+                const displayMismatch = liveResult?.mismatchPercentage || result.misMatchPercentage;
+                const displayViewport = scenario.viewports && scenario.viewports[0];
+
                 return (
                   <Paper
                     key={scenario.label || scenario.url}
@@ -712,16 +1095,40 @@ function TestRunner({ project, config }) {
                         />
                       )}
                       <Box sx={{ flex: 1 }}>
-                        <Typography 
-                          variant="h6" 
-                          sx={{ 
-                            fontWeight: 600,
-                            color: selectedScenarios.includes(scenario.label) ? 'primary.dark' : 'text.primary',
-                            mb: 0.5
-                          }}
-                        >
-                          {scenario.label}
-                        </Typography>
+                        <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 0.5 }}>
+                          <Typography 
+                            variant="h6" 
+                            sx={{ 
+                              fontWeight: 600,
+                              color: selectedScenarios.includes(scenario.label) ? 'primary.dark' : 'text.primary',
+                            }}
+                          >
+                            {scenario.label}
+                          </Typography>
+                          {displayStatus && getStatusIcon(displayStatus, displayMismatch)}
+                        </Stack>
+
+                        {/* Viewport information */}
+                        {displayViewport && (
+                          <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1 }}>
+                            {getViewportIcon(displayViewport)}
+                            <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                              {displayViewport.width}x{displayViewport.height}
+                            </Typography>
+                            <Chip
+                              size="small"
+                              label={displayViewport.width <= 768 ? 'Mobile' : displayViewport.width <= 1024 ? 'Tablet' : 'Desktop'}
+                              sx={{
+                                height: 20,
+                                fontSize: '0.75rem',
+                                borderRadius: '10px',
+                                bgcolor: 'background.default',
+                                color: 'text.secondary'
+                              }}
+                            />
+                          </Stack>
+                        )}
+                        
                         <Typography 
                           variant="body2" 
                           sx={{ 
@@ -735,8 +1142,103 @@ function TestRunner({ project, config }) {
                           <Link sx={{ fontSize: 16 }} />
                           {scenario.url}
                         </Typography>
+
+                        {/* Real-time status display */}
+                        {displayStatus && (
+                          <Box 
+                            sx={{ 
+                              display: 'flex', 
+                              alignItems: 'center', 
+                              flexWrap: 'wrap',
+                              gap: 2 
+                            }}
+                          >
+                            <Chip
+                              size="small"
+                              icon={getStatusIcon(displayStatus, displayMismatch)}
+                              label={
+                                displayStatus === 'passed' ? '✅ Passed' :
+                                displayStatus === 'failed' ? `❌ Failed` :
+                                displayStatus === 'running' ? '⏳ Running' : 'Pending'
+                              }
+                              sx={{
+                                borderRadius: '8px',
+                                bgcolor: displayStatus === 'passed' ? 'rgba(76, 175, 80, 0.1)' :
+                                         displayStatus === 'failed' ? 'rgba(244, 67, 54, 0.1)' :
+                                         displayStatus === 'running' ? 'rgba(255, 152, 0, 0.1)' :
+                                         'background.default',
+                                color: displayStatus === 'passed' ? '#4caf50' :
+                                       displayStatus === 'failed' ? '#f44336' :
+                                       displayStatus === 'running' ? '#ff9800' :
+                                       'text.secondary',
+                                fontWeight: 500
+                              }}
+                            />
+                            {typeof displayMismatch !== 'undefined' && displayMismatch > 0 && (
+                              <Chip
+                                size="small"
+                                label={`Diff: ${displayMismatch}%`}
+                                sx={{
+                                  borderRadius: '8px',
+                                  bgcolor: 'background.paper',
+                                  color: 'text.secondary',
+                                  border: '1px solid',
+                                  borderColor: 'divider'
+                                }}
+                              />
+                            )}
+                            {/* Test execution time */}
+                            {liveResult?.executionTime && (
+                              <Chip
+                                size="small"
+                                icon={<Speed sx={{ fontSize: 12 }} />}
+                                label={`${liveResult.executionTime}ms`}
+                                sx={{
+                                  borderRadius: '8px',
+                                  bgcolor: 'background.default',
+                                  color: 'text.secondary',
+                                  fontSize: '0.75rem'
+                                }}
+                              />
+                            )}
+                            {/* Selector information */}
+                            {scenario.selectors && scenario.selectors.length > 0 && (
+                              <Chip
+                                size="small"
+                                icon={<Search sx={{ fontSize: 12 }} />}
+                                label={`${scenario.selectors.length} selector${scenario.selectors.length > 1 ? 's' : ''}`}
+                                sx={{
+                                  borderRadius: '8px',
+                                  bgcolor: 'rgba(33, 150, 243, 0.1)',
+                                  color: '#2196f3',
+                                  fontSize: '0.75rem'
+                                }}
+                              />
+                            )}
+                            {/* Delay information */}
+                            {scenario.delay && scenario.delay > 0 && (
+                              <Chip
+                                size="small"
+                                icon={<AccessTime sx={{ fontSize: 12 }} />}
+                                label={`${scenario.delay}ms delay`}
+                                sx={{
+                                  borderRadius: '8px',
+                                  bgcolor: 'rgba(156, 39, 176, 0.1)',
+                                  color: '#9c27b0',
+                                  fontSize: '0.75rem'
+                                }}
+                              />
+                            )}
+                            {liveResult?.timestamp && (
+                              <Typography variant="caption" sx={{ color: 'text.secondary', display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                <AccessTime sx={{ fontSize: 12 }} />
+                                {new Date(liveResult.timestamp).toLocaleTimeString()}
+                              </Typography>
+                            )}
+                          </Box>
+                        )}
                         {/* Show last test result details if available */}
-                        {result.status && (
+                        {result.status && !liveResult && (
                           <Box 
                             sx={{ 
                               display: 'flex', 
@@ -770,6 +1272,68 @@ function TestRunner({ project, config }) {
                               />
                             )}
                           </Box>
+                        )}
+                        
+                        {/* Advanced scenario details (expandable) */}
+                        {(scenario.readyEvent || scenario.readySelector || scenario.hideSelectors?.length > 0 || scenario.removeSelectors?.length > 0) && (
+                          <Accordion elevation={0} sx={{ mt: 2, bgcolor: 'transparent' }}>
+                            <AccordionSummary
+                              expandIcon={<ExpandMore />}
+                              sx={{ 
+                                px: 0, 
+                                minHeight: 'auto',
+                                '& .MuiAccordionSummary-content': { 
+                                  margin: '8px 0',
+                                  alignItems: 'center'
+                                }
+                              }}
+                            >
+                              <Typography variant="body2" sx={{ color: 'text.secondary', fontWeight: 500 }}>
+                                <Settings sx={{ fontSize: 16, mr: 1, verticalAlign: 'middle' }} />
+                                Advanced Configuration
+                              </Typography>
+                            </AccordionSummary>
+                            <AccordionDetails sx={{ px: 0, pt: 0 }}>
+                              <Grid container spacing={2}>
+                                {scenario.readyEvent && (
+                                  <Grid item xs={12} sm={6}>
+                                    <Chip
+                                      size="small"
+                                      label={`Ready Event: ${scenario.readyEvent}`}
+                                      sx={{ borderRadius: '6px', bgcolor: 'rgba(156, 39, 176, 0.1)', color: '#9c27b0' }}
+                                    />
+                                  </Grid>
+                                )}
+                                {scenario.readySelector && (
+                                  <Grid item xs={12} sm={6}>
+                                    <Chip
+                                      size="small"
+                                      label={`Ready Selector: ${scenario.readySelector}`}
+                                      sx={{ borderRadius: '6px', bgcolor: 'rgba(76, 175, 80, 0.1)', color: '#4caf50' }}
+                                    />
+                                  </Grid>
+                                )}
+                                {scenario.hideSelectors?.length > 0 && (
+                                  <Grid item xs={12} sm={6}>
+                                    <Chip
+                                      size="small"
+                                      label={`Hidden: ${scenario.hideSelectors.length} elements`}
+                                      sx={{ borderRadius: '6px', bgcolor: 'rgba(158, 158, 158, 0.1)', color: '#9e9e9e' }}
+                                    />
+                                  </Grid>
+                                )}
+                                {scenario.removeSelectors?.length > 0 && (
+                                  <Grid item xs={12} sm={6}>
+                                    <Chip
+                                      size="small"
+                                      label={`Removed: ${scenario.removeSelectors.length} elements`}
+                                      sx={{ borderRadius: '6px', bgcolor: 'rgba(244, 67, 54, 0.1)', color: '#f44336' }}
+                                    />
+                                  </Grid>
+                                )}
+                              </Grid>
+                            </AccordionDetails>
+                          </Accordion>
                         )}
                       </Box>
                     </Stack>
