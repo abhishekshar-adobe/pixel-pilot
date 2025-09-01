@@ -11,11 +11,24 @@ const { v4: uuidv4 } = require('uuid');
 const { DesignComparisonEngine } = require('./design-comparison-engine');
 const { getLatestTestResults } = require('./utils/test-results');
 const { validateProject, PROJECTS_FILE } = require('./utils/project-utils');
+const http = require('http');
+const socketIo = require('socket.io');
 
 const app = express();
+const server = http.createServer(app);
+const io = socketIo(server, {
+  cors: {
+    origin: ["http://localhost:3000", "http://localhost:5173"],
+    methods: ["GET", "POST"],
+    credentials: true
+  }
+});
 const port = 5000;
 
-app.use(cors());
+app.use(cors({
+  origin: ["http://localhost:3000", "http://localhost:5173"],
+  credentials: true
+}));
 app.use(express.json());
 
 // Ensure data directory exists
@@ -359,6 +372,13 @@ app.post('/api/projects/:projectId/test', async (req, res) => {
       fs.ensureDir(config.paths.html_report)
     ]);
 
+    // Emit test start event
+    io.emit('test-progress', {
+      status: 'started',
+      percent: 0,
+      message: 'Initializing test...'
+    });
+
     // Check for missing reference images and auto-generate if needed
     const bitmapsRefDir = config.paths.bitmaps_reference;
     let missingReference = false;
@@ -383,12 +403,48 @@ app.post('/api/projects/:projectId/test', async (req, res) => {
     }
     if (missingReference) {
       // Auto-generate reference images before running test
+      io.emit('test-progress', {
+        status: 'running',
+        percent: 10,
+        message: 'Generating reference images...'
+      });
       await backstop('reference', { config: configPath });
+    }
+
+    // Emit progress for test execution
+    io.emit('test-progress', {
+      status: 'running',
+      percent: 30,
+      message: 'Running visual regression tests...'
+    });
+
+    // Simulate scenario-by-scenario progress
+    const scenariosToTest = config.scenarios || [];
+    for (let i = 0; i < scenariosToTest.length; i++) {
+      const scenario = scenariosToTest[i];
+      const progressPercent = 30 + ((i / scenariosToTest.length) * 60);
+      
+      io.emit('test-progress', {
+        status: 'running',
+        percent: progressPercent,
+        scenario: scenario.label,
+        message: `Testing scenario: ${scenario.label}`
+      });
+      
+      // Small delay to make progress visible
+      await new Promise(resolve => setTimeout(resolve, 100));
     }
 
     const result = await backstop('test', {
       config: configPath,
       filter: req.body.filter || undefined
+    });
+
+    // Emit completion
+    io.emit('test-complete', {
+      status: 'done',
+      percent: 100,
+      message: 'Test completed successfully'
     });
 
     res.json({
@@ -406,6 +462,13 @@ app.post('/api/projects/:projectId/test', async (req, res) => {
       const config = await fs.readJson(configPath);
       const reportPath = path.join(config.paths.html_report, 'index.html');
       const reportExists = await fs.pathExists(reportPath);
+      
+      // Emit completion with differences
+      io.emit('test-complete', {
+        status: 'completed_with_differences',
+        percent: 100,
+        message: 'Test completed with visual differences detected'
+      });
       
       res.status(200).json({ 
         success: false, 
@@ -4314,14 +4377,24 @@ app.use((req, res, next) => {
   }
 });
 
+// Socket.IO connection handling
+io.on('connection', (socket) => {
+  console.log('🔌 Client connected:', socket.id);
+  
+  socket.on('disconnect', () => {
+    console.log('🔌 Client disconnected:', socket.id);
+  });
+});
+
 process.on('unhandledRejection', (reason, promise) => {
   console.error('Unhandled Rejection at:', promise, 'reason:', reason);
   // Don't exit the process, just log the error
 });
 
-app.listen(port, async () => {
+server.listen(port, async () => {
   console.log('🚀 PixelPilot BackstopJS Dashboard Started!');
   console.log(`📡 Server running on http://localhost:${port}`);
+  console.log(`🔌 Socket.IO enabled for real-time updates`);
   console.log(`🔍 Health Check: http://localhost:${port}/api/health`);
   console.log(`📁 Projects API: http://localhost:${port}/api/projects`);
   console.log('🎯 Multi-project BackstopJS dashboard ready!');

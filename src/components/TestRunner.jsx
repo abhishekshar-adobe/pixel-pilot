@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
+import { io } from 'socket.io-client'
 import axios from 'axios'
 import {
   Box,
@@ -89,6 +90,13 @@ const getStatusChip = (status, misMatchPercentage) => {
 };
 
 function TestRunner({ project, config }) {
+  // Socket.IO state
+  const socketRef = useRef(null);
+  const [socketConnected, setSocketConnected] = useState(false);
+  const [realTimeProgress, setRealTimeProgress] = useState(0);
+  const [realTimeScenario, setRealTimeScenario] = useState(null);
+  const [realTimeMessage, setRealTimeMessage] = useState('');
+  
   const [searchTerm, setSearchTerm] = useState("");
   const [showSelectedOnly, setShowSelectedOnly] = useState(false);
   const [initialSelection, setInitialSelection] = useState([]);
@@ -111,6 +119,46 @@ function TestRunner({ project, config }) {
       await loadBackstopReport();
     };
     init();
+  }, []);
+
+  // Socket.IO connection effect
+  useEffect(() => {
+    socketRef.current = io('http://localhost:5000');
+    
+    socketRef.current.on('connect', () => {
+      setSocketConnected(true);
+      console.log('Connected to Socket.IO server');
+    });
+    
+    socketRef.current.on('disconnect', () => {
+      setSocketConnected(false);
+      console.log('Disconnected from Socket.IO server');
+    });
+    
+    socketRef.current.on('test-progress', (progress) => {
+      console.log('Test progress:', progress);
+      setRealTimeProgress(progress.percent || 0);
+      setRealTimeScenario(progress.scenario || null);
+      setRealTimeMessage(progress.message || '');
+      setTestRunning(progress.status === 'running' || progress.status === 'started');
+    });
+    
+    socketRef.current.on('test-complete', (result) => {
+      console.log('Test complete:', result);
+      setTestRunning(false);
+      setRealTimeProgress(100);
+      setMessage(result.message || 'Test completed');
+      // Reload test results after completion
+      setTimeout(() => {
+        loadBackstopReport();
+      }, 1000);
+    });
+    
+    return () => {
+      if (socketRef.current) {
+        socketRef.current.disconnect();
+      }
+    };
   }, []);
 
   const loadBackstopReport = async () => {
@@ -165,7 +213,7 @@ function TestRunner({ project, config }) {
     setTestResult(null)
     
     try {
-      const filter = runAllScenarios ? undefined : selectedScenarios.join('|')
+      const filter = selectedScenarios.length > 0 ? selectedScenarios.join('|') : undefined
       const response = await axios.post(`${API_BASE}/approve`, { filter })
       setMessage('✅ Test images approved as new references! All failing tests are now passing.')
       setTestResult(response.data)
@@ -273,19 +321,29 @@ function TestRunner({ project, config }) {
           <RocketLaunch sx={{ fontSize: 32 }} />
         </Avatar>
         <Box sx={{ flex: 1 }}>
-          <Typography 
-            variant="h3" 
-            component="h1" 
-            sx={{ 
-              fontWeight: 700, 
-              color: 'text.primary',
-              fontSize: { xs: '1.75rem', sm: '2rem', md: '2.25rem' },
-              letterSpacing: '-0.025em',
-              mb: 1
-            }}
-          >
-            Test Runner
-          </Typography>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 1 }}>
+            <Typography 
+              variant="h3" 
+              component="h1" 
+              sx={{ 
+                fontWeight: 700, 
+                color: 'text.primary',
+                fontSize: { xs: '1.75rem', sm: '2rem', md: '2.25rem' },
+                letterSpacing: '-0.025em'
+              }}
+            >
+              Test Runner
+            </Typography>
+            {/* Socket.IO Connection Status */}
+            <Chip
+              size="small"
+              icon={socketConnected ? <CheckCircle /> : <WarningAmber />}
+              label={socketConnected ? 'Real-time Connected' : 'Real-time Disconnected'}
+              color={socketConnected ? 'success' : 'warning'}
+              variant="outlined"
+              sx={{ ml: 'auto' }}
+            />
+          </Box>
           <Typography 
             variant="h6" 
             sx={{ 
@@ -295,7 +353,7 @@ function TestRunner({ project, config }) {
               maxWidth: '600px'
             }}
           >
-            Execute visual regression tests and manage reference baselines
+            Execute visual regression tests and manage reference baselines with real-time progress updates
           </Typography>
         </Box>
       </Box>
@@ -428,6 +486,42 @@ function TestRunner({ project, config }) {
           </Stack>
         </CardContent>
       </Card>
+
+      {/* Real-time progress display */}
+      {testRunning && (
+        <Card sx={{ mb: 3, border: '1px solid', borderColor: 'primary.main' }}>
+          <CardContent>
+            <Typography variant="h6" sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
+              <CircularProgress size={20} />
+              Real-time Test Progress
+            </Typography>
+            <LinearProgress 
+              variant="determinate" 
+              value={realTimeProgress} 
+              sx={{ mb: 2, height: 8, borderRadius: 4 }}
+            />
+            <Typography variant="body2" sx={{ mb: 1 }}>
+              Progress: {realTimeProgress.toFixed(0)}%
+            </Typography>
+            {realTimeScenario && (
+              <Typography variant="body2" sx={{ mb: 1 }}>
+                Current Scenario: {realTimeScenario}
+              </Typography>
+            )}
+            {realTimeMessage && (
+              <Typography variant="body2" color="text.secondary">
+                {realTimeMessage}
+              </Typography>
+            )}
+            {!socketConnected && (
+              <Alert severity="warning" sx={{ mt: 2 }}>
+                Real-time connection lost. Progress may not be accurate.
+              </Alert>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
       {/* Scenario Selection UI */}
       <Box sx={{ mt: 6 }}>
         <Box 
@@ -732,7 +826,10 @@ function TestRunner({ project, config }) {
                 textTransform: 'none',
                 fontWeight: 500
               }}
-              onClick={() => navigate('/scenarios')}
+              onClick={() => {
+                // Navigation would go here in a router setup
+                console.log('Navigate to scenarios');
+              }}
             >
               Go to Scenario Manager
             </Button>
