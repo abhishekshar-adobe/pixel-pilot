@@ -40,7 +40,7 @@ import {
 import axios from 'axios'
 import io from 'socket.io-client'
 
-const API_BASE = 'http://localhost:5000/api'
+const API_BASE = 'http://localhost:5000'
 
 // Helper functions
 const getViewportIcon = (viewport) => {
@@ -64,7 +64,7 @@ const getStatusIcon = (status) => {
 }
 
 function TestRunner({ project, config, scenarios: initialScenarios = [] }) {
-  const [scenarios, setScenarios] = useState(initialScenarios)
+  const [scenarios] = useState(initialScenarios)
   const [selectedScenarios, setSelectedScenarios] = useState([])
   const [scenarioResults, setScenarioResults] = useState({})
   const [liveScenarioResults, setLiveScenarioResults] = useState({})
@@ -75,36 +75,9 @@ function TestRunner({ project, config, scenarios: initialScenarios = [] }) {
   const [showSelectedOnly, setShowSelectedOnly] = useState(false)
   const [socketConnected, setSocketConnected] = useState(false)
 
-  // Define loadBackstopReport function first
-  const loadBackstopReport = React.useCallback(async () => {
-    try {
-      const response = await axios.get(`${API_BASE}/projects/${project.id}/test-results`)
-      if (response.data && !response.data.error) {
-        setBackstopReport(response.data)
-        if (response.data?.tests) {
-          const results = {}
-          response.data.tests.forEach(test => {
-            results[test.pair.label] = {
-              status: test.status === 'pass' ? 'passed' : 'failed',
-              misMatchPercentage: test.misMatchPercentage,
-              isSameDimensions: test.isSameDimensions
-            }
-          })
-          setScenarioResults(results)
-        }
-      } else {
-        setBackstopReport(null)
-        setMessage('No test results found. Click "Run Visual Test" to generate your first results.')
-      }
-    } catch {
-      setBackstopReport(null)
-      setMessage('No test results found. Click "Run Visual Test" to generate your first results.')
-    }
-  }, [project.id])
-
   // Socket connection
   useEffect(() => {
-    const socket = io('http://localhost:5000')
+    const socket = io(API_BASE)
     
     socket.on('connect', () => {
       setSocketConnected(true)
@@ -142,10 +115,31 @@ function TestRunner({ project, config, scenarios: initialScenarios = [] }) {
     }
   }, [initialScenarios, loadBackstopReport])
 
-  // Update scenarios when initialScenarios changes
-  useEffect(() => {
-    setScenarios(initialScenarios)
-  }, [initialScenarios])
+  const loadBackstopReport = React.useCallback(async () => {
+    try {
+      const response = await axios.get(`${API_BASE}/projects/${project.id}/test-results`)
+      if (response.data && !response.data.error) {
+        setBackstopReport(response.data)
+        if (response.data?.tests) {
+          const results = {}
+          response.data.tests.forEach(test => {
+            results[test.pair.label] = {
+              status: test.status === 'pass' ? 'passed' : 'failed',
+              misMatchPercentage: test.misMatchPercentage,
+              isSameDimensions: test.isSameDimensions
+            }
+          })
+          setScenarioResults(results)
+        }
+      } else {
+        setBackstopReport(null)
+        setMessage('No test results found. Click "Run Visual Test" to generate your first results.')
+      }
+    } catch {
+      setBackstopReport(null)
+      setMessage('No test results found. Click "Run Visual Test" to generate your first results.')
+    }
+  }, [project.id])
 
   const runTest = async () => {
     setTestRunning(true)

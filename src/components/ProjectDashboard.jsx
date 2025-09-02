@@ -375,6 +375,7 @@ function ProjectContent({ project, onBack }) {
                 <TestRunner 
                   project={project}
                   config={projectConfig}
+                  scenarios={projectConfig?.scenarios || []}
                 />
               } 
             />
