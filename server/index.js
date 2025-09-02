@@ -356,9 +356,12 @@ app.get('/api/projects/:projectId/test-results', async (req, res) => {
 
 // Run BackstopJS test for project
 app.post('/api/projects/:projectId/test', async (req, res) => {
+  let tempConfigPath = null; // For cleanup
+  let configToUse = null;
   try {
     const { projectId } = req.params;
     const { configPath } = await validateProject(projectId);
+    configToUse = configPath; // Initialize with original config path
     
     if (!await fs.pathExists(configPath)) {
       return res.status(404).json({ error: 'Config not found for this project' });
@@ -378,6 +381,42 @@ app.post('/api/projects/:projectId/test', async (req, res) => {
       percent: 0,
       message: 'Initializing test...'
     });
+
+    // Apply scenario filtering if requested
+    if (req.body.filter) {
+      console.log(`Applying filter: "${req.body.filter}"`);
+      const filterScenarios = req.body.filter.split('|');
+      console.log(`Filter scenarios: ${filterScenarios.join(', ')}`);
+      
+      // Create a temporary config with only the filtered scenarios
+      const originalConfig = await fs.readJson(configPath);
+      const filteredScenarios = originalConfig.scenarios.filter(scenario => 
+        filterScenarios.includes(scenario.label)
+      );
+      
+      console.log(`Original scenarios: ${originalConfig.scenarios.length}, Filtered scenarios: ${filteredScenarios.length}`);
+      console.log(`Filtered scenario labels: ${filteredScenarios.map(s => s.label).join(', ')}`);
+      
+      if (filteredScenarios.length === 0) {
+        return res.status(400).json({
+          success: false,
+          error: 'No scenarios match the filter criteria',
+          filter: req.body.filter,
+          availableScenarios: originalConfig.scenarios.map(s => s.label)
+        });
+      }
+      
+      const tempConfig = {
+        ...originalConfig,
+        scenarios: filteredScenarios
+      };
+      
+      tempConfigPath = path.join(path.dirname(configPath), 'temp-filtered-config.json');
+      await fs.writeJson(tempConfigPath, tempConfig, { spaces: 2 });
+      configToUse = tempConfigPath;
+      
+      console.log(`Created temporary config with ${filteredScenarios.length} scenarios`);
+    }
 
     // Check for missing reference images and auto-generate if needed
     const bitmapsRefDir = config.paths.bitmaps_reference;
@@ -418,9 +457,12 @@ app.post('/api/projects/:projectId/test', async (req, res) => {
       message: 'Running visual regression tests...'
     });
 
+    // Get the config to use for progress simulation (use filtered config if created)
+    const configForProgress = tempConfigPath ? await fs.readJson(configToUse) : config;
+    
     // Simulate scenario-by-scenario progress
-    const scenariosToTest = config.scenarios || [];
-    const viewports = config.viewports || [];
+    const scenariosToTest = configForProgress.scenarios || [];
+    const viewports = configForProgress.viewports || [];
     
     for (let i = 0; i < scenariosToTest.length; i++) {
       const scenario = scenariosToTest[i];
@@ -446,8 +488,8 @@ app.post('/api/projects/:projectId/test', async (req, res) => {
     }
 
     const result = await backstop('test', {
-      config: configPath,
-      filter: req.body.filter || undefined
+      config: configToUse,
+      // Remove filter parameter since we're using filtered config file
     });
 
     // Parse and emit individual scenario results
@@ -529,6 +571,16 @@ app.post('/api/projects/:projectId/test', async (req, res) => {
         reportPath: null,
         message: 'Test failed due to configuration error'
       });
+    }
+  } finally {
+    // Clean up temporary config file if it was created
+    if (tempConfigPath && await fs.pathExists(tempConfigPath)) {
+      try {
+        await fs.remove(tempConfigPath);
+        console.log('Cleaned up temporary filtered config file');
+      } catch (cleanupError) {
+        console.warn('Failed to clean up temporary config:', cleanupError.message);
+      }
     }
   }
 });

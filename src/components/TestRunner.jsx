@@ -185,6 +185,11 @@ function TestRunner({ project, config }) {
       setRealTimeProgress(100);
       setMessage(result.message || 'Test completed');
       
+      // Clear live scenario results to reset "running" status
+      setLiveScenarioResults({});
+      setRealTimeScenario(null);
+      setRealTimeMessage('');
+      
       // Reload test results after completion
       setTimeout(() => {
         loadBackstopReport();
@@ -303,6 +308,12 @@ function TestRunner({ project, config }) {
     setTestRunning(true);
     setMessage("");
     setTestResult(null);
+    
+    // Clear live scenario results to reset any previous "running" states
+    setLiveScenarioResults({});
+    setRealTimeProgress(0);
+    setRealTimeScenario(null);
+    setRealTimeMessage('');
 
     // Step 1: Create backup of last test results before running new test
     try {
@@ -346,6 +357,11 @@ function TestRunner({ project, config }) {
     } finally {
       setTestRunning(false);
       setCurrentScenario(null);
+      
+      // Clear live scenario results when test ends (success, error, or interruption)
+      setLiveScenarioResults({});
+      setRealTimeScenario(null);
+      setRealTimeMessage('');
     }
   };
 
@@ -575,8 +591,14 @@ function TestRunner({ project, config }) {
               <Grid item xs={12} sm={6} md={3}>
                 <Box sx={{ textAlign: 'center', p: 2, bgcolor: 'background.default', borderRadius: '8px' }}>
                   <Typography variant="h4" sx={{ fontWeight: 700, color: 'success.main' }}>
-                    {Math.round((Object.values(scenarioResults).filter(r => r.status === 'passed').length / 
-                    Object.values(scenarioResults).length) * 100) || 0}%
+                    {(() => {
+                      const totalResults = Object.values(scenarioResults);
+                      const passedResults = totalResults.filter(r => r.status === 'passed');
+                      
+                      if (totalResults.length === 0) return '0';
+                      
+                      return Math.round((passedResults.length / totalResults.length) * 100);
+                    })()}%
                   </Typography>
                   <Typography variant="caption" sx={{ color: 'text.secondary' }}>
                     Success Rate
@@ -588,11 +610,15 @@ function TestRunner({ project, config }) {
               <Grid item xs={12} sm={6} md={3}>
                 <Box sx={{ textAlign: 'center', p: 2, bgcolor: 'background.default', borderRadius: '8px' }}>
                   <Typography variant="h4" sx={{ fontWeight: 700, color: 'warning.main' }}>
-                    {(Object.values(scenarioResults)
-                      .filter(r => typeof r.misMatchPercentage !== 'undefined' && r.misMatchPercentage > 0)
-                      .reduce((acc, r) => acc + r.misMatchPercentage, 0) / 
-                      Object.values(scenarioResults).filter(r => typeof r.misMatchPercentage !== 'undefined' && r.misMatchPercentage > 0).length
-                    ).toFixed(1) || 0}%
+                    {(() => {
+                      const mismatchResults = Object.values(scenarioResults)
+                        .filter(r => typeof r.misMatchPercentage !== 'undefined' && r.misMatchPercentage > 0);
+                      
+                      if (mismatchResults.length === 0) return '0.0';
+                      
+                      const avgMismatch = mismatchResults.reduce((acc, r) => acc + r.misMatchPercentage, 0) / mismatchResults.length;
+                      return avgMismatch.toFixed(1);
+                    })()}%
                   </Typography>
                   <Typography variant="caption" sx={{ color: 'text.secondary' }}>
                     Avg Mismatch
@@ -616,10 +642,16 @@ function TestRunner({ project, config }) {
               <Grid item xs={12} sm={6} md={3}>
                 <Box sx={{ textAlign: 'center', p: 2, bgcolor: 'background.default', borderRadius: '8px' }}>
                   <Typography variant="body2" sx={{ fontWeight: 700, color: 'text.primary' }}>
-                    {backstopReport?.testSuite?.date ? 
-                      new Date(backstopReport.testSuite.date).toLocaleDateString() : 
-                      'Never'
-                    }
+                    {(() => {
+                      if (backstopReport?.testSuite?.date) {
+                        // New format: testSuite is an object with date
+                        return new Date(backstopReport.testSuite.date).toLocaleDateString();
+                      } else if (backstopReport?.testSuite && typeof backstopReport.testSuite === 'string') {
+                        // Old format: try to get date from current timestamp as fallback
+                        return 'Recent';
+                      }
+                      return 'Never';
+                    })()}
                   </Typography>
                   <Typography variant="caption" sx={{ color: 'text.secondary' }}>
                     Last Test Run
@@ -791,7 +823,7 @@ function TestRunner({ project, config }) {
                     Viewport Coverage
                   </Typography>
                   <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-                    {scenarios.length > 0 && scenarios[0].viewports?.map((viewport, index) => (
+                    {config?.viewports?.map((viewport, index) => (
                       <Chip
                         key={index}
                         size="small"
@@ -1033,10 +1065,15 @@ function TestRunner({ project, config }) {
                     <Grid item xs={12} sm={6} md={3}>
                       <Box sx={{ textAlign: 'center', p: 2, bgcolor: 'background.default', borderRadius: '8px' }}>
                         <Typography variant="h5" sx={{ fontWeight: 700, color: 'error.main' }}>
-                          {(Object.values(liveScenarioResults)
-                            .filter(r => r.mismatchPercentage > 0)
-                            .reduce((acc, r) => acc + r.mismatchPercentage, 0) / 
-                            Object.values(liveScenarioResults).filter(r => r.mismatchPercentage > 0).length).toFixed(1) || 0}%
+                          {(() => {
+                            const mismatchResults = Object.values(liveScenarioResults)
+                              .filter(r => r.mismatchPercentage > 0);
+                            
+                            if (mismatchResults.length === 0) return '0.0';
+                            
+                            const avgMismatch = mismatchResults.reduce((acc, r) => acc + r.mismatchPercentage, 0) / mismatchResults.length;
+                            return avgMismatch.toFixed(1);
+                          })()}%
                         </Typography>
                         <Typography variant="caption" sx={{ color: 'text.secondary' }}>
                           Avg Mismatch
@@ -1056,7 +1093,7 @@ function TestRunner({ project, config }) {
                 // Use live result if available, otherwise fall back to static result
                 const displayStatus = liveResult?.status || result.status;
                 const displayMismatch = liveResult?.mismatchPercentage || result.misMatchPercentage;
-                const displayViewport = scenario.viewports && scenario.viewports[0];
+                const displayViewport = config?.viewports?.[0];
 
                 return (
                   <Paper
