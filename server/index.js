@@ -47,6 +47,88 @@ async function ensureDataDir() {
 
 ensureDataDir();
 
+// Helper function to create auto-backup
+async function createAutoBackup(projectId, configPath, config, description = 'Automated backup created after test execution') {
+  try {
+    console.log('📦 Creating auto-backup...');
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const backupName = `auto_backup_${timestamp}`;
+    const backupId = `${timestamp}_${backupName}`;
+    const backupDir = path.join(__dirname, 'backstop_data', projectId, 'backups', backupId);
+    
+    console.log(`📁 Creating backup directory: ${backupDir}`);
+    await fs.ensureDir(backupDir);
+    
+    // Parse current test results for metadata
+    const reportPath = path.join(config.paths.html_report, 'config.js');
+    console.log(`📄 Looking for report at: ${reportPath}`);
+    let testResults = null;
+    if (await fs.pathExists(reportPath)) {
+      console.log('📄 Report found, parsing results...');
+      const resultsContent = await fs.readFile(reportPath, 'utf8');
+      testResults = parseBackstopResults(resultsContent);
+    } else {
+      console.log('⚠️  Report config.js not found at expected path');
+    }
+    
+    // Create backup metadata
+    const backupMetadata = {
+      id: backupId,
+      name: `Auto Backup - ${new Date().toLocaleDateString()}`,
+      description,
+      projectId,
+      timestamp: new Date().toISOString(),
+      testSummary: {
+        totalTests: testResults?.tests?.length || 0,
+        passedTests: testResults?.tests?.filter(t => t.status === 'pass')?.length || 0,
+        failedTests: testResults?.tests?.filter(t => t.status === 'fail')?.length || 0,
+        avgMismatch: testResults?.tests?.filter(t => t.status === 'fail')
+          .reduce((acc, t) => acc + parseFloat(t.pair?.diff?.misMatchPercentage || 0), 0) / 
+          (testResults?.tests?.filter(t => t.status === 'fail')?.length || 1)
+      },
+      scenarios: testResults?.tests?.map(test => ({
+        label: test.pair.label,
+        viewport: test.pair.viewportLabel,
+        status: test.status,
+        mismatchPercentage: test.pair?.diff?.misMatchPercentage || 0,
+        url: test.pair.url
+      })) || []
+    };
+    
+    // Copy all test artifacts
+    console.log('📁 Copying test artifacts to backup...');
+    await Promise.all([
+      // Copy HTML report
+      fs.copy(path.join(config.paths.html_report), path.join(backupDir, 'html_report')),
+      // Copy test images
+      fs.copy(path.join(config.paths.bitmaps_test), path.join(backupDir, 'bitmaps_test')),
+      // Copy reference images
+      fs.copy(path.join(config.paths.bitmaps_reference), path.join(backupDir, 'bitmaps_reference')),
+      // Save metadata
+      fs.writeJson(path.join(backupDir, 'backup-metadata.json'), backupMetadata, { spaces: 2 }),
+      // Save raw config
+      fs.copy(configPath, path.join(backupDir, 'backstop-config.json'))
+    ]);
+    
+    console.log(`✅ Auto-backup created successfully: ${backupId}`);
+    console.log(`📊 Backup contains ${backupMetadata.testSummary.totalTests} test results`);
+    
+    // Emit backup creation notification
+    io.emit('backup-created', {
+      projectId,
+      backupId,
+      name: backupMetadata.name,
+      timestamp: backupMetadata.timestamp
+    });
+    
+    return { success: true, backupId, backupMetadata };
+  } catch (backupError) {
+    console.error('❌ Failed to create auto-backup:', backupError);
+    console.error('❌ Backup error details:', backupError.stack);
+    return { success: false, error: backupError.message };
+  }
+}
+
 // Add request logging for debugging
 app.use((req, res, next) => {
   console.log(`${new Date().toISOString()} - ${req.method} ${req.url}`);
@@ -358,8 +440,9 @@ app.get('/api/projects/:projectId/test-results', async (req, res) => {
 app.post('/api/projects/:projectId/test', async (req, res) => {
   let tempConfigPath = null; // For cleanup
   let configToUse = null;
+  const { projectId } = req.params; // Move projectId outside try block
+  
   try {
-    const { projectId } = req.params;
     const { configPath } = await validateProject(projectId);
     configToUse = configPath; // Initialize with original config path
     
@@ -442,12 +525,13 @@ app.post('/api/projects/:projectId/test', async (req, res) => {
     }
     if (missingReference) {
       // Auto-generate reference images before running test
+      console.log('🔧 Generating missing reference images...');
       io.emit('test-progress', {
         status: 'running',
         percent: 10,
         message: 'Generating reference images...'
       });
-      await backstop('reference', { config: configPath });
+      await backstop('reference', { config: configToUse });
     }
 
     // Emit progress for test execution
@@ -492,6 +576,8 @@ app.post('/api/projects/:projectId/test', async (req, res) => {
       // Remove filter parameter since we're using filtered config file
     });
 
+    console.log('✅ BackstopJS test completed successfully, creating auto-backup...');
+
     // Parse and emit individual scenario results
     if (result && result.tests) {
       for (const test of result.tests) {
@@ -535,6 +621,9 @@ app.post('/api/projects/:projectId/test', async (req, res) => {
       message: 'Test completed successfully'
     });
 
+    // Automatically create a backup of the test results
+    await createAutoBackup(projectId, configPath, config, 'Automated backup created after successful test execution');
+
     res.json({
       success: true,
       result,
@@ -544,6 +633,7 @@ app.post('/api/projects/:projectId/test', async (req, res) => {
   } catch (error) {
     // BackstopJS throws error when there are visual differences, but this is expected
     console.error('BackstopJS test error (may be expected):', error);
+    console.log('⚠️  Test completed with errors/differences, attempting to create auto-backup...');
     
     try {
       const { configPath } = await validateProject(projectId);
@@ -557,6 +647,9 @@ app.post('/api/projects/:projectId/test', async (req, res) => {
         percent: 100,
         message: 'Test completed with visual differences detected'
       });
+
+      // Automatically create a backup of the test results (even with differences)
+      await createAutoBackup(projectId, configPath, config, 'Automated backup created after test execution with visual differences');
       
       res.status(200).json({ 
         success: false, 
@@ -573,6 +666,27 @@ app.post('/api/projects/:projectId/test', async (req, res) => {
       });
     }
   } finally {
+    // Try to create auto-backup even if test failed, but only if some artifacts exist
+    try {
+      const { configPath } = await validateProject(projectId);
+      const config = await fs.readJson(configPath);
+      
+      // Check if there are any test artifacts to backup
+      const hasHtmlReport = await fs.pathExists(path.join(config.paths.html_report, 'index.html'));
+      const hasTestImages = await fs.pathExists(config.paths.bitmaps_test);
+      const hasRefImages = await fs.pathExists(config.paths.bitmaps_reference);
+      
+      if (hasHtmlReport || hasTestImages || hasRefImages) {
+        console.log('🔍 Found test artifacts, creating backup regardless of test outcome...');
+        await createAutoBackup(projectId, configPath, config, 'Automated backup created after test run (may include partial results)');
+      } else {
+        console.log('🚫 No test artifacts found, skipping backup creation');
+      }
+    } catch (finalBackupError) {
+      console.error('⚠️  Failed to create final auto-backup:', finalBackupError.message);
+      // Don't throw error in finally block
+    }
+    
     // Clean up temporary config file if it was created
     if (tempConfigPath && await fs.pathExists(tempConfigPath)) {
       try {
@@ -756,6 +870,20 @@ app.use('/api/projects/:projectId/report', (req, res, next) => {
   const { projectId } = req.params;
   const reportDir = path.join(__dirname, 'backstop_data', projectId, 'html_report');
   express.static(reportDir)(req, res, next);
+});
+
+// Serve project bitmap reference images
+app.use('/api/projects/:projectId/bitmaps_reference', (req, res, next) => {
+  const { projectId } = req.params;
+  const bitmapsRefDir = path.join(__dirname, 'backstop_data', projectId, 'bitmaps_reference');
+  express.static(bitmapsRefDir)(req, res, next);
+});
+
+// Serve project bitmap test images
+app.use('/api/projects/:projectId/bitmaps_test', (req, res, next) => {
+  const { projectId } = req.params;
+  const bitmapsTestDir = path.join(__dirname, 'backstop_data', projectId, 'bitmaps_test');
+  express.static(bitmapsTestDir)(req, res, next);
 });
 
 // Serve uploaded screenshots
