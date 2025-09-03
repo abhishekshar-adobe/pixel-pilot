@@ -56,6 +56,8 @@ const getStatusIcon = (status) => {
       return <CheckCircle sx={{ color: '#4caf50', fontSize: 16 }} />
     case 'failed':
       return <Error sx={{ color: '#f44336', fontSize: 16 }} />
+    case 'network_error':
+      return <Clear sx={{ color: '#d32f2f', fontSize: 16 }} />
     case 'running':
       return <AccessTime sx={{ color: '#ff9800', fontSize: 16 }} />
     default:
@@ -84,10 +86,25 @@ function TestRunner({ project, config, scenarios: initialScenarios = [] }) {
         if (response.data?.tests) {
           const results = {}
           response.data.tests.forEach(test => {
+            // Handle different test statuses, but distinguish network errors
+            let status = 'pending'
+            if (test.status === 'pass') {
+              status = 'passed'
+            } else if (test.status === 'fail') {
+              // Check if it's a network/CLI error vs regular visual diff
+              if (test.pair?.networkError || test.pair?.cliError) {
+                status = 'network_error' // Keep as network_error for UI distinction
+              } else {
+                status = 'failed'
+              }
+            }
+            
             results[test.pair.label] = {
-              status: test.status === 'pass' ? 'passed' : 'failed',
-              misMatchPercentage: test.misMatchPercentage,
-              isSameDimensions: test.isSameDimensions
+              status,
+              misMatchPercentage: test.misMatchPercentage || (test.pair?.diff?.misMatchPercentage || 0),
+              isSameDimensions: test.isSameDimensions,
+              networkError: test.pair?.networkError || test.pair?.cliError || null,
+              errorMessage: test.error || null
             }
           })
           setScenarioResults(results)
@@ -129,6 +146,20 @@ function TestRunner({ project, config, scenarios: initialScenarios = [] }) {
       setTestRunning(false)
       setLiveScenarioResults({})
       loadBackstopReport()
+    })
+
+    socket.on('report-enhanced', (data) => {
+      console.log('Report enhanced with invalid scenarios:', data)
+      setMessage(`Report enhanced with ${data.networkErrorCount} network error scenarios`)
+      // Reload the report to show enhanced data
+      setTimeout(() => {
+        loadBackstopReport()
+      }, 1000)
+    })
+
+    socket.on('report-enhancement-failed', (data) => {
+      console.error('Report enhancement failed:', data)
+      setMessage(`Warning: Failed to enhance report with invalid scenarios - ${data.error}`)
     })
 
     return () => socket.disconnect()
@@ -355,7 +386,7 @@ function TestRunner({ project, config, scenarios: initialScenarios = [] }) {
         <Grid item xs={6} sm={3}>
           <Card elevation={0} sx={{ textAlign: 'center', p: 3, borderRadius: '16px', bgcolor: 'error.lighter' }}>
             <Typography variant="h4" sx={{ fontWeight: 700, color: 'error.main' }}>
-              {Object.values(scenarioResults).filter(r => r.status === 'failed').length}
+              {Object.values(scenarioResults).filter(r => r.status === 'failed' || r.status === 'network_error').length}
             </Typography>
             <Typography variant="body2" sx={{ color: 'error.dark', fontWeight: 500 }}>
               Failed
@@ -365,10 +396,10 @@ function TestRunner({ project, config, scenarios: initialScenarios = [] }) {
         <Grid item xs={6} sm={3}>
           <Card elevation={0} sx={{ textAlign: 'center', p: 3, borderRadius: '16px', bgcolor: 'warning.lighter' }}>
             <Typography variant="h4" sx={{ fontWeight: 700, color: 'warning.main' }}>
-              {Object.values(liveScenarioResults).filter(r => r.status === 'running').length}
+              {Object.values(scenarioResults).filter(r => r.status === 'network_error').length + Object.values(liveScenarioResults).filter(r => r.status === 'running').length}
             </Typography>
             <Typography variant="body2" sx={{ color: 'warning.dark', fontWeight: 500 }}>
-              Running
+              Network/Running
             </Typography>
           </Card>
         </Grid>
@@ -404,7 +435,7 @@ function TestRunner({ project, config, scenarios: initialScenarios = [] }) {
                   <Typography variant="h4" sx={{ fontWeight: 700, color: 'warning.main' }}>
                     {(() => {
                       const mismatchResults = Object.values(scenarioResults)
-                        .filter(r => typeof r.misMatchPercentage !== 'undefined' && r.misMatchPercentage > 0)
+                        .filter(r => r.status === 'failed' && typeof r.misMatchPercentage !== 'undefined' && r.misMatchPercentage > 0)
                       if (mismatchResults.length === 0) return '0.0'
                       const avgMismatch = mismatchResults.reduce((acc, r) => acc + r.misMatchPercentage, 0) / mismatchResults.length
                       return avgMismatch.toFixed(1)
@@ -418,9 +449,19 @@ function TestRunner({ project, config, scenarios: initialScenarios = [] }) {
               <Grid item xs={12} sm={6} md={3}>
                 <Box sx={{ textAlign: 'center', p: 3, bgcolor: 'error.lighter', borderRadius: '12px' }}>
                   <Typography variant="h4" sx={{ fontWeight: 700, color: 'error.main' }}>
-                    {Object.values(scenarioResults).filter(r => r.isSameDimensions === false).length}
+                    {Object.values(scenarioResults).filter(r => r.status === 'network_error').length}
                   </Typography>
                   <Typography variant="body2" sx={{ color: 'error.dark', fontWeight: 500 }}>
+                    Network Errors
+                  </Typography>
+                </Box>
+              </Grid>
+              <Grid item xs={12} sm={6} md={3}>
+                <Box sx={{ textAlign: 'center', p: 3, bgcolor: 'warning.lighter', borderRadius: '12px' }}>
+                  <Typography variant="h4" sx={{ fontWeight: 700, color: 'warning.main' }}>
+                    {Object.values(scenarioResults).filter(r => r.isSameDimensions === false).length}
+                  </Typography>
+                  <Typography variant="body2" sx={{ color: 'warning.dark', fontWeight: 500 }}>
                     Size Issues
                   </Typography>
                 </Box>
@@ -610,20 +651,23 @@ function TestRunner({ project, config, scenarios: initialScenarios = [] }) {
                         <Box sx={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
                           <Chip
                             size="small"
-                            icon={getStatusIcon(displayStatus, displayMismatch)}
+                            icon={getStatusIcon(displayStatus)}
                             label={
                               displayStatus === 'passed' ? '✅ Passed' :
                               displayStatus === 'failed' ? '❌ Failed' :
+                              displayStatus === 'network_error' ? '🚫 Network Error' :
                               displayStatus === 'running' ? '⏳ Running' : 'Pending'
                             }
                             sx={{
                               borderRadius: '8px',
                               bgcolor: displayStatus === 'passed' ? 'rgba(76, 175, 80, 0.1)' :
                                        displayStatus === 'failed' ? 'rgba(244, 67, 54, 0.1)' :
+                                       displayStatus === 'network_error' ? 'rgba(211, 47, 47, 0.1)' :
                                        displayStatus === 'running' ? 'rgba(255, 152, 0, 0.1)' :
                                        'background.default',
                               color: displayStatus === 'passed' ? '#4caf50' :
                                      displayStatus === 'failed' ? '#f44336' :
+                                     displayStatus === 'network_error' ? '#d32f2f' :
                                      displayStatus === 'running' ? '#ff9800' :
                                      'text.secondary',
                               fontWeight: 500
@@ -641,6 +685,23 @@ function TestRunner({ project, config, scenarios: initialScenarios = [] }) {
                                 border: '1px solid',
                                 borderColor: 'divider'
                               }}
+                            />
+                          )}
+                          
+                          {/* Show network error details */}
+                          {result.networkError && (
+                            <Chip
+                              size="small"
+                              label={`${result.networkError.type}: ${result.networkError.message.substring(0, 30)}...`}
+                              sx={{
+                                borderRadius: '8px',
+                                bgcolor: 'error.lighter',
+                                color: 'error.dark',
+                                border: '1px solid',
+                                borderColor: 'error.main',
+                                maxWidth: '200px'
+                              }}
+                              title={result.networkError.message}
                             />
                           )}
                           

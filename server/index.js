@@ -12,6 +12,7 @@ const { DesignComparisonEngine } = require('./design-comparison-engine');
 const { getLatestTestResults } = require('./utils/test-results');
 const { validateProject, PROJECTS_FILE } = require('./utils/project-utils');
 const http = require('http');
+const https = require('https');
 const socketIo = require('socket.io');
 
 const app = express();
@@ -46,6 +47,369 @@ async function ensureDataDir() {
 }
 
 ensureDataDir();
+
+// URL validation function for pre-testing
+async function validateUrl(url) {
+  try {
+    console.log(`🔍 Starting validation for: ${url}`);
+    
+    // Basic URL format validation
+    let validatedUrl;
+    try {
+      validatedUrl = new URL(url);
+    } catch (urlError) {
+      console.log(`❌ Invalid URL format: ${url}`);
+      return {
+        valid: false,
+        type: 'INVALID_FORMAT',
+        message: `Invalid URL format: ${urlError.message}`,
+        severity: 'high'
+      };
+    }
+
+    // Test network connectivity for all URLs including localhost
+    console.log(`🌐 Testing network connectivity: ${url}`);
+    
+    // Special handling for Adobe AEM URLs - they might be slower
+    const isAdobeAEM = url.includes('aem.enablementadobe.com');
+    const timeoutMs = isAdobeAEM ? 15000 : 8000; // 15s for Adobe AEM, 8s for others
+    
+    console.log(`⏱️ Using timeout: ${timeoutMs/1000}s ${isAdobeAEM ? '(Adobe AEM detected)' : ''}`);
+    
+    // Create a promise with manual timeout control
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => reject(new Error(`Manual timeout after ${timeoutMs/1000} seconds`)), timeoutMs);
+    });
+    
+    const requestPromise = axios.get(url, {
+      timeout: timeoutMs,
+      headers: {
+        'User-Agent': isAdobeAEM ? 
+          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36' :
+          'PixelPilot-BackstopJS-Validator/1.0'
+      },
+      validateStatus: function () {
+        return true; // Don't throw on any status code
+      },
+      maxRedirects: 5, // More redirects for Adobe URLs
+      followRedirect: true,
+      // Disable SSL verification for Adobe AEM URLs to handle certificate issues
+      httpsAgent: isAdobeAEM ? new (require('https').Agent)({
+        rejectUnauthorized: false
+      }) : undefined
+    });
+
+    const response = await Promise.race([requestPromise, timeoutPromise]);
+    console.log(`📡 Response received for ${url}: ${response.status}`);
+
+    // Check response status
+    if (response.status >= 200 && response.status < 400) {
+      console.log(`✅ URL accessible: ${url} (${response.status})`);
+      return {
+        valid: true,
+        type: 'SUCCESS',
+        message: `URL accessible (${response.status})`,
+        severity: 'info',
+        statusCode: response.status
+      };
+    } else if (response.status >= 400 && response.status < 500) {
+      console.log(`❌ Client error for ${url}: ${response.status}`);
+      return {
+        valid: false,
+        type: 'CLIENT_ERROR',
+        message: `Client error: ${response.status} ${response.statusText}`,
+        severity: 'high',
+        statusCode: response.status
+      };
+    } else if (response.status >= 500) {
+      console.log(`❌ Server error for ${url}: ${response.status}`);
+      return {
+        valid: false,
+        type: 'SERVER_ERROR',
+        message: `Server error: ${response.status} ${response.statusText}`,
+        severity: 'high',
+        statusCode: response.status
+      };
+    }
+
+  } catch (error) {
+    console.log(`❌ Network error for ${url}:`, error.message);
+    
+    // Network connectivity errors
+    if (error.code === 'ECONNREFUSED') {
+      return {
+        valid: false,
+        type: 'CONNECTION_REFUSED',
+        message: 'Connection refused - server not responding',
+        severity: 'high'
+      };
+    } else if (error.code === 'ENOTFOUND' || error.code === 'EAI_NONAME') {
+      return {
+        valid: false,
+        type: 'DNS_ERROR',
+        message: 'DNS resolution failed - domain not found',
+        severity: 'high'
+      };
+    } else if (error.code === 'ETIMEDOUT' || error.message?.includes('timeout')) {
+      return {
+        valid: false,
+        type: 'TIMEOUT',
+        message: 'Request timeout - server not responding in time',
+        severity: 'medium'
+      };
+    } else if (error.code === 'ECONNRESET') {
+      return {
+        valid: false,
+        type: 'CONNECTION_RESET',
+        message: 'Connection reset by server',
+        severity: 'medium'
+      };
+    } else if (error.message?.includes('Manual timeout')) {
+      return {
+        valid: false,
+        type: 'TIMEOUT',
+        message: `Validation timeout - server took too long to respond (${error.message})`,
+        severity: 'medium'
+      };
+    } else {
+      return {
+        valid: false,
+        type: 'NETWORK_ERROR',
+        message: `Network error: ${error.message}`,
+        severity: 'high'
+      };
+    }
+  }
+}
+
+// Function to create mock BackstopJS results for invalid scenarios and append to report
+async function appendInvalidScenariosToReport(projectId, config, invalidScenarios, backstopResult) {
+  try {
+    console.log(`� DEBUG: appendInvalidScenariosToReport called with:`);
+    console.log(`   - ProjectId: ${projectId}`);
+    console.log(`   - InvalidScenarios count: ${invalidScenarios.length}`);
+    console.log(`   - BackstopResult: ${backstopResult ? 'exists' : 'null/undefined'}`);
+    console.log(`   - BackstopResult tests count: ${backstopResult?.tests?.length || 0}`);
+    console.log(`   - Config paths: ${JSON.stringify(config.paths)}`);
+    
+    // Ensure backstopResult has a proper structure
+    const safeBackstopResult = backstopResult || { tests: [] };
+    if (!safeBackstopResult.tests) {
+      safeBackstopResult.tests = [];
+    }
+    
+    console.log(`�📋 Generating mock results for ${invalidScenarios.length} invalid scenarios...`);
+    
+    const mockResults = [];
+    
+    // Create mock test results for each invalid scenario across all viewports
+    for (const { scenario, reason, message, validation, matchedFilter } of invalidScenarios) {
+      for (const viewport of config.viewports || []) {
+        const mockResult = {
+          pair: {
+            reference: null,
+            test: null,
+            selector: scenario.selector || 'document',
+            fileName: `${projectId}_${scenario.label}_${viewport.label}_network_error`,
+            label: scenario.label,
+            viewportLabel: viewport.label,
+            url: scenario.url,
+            referenceUrl: scenario.referenceUrl || scenario.url,
+            expect: 0,
+            viewportSize: {
+              width: viewport.width,
+              height: viewport.height
+            },
+            diff: {
+              isSameDimensions: false,
+              dimensionDifference: {
+                width: 0,
+                height: 0
+              },
+              misMatchPercentage: 100, // 100% mismatch for network errors
+              analysisTime: 0,
+              getDiffImage: null
+            }
+          },
+          status: 'fail',
+          error: `Network Error [${reason}]: ${message}${matchedFilter !== undefined ? (matchedFilter ? ' (Matched Filter)' : ' (Outside Filter - Shown for Awareness)') : ''}`,
+          networkError: true,
+          errorType: reason,
+          matchedFilter: matchedFilter,
+          originalValidation: validation || null,
+          timestamp: new Date().toISOString()
+        };
+        
+        mockResults.push(mockResult);
+      }
+    }
+    
+    // Merge mock results with actual BackstopJS results
+    const enhancedResult = {
+      ...safeBackstopResult,
+      tests: [
+        ...(safeBackstopResult.tests || []),
+        ...mockResults
+      ],
+      hasNetworkErrors: true,
+      networkErrorCount: invalidScenarios.length,
+      totalScenarios: (safeBackstopResult.tests?.length || 0) + mockResults.length,
+      validScenariosCount: safeBackstopResult.tests?.length || 0,
+      invalidScenariosCount: invalidScenarios.length
+    };
+    
+    // Write enhanced report to BackstopJS report location
+    const reportPath = path.join(config.paths.html_report, 'config.js');
+    
+    // First, try to read the existing report that BackstopJS generated
+    let existingReportContent = null;
+    try {
+      if (await fs.pathExists(reportPath)) {
+        existingReportContent = await fs.readFile(reportPath, 'utf8');
+        console.log('📖 Found existing BackstopJS report, will enhance it');
+        
+        // Extract the existing report data
+        const reportMatch = existingReportContent.match(/report\((.*)\);/s);
+        if (reportMatch) {
+          const existingReportData = JSON.parse(reportMatch[1]);
+          console.log(`📊 Existing report has ${existingReportData.tests?.length || 0} tests`);
+          
+          // Merge with existing data instead of replacing
+          enhancedResult.tests = [
+            ...(existingReportData.tests || []),
+            ...mockResults
+          ];
+          enhancedResult.totalScenarios = enhancedResult.tests.length;
+          enhancedResult.validScenariosCount = existingReportData.tests?.length || 0;
+          
+          console.log(`🔄 Merged report: ${enhancedResult.validScenariosCount} existing + ${mockResults.length} new = ${enhancedResult.totalScenarios} total`);
+        }
+      } else {
+        console.log('⚠️  No existing BackstopJS report found, creating new one');
+      }
+    } catch (readError) {
+      console.warn('⚠️  Could not read existing report, will create new one:', readError.message);
+    }
+    
+    const reportData = `report(${JSON.stringify(enhancedResult, null, 2)});`;
+    
+    console.log(`🔧 DEBUG: About to write enhanced report to: ${reportPath}`);
+    console.log(`🔧 DEBUG: Enhanced result has ${enhancedResult.tests?.length || 0} tests`);
+    console.log(`🔧 DEBUG: Network error tests: ${enhancedResult.tests?.filter(t => t.networkError)?.length || 0}`);
+    
+    // Create backup of original report before overwriting
+    const originalBackup = path.join(config.paths.html_report, 'config_original_backup.js');
+    try {
+      if (await fs.pathExists(reportPath)) {
+        await fs.copy(reportPath, originalBackup);
+        console.log(`📋 Original report backed up to: ${originalBackup}`);
+      }
+    } catch (backupError) {
+      console.warn('⚠️  Could not backup original report:', backupError.message);
+    }
+    
+    const enhancedReportData = `report(${JSON.stringify(enhancedResult, null, 2)});`;
+    
+    // Read original content for size comparison
+    let originalContent = '';
+    try {
+      if (await fs.pathExists(reportPath)) {
+        originalContent = await fs.readFile(reportPath, 'utf8');
+      }
+    } catch (error) {
+      console.warn('⚠️  Could not read original content for comparison:', error.message);
+    }
+    
+    // Write enhanced report with retry mechanism
+    let writeSuccess = false;
+    let writeAttempts = 0;
+    const maxWriteAttempts = 3;
+    
+    while (!writeSuccess && writeAttempts < maxWriteAttempts) {
+      try {
+        writeAttempts++;
+        console.log(`🔧 Writing enhanced report (attempt ${writeAttempts}/${maxWriteAttempts})...`);
+        
+        await fs.writeFile(reportPath, enhancedReportData, 'utf8');
+        
+        // Verify the write was successful by reading back
+        const verifyContent = await fs.readFile(reportPath, 'utf8');
+        
+        // Simple verification: check if content changed and is longer than before
+        const hasScenarioLabel = invalidScenarios.length > 0 ? 
+          verifyContent.includes(invalidScenarios[0].scenario.label) : true;
+        const hasNetworkError = verifyContent.includes('networkError');
+        const sizeIncreased = verifyContent.length > originalContent.length;
+        
+        if (hasScenarioLabel && hasNetworkError && sizeIncreased) {
+          writeSuccess = true;
+          console.log(`✅ Enhanced report successfully written and verified`);
+          console.log(`📊 Verified ${invalidScenarios.length} invalid scenarios in report`);
+          console.log(`📈 Report size increased from ${originalContent.length} to ${verifyContent.length} bytes`);
+        } else {
+          console.log(`🔍 DEBUG verification details:`, {
+            hasScenarioLabel,
+            hasNetworkError, 
+            sizeIncreased,
+            originalLength: originalContent.length,
+            newLength: verifyContent.length,
+            searchingFor: invalidScenarios[0]?.scenario?.label
+          });
+          // Don't fail if it's close - just warn and continue
+          if (sizeIncreased) {
+            writeSuccess = true;
+            console.log('⚠️  Report was written (size increased) but verification incomplete - continuing anyway');
+          } else {
+            throw new Error(`Enhanced content verification failed - no size increase detected`);
+          }
+        }
+        
+      } catch (writeError) {
+        console.error(`❌ Write attempt ${writeAttempts} failed:`, writeError.message);
+        if (writeAttempts < maxWriteAttempts) {
+          console.log(`🔄 Retrying write in 1 second...`);
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        } else {
+          throw writeError;
+        }
+      }
+    }
+    
+    console.log(`📊 Final report contains: ${enhancedResult.totalScenarios} total scenarios (${enhancedResult.validScenariosCount} tested + ${enhancedResult.invalidScenariosCount} network errors)`);
+    
+    // Verify the file was written correctly
+    console.log(`🔧 DEBUG: Verifying written file...`);
+    const verifyContent = await fs.readFile(reportPath, 'utf8');
+    const verifyMatch = verifyContent.match(/report\((.*)\);/s);
+    if (verifyMatch) {
+      const verifyData = JSON.parse(verifyMatch[1]);
+      console.log(`🔧 DEBUG: Verification - file has ${verifyData.tests?.length || 0} tests`);
+      const networkTestInFile = verifyData.tests?.find(t => t.pair?.label === 'network-test');
+      console.log(`🔧 DEBUG: "network-test" found in file: ${networkTestInFile ? 'YES' : 'NO'}`);
+      
+      if (networkTestInFile) {
+        console.log(`🔧 DEBUG: network-test details:`, {
+          status: networkTestInFile.status,
+          networkError: networkTestInFile.networkError,
+          errorType: networkTestInFile.errorType
+        });
+      }
+    } else {
+      console.log(`🔧 DEBUG: Could not parse written file for verification`);
+    }
+    
+    // Also create a backup of the enhanced report
+    const backupReportPath = path.join(config.paths.html_report, `config_enhanced_${Date.now()}.js`);
+    await fs.writeFile(backupReportPath, reportData, 'utf8');
+    console.log(`📋 Enhanced report backup created: ${backupReportPath}`);
+    
+    return enhancedResult;
+    
+  } catch (error) {
+    console.error('Error appending invalid scenarios to report:', error);
+    throw error;
+  }
+}
 
 // Helper function to create auto-backup
 async function createAutoBackup(projectId, configPath, config, description = 'Automated backup created after test execution') {
@@ -442,15 +806,32 @@ app.post('/api/projects/:projectId/test', async (req, res) => {
   let configToUse = null;
   const { projectId } = req.params; // Move projectId outside try block
   
+  console.log(`\n🚀 === TEST REQUEST RECEIVED ===`);
+  console.log(`📝 Project ID: ${projectId}`);
+  console.log(`🔍 Filter: ${req.body.filter || 'none'}`);
+  console.log(`📋 Request body:`, req.body);
+  
   try {
+    console.log(`📂 Validating project: ${projectId}`);
     const { configPath } = await validateProject(projectId);
     configToUse = configPath; // Initialize with original config path
     
+    console.log(`📄 Config path: ${configPath}`);
     if (!await fs.pathExists(configPath)) {
       return res.status(404).json({ error: 'Config not found for this project' });
     }
-    
+
+    console.log(`📖 Reading configuration...`);
     const config = await fs.readJson(configPath);
+    console.log(`📊 Found ${config.scenarios?.length || 0} scenarios in configuration`);
+    
+    // Log scenario names
+    if (config.scenarios) {
+      console.log(`📋 Available scenarios:`);
+      config.scenarios.forEach((scenario, index) => {
+        console.log(`   ${index + 1}. "${scenario.label}" -> ${scenario.url}`);
+      });
+    }
     // Ensure all paths exist
     await Promise.all([
       fs.ensureDir(config.paths.bitmaps_reference),
@@ -458,47 +839,236 @@ app.post('/api/projects/:projectId/test', async (req, res) => {
       fs.ensureDir(config.paths.html_report)
     ]);
 
+    // ENHANCED PRE-VALIDATION: Check all URLs and separate valid/invalid scenarios
+    console.log('🔍 Enhanced pre-validation: Checking all URLs to prevent BackstopJS interruption...');
+    io.emit('test-progress', {
+      status: 'validating',
+      percent: 5,
+      message: 'Pre-validating all URLs to ensure stable test execution...'
+    });
+
+    const validScenarios = [];
+    const invalidScenarios = [];
+    const validationResults = [];
+    
+    const scenariosToValidate = config.scenarios || [];
+    
+    for (let i = 0; i < scenariosToValidate.length; i++) {
+      const scenario = scenariosToValidate[i];
+      const progressPercent = 5 + ((i / scenariosToValidate.length) * 15); // 5% to 20%
+      
+      if (!scenario.url) {
+        console.warn(`⚠️ Skipping scenario "${scenario.label}" - no URL provided`);
+        invalidScenarios.push({
+          scenario,
+          reason: 'NO_URL',
+          message: 'No URL provided for this scenario'
+        });
+        continue;
+      }
+      
+      console.log(`🌐 Validating (${i + 1}/${scenariosToValidate.length}): ${scenario.url}`);
+      io.emit('test-progress', {
+        status: 'validating',
+        percent: progressPercent,
+        message: `Validating URLs... (${i + 1}/${scenariosToValidate.length}) ${scenario.label}`
+      });
+      
+      const validation = await validateUrl(scenario.url);
+      validationResults.push({ scenario, validation });
+      
+      console.log(`🔍 Validation result for "${scenario.label}":`, {
+        url: scenario.url,
+        valid: validation.valid,
+        type: validation.type,
+        message: validation.message,
+        severity: validation.severity
+      });
+      
+      if (validation.valid) {
+        validScenarios.push(scenario);
+        console.log(`✅ Valid: ${scenario.label} - Added to BackstopJS execution`);
+      } else {
+        console.warn(`❌ Invalid: ${scenario.label} - ${validation.message}`);
+        invalidScenarios.push({
+          scenario,
+          reason: validation.type,
+          message: validation.message,
+          validation
+        });
+        
+        console.log(`🚫 Added to invalid scenarios list:`, {
+          label: scenario.label,
+          reason: validation.type,
+          message: validation.message
+        });
+        
+        // Emit warning but don't stop the test
+        io.emit('test-warning', {
+          scenario: scenario.label,
+          type: validation.type,
+          message: validation.message,
+          severity: validation.severity,
+          timestamp: new Date().toISOString()
+        });
+      }
+    }
+
+    // Report validation summary
+    console.log(`\n📊 URL Validation Summary:`);
+    console.log(`✅ Valid scenarios: ${validScenarios.length}`);
+    console.log(`❌ Invalid scenarios: ${invalidScenarios.length}`);
+    console.log(`📋 Total scenarios: ${scenariosToValidate.length}`);
+    
+    if (invalidScenarios.length > 0) {
+      console.log(`\n🚫 Invalid scenarios (will be excluded from BackstopJS but included in final report):`);
+      invalidScenarios.forEach(({ scenario, reason, message }) => {
+        console.log(`   - ${scenario.label}: ${reason} - ${message}`);
+      });
+    }
+
+    // If no valid scenarios, return error
+    if (validScenarios.length === 0) {
+      io.emit('test-complete', {
+        status: 'failed',
+        percent: 100,
+        message: 'No valid URLs found - all scenarios have network issues',
+        invalidScenarios: invalidScenarios.length
+      });
+
+      return res.status(400).json({
+        success: false,
+        error: 'No valid URLs found',
+        message: 'All scenarios have network connectivity issues',
+        invalidScenarios: invalidScenarios.length,
+        details: invalidScenarios.map(({ scenario, reason, message }) => ({
+          scenario: scenario.label,
+          reason,
+          message
+        }))
+      });
+    }
+
+    // CREATE FILTERED CONFIG WITH ONLY VALID SCENARIOS
+    // This ensures BackstopJS won't be interrupted by network issues
+    console.log(`\n🔧 Creating filtered config with ${validScenarios.length} valid scenarios...`);
+    
+    const validConfig = {
+      ...config,
+      scenarios: validScenarios
+    };
+    
+    // Create temporary config file with only valid scenarios
+    const validConfigPath = path.join(path.dirname(configPath), 'temp-valid-scenarios-config.json');
+    await fs.writeJson(validConfigPath, validConfig, { spaces: 2 });
+    configToUse = validConfigPath;
+    tempConfigPath = validConfigPath; // For cleanup
+
+    console.log(`✅ Filtered config created: ${validScenarios.length} valid scenarios will be tested`);
+    console.log(`🔄 BackstopJS will run without interruptions from network issues`);
+
     // Emit test start event
     io.emit('test-progress', {
       status: 'started',
-      percent: 0,
-      message: 'Initializing test...'
+      percent: 25,
+      message: 'Pre-validation completed. Preparing test execution...'
     });
 
-    // Apply scenario filtering if requested
+    // Apply scenario filtering if requested - ONLY TO VALID SCENARIOS
     if (req.body.filter) {
-      console.log(`Applying filter: "${req.body.filter}"`);
+      console.log(`\n🔍 Applying filter to ${validScenarios.length} valid scenarios: "${req.body.filter}"`);
       const filterScenarios = req.body.filter.split('|');
       console.log(`Filter scenarios: ${filterScenarios.join(', ')}`);
       
-      // Create a temporary config with only the filtered scenarios
-      const originalConfig = await fs.readJson(configPath);
-      const filteredScenarios = originalConfig.scenarios.filter(scenario => 
+      // Filter only the valid scenarios
+      const filteredValidScenarios = validScenarios.filter(scenario => 
         filterScenarios.includes(scenario.label)
       );
       
-      console.log(`Original scenarios: ${originalConfig.scenarios.length}, Filtered scenarios: ${filteredScenarios.length}`);
-      console.log(`Filtered scenario labels: ${filteredScenarios.map(s => s.label).join(', ')}`);
+      console.log(`Valid scenarios after filtering: ${filteredValidScenarios.length}`);
+      console.log(`Filtered valid scenario labels: ${filteredValidScenarios.map(s => s.label).join(', ')}`);
       
-      if (filteredScenarios.length === 0) {
+      // Also check if any filtered scenarios were invalid (and warn user)
+      const filteredInvalidScenarios = invalidScenarios.filter(item =>
+        filterScenarios.includes(item.scenario.label)
+      );
+      
+      if (filteredInvalidScenarios.length > 0) {
+        console.log(`\n⚠️  Warning: ${filteredInvalidScenarios.length} filtered scenarios have network issues and will be excluded from BackstopJS:`);
+        filteredInvalidScenarios.forEach(item => {
+          console.log(`   ❌ "${item.scenario.label}": ${item.reason} - ${item.message}`);
+        });
+        console.log(`   ℹ️  These scenarios will appear as network errors in the final report`);
+      }
+      
+      if (filteredValidScenarios.length === 0 && filteredInvalidScenarios.length === 0) {
         return res.status(400).json({
           success: false,
           error: 'No scenarios match the filter criteria',
           filter: req.body.filter,
-          availableScenarios: originalConfig.scenarios.map(s => s.label)
+          availableScenarios: [...validScenarios, ...invalidScenarios.map(i => i.scenario)].map(s => s.label)
         });
       }
       
-      const tempConfig = {
-        ...originalConfig,
-        scenarios: filteredScenarios
-      };
+      if (filteredValidScenarios.length === 0) {
+        console.log('\n❌ All filtered scenarios have network issues - cannot proceed with BackstopJS execution');
+        console.log('   However, network error results will still be generated in the report');
+        
+        // Since all filtered scenarios are invalid, we still need to generate a report with network errors
+        // Create an empty BackstopJS result and enhance it with network errors
+        const emptyResult = {
+          tests: [],
+          passed: 0,
+          failed: 0,
+          pending: 0
+        };
+        
+        // Mark filtered vs non-filtered invalid scenarios for better reporting
+        invalidScenarios.forEach(item => {
+          item.matchedFilter = filterScenarios.includes(item.scenario.label);
+        });
+        
+        // Enhance with ALL invalid scenarios (both filtered and non-filtered)
+        // This ensures users see all network issues, not just the filtered ones
+        const enhancedResult = await appendInvalidScenariosToReport(projectId, config, invalidScenarios, emptyResult);
+        
+        return res.status(200).json({
+          success: true,
+          result: enhancedResult,
+          reportPath: null,
+          message: `All filtered scenarios had network issues - report generated with network error results (${filteredInvalidScenarios.length} matching filter, ${invalidScenarios.length - filteredInvalidScenarios.length} others shown for awareness)`,
+          hasNetworkErrors: true,
+          networkErrorCount: invalidScenarios.length,
+          filteredNetworkErrorCount: filteredInvalidScenarios.length
+        });
+      }
       
-      tempConfigPath = path.join(path.dirname(configPath), 'temp-filtered-config.json');
-      await fs.writeJson(tempConfigPath, tempConfig, { spaces: 2 });
+      // Update the config to use only filtered valid scenarios
+      const filteredConfig = {
+        ...config,
+        scenarios: filteredValidScenarios
+      };
+      // console.log(filteredConfig, "+++++++++++++++++++++++++++++++##########");
+      // Update the temp config path
+      tempConfigPath = path.join(path.dirname(configPath), 'temp-filtered-valid-config.json');
+      await fs.writeJson(tempConfigPath, filteredConfig, { spaces: 2 });
       configToUse = tempConfigPath;
       
-      console.log(`Created temporary config with ${filteredScenarios.length} scenarios`);
+      // IMPORTANT: When filtering, we need to include ALL invalid scenarios in the report
+      // Not just the ones that match the filter, because users should see all network issues
+      // But we'll mark which ones match the filter vs which ones don't
+      console.log(`\n📋 Report will include:`);
+      console.log(`   ✅ ${filteredValidScenarios.length} valid scenarios (matching filter)`);
+      console.log(`   ❌ ${filteredInvalidScenarios.length} invalid scenarios (matching filter)`);
+      console.log(`   ⚠️  ${invalidScenarios.length - filteredInvalidScenarios.length} invalid scenarios (not matching filter, included for awareness)`);
+      
+      // Mark filtered vs non-filtered invalid scenarios for better reporting
+      invalidScenarios.forEach(item => {
+        item.matchedFilter = filterScenarios.includes(item.scenario.label);
+      });
+      
+      console.log(`✅ Filter applied - BackstopJS will test ${filteredValidScenarios.length} valid scenarios`);
+      console.log(`📝 Report will include ${invalidScenarios.length} total network error scenarios`);
     }
 
     // Check for missing reference images and auto-generate if needed
@@ -576,7 +1146,20 @@ app.post('/api/projects/:projectId/test', async (req, res) => {
       // Remove filter parameter since we're using filtered config file
     });
 
-    console.log('✅ BackstopJS test completed successfully, creating auto-backup...');
+    console.log('✅ BackstopJS test completed successfully');
+    console.log(`📊 BackstopJS result summary: ${result?.tests?.length || 0} tests executed`);
+    console.log(`📋 Invalid scenarios count from validation phase: ${invalidScenarios.length}`);
+    
+    if (invalidScenarios.length > 0) {
+      console.log(`🔍 Invalid scenarios detected during validation:`);
+      invalidScenarios.forEach(({ scenario, reason, message }, index) => {
+        console.log(`   ${index + 1}. "${scenario.label}" - ${reason}: ${message}`);
+      });
+    } else {
+      console.log(`ℹ️  No invalid scenarios detected during validation - all URLs were accessible`);
+    }
+
+    console.log('📦 Creating auto-backup...');
 
     // Parse and emit individual scenario results
     if (result && result.tests) {
@@ -615,10 +1198,18 @@ app.post('/api/projects/:projectId/test', async (req, res) => {
     }
 
     // Emit completion
+    const completionMessage = invalidScenarios.length > 0 
+      ? `Test completed: ${validScenarios.length} tested, ${invalidScenarios.length} network errors excluded` 
+      : 'Test completed successfully';
+      
     io.emit('test-complete', {
       status: 'done',
       percent: 100,
-      message: 'Test completed successfully'
+      message: completionMessage,
+      totalScenarios: validScenarios.length + invalidScenarios.length,
+      validScenarios: validScenarios.length,
+      invalidScenarios: invalidScenarios.length,
+      hasNetworkErrors: invalidScenarios.length > 0
     });
 
     // Automatically create a backup of the test results
@@ -627,9 +1218,130 @@ app.post('/api/projects/:projectId/test', async (req, res) => {
     res.json({
       success: true,
       result,
-      message: 'Test completed successfully',
-      reportPath: `/api/projects/${projectId}/report/index.html`
+      message: completionMessage,
+      reportPath: `/api/projects/${projectId}/report/index.html`,
+      enhancedReport: invalidScenarios.length > 0,
+      totalScenarios: validScenarios.length + invalidScenarios.length,
+      validScenarios: validScenarios.length,
+      invalidScenarios: invalidScenarios.length,
+      networkErrorDetails: invalidScenarios.length > 0 ? invalidScenarios.map(({ scenario, reason, message }) => ({
+        scenario: scenario.label,
+        reason,
+        message
+      })) : []
     });
+
+    // CRITICAL: Enhance report AFTER returning response to prevent BackstopJS from overwriting
+    // This solves the timing issue where BackstopJS continues writing files asynchronously
+    if (invalidScenarios.length > 0) {
+      console.log(`🕒 Starting delayed report enhancement for ${invalidScenarios.length} invalid scenarios...`);
+      
+      // Delay to ensure BackstopJS has completely finished all async operations
+      setTimeout(async () => {
+        try {
+          console.log('⏱️  BackstopJS has returned, now waiting additional time for async file operations...');
+          
+          // Wait for BackstopJS to finish all async file writing
+          const reportPath = path.join(config.paths.html_report, 'config.js');
+          let reportStable = false;
+          let attempts = 0;
+          const maxAttempts = 30; // Wait up to 15 seconds
+          
+          while (!reportStable && attempts < maxAttempts) {
+            try {
+              if (await fs.pathExists(reportPath)) {
+                const reportContent = await fs.readFile(reportPath, 'utf8');
+                
+                // Check if file is stable (wait for two consecutive reads to be identical)
+                await new Promise(resolve => setTimeout(resolve, 200));
+                const reportContent2 = await fs.readFile(reportPath, 'utf8');
+                
+                if (reportContent === reportContent2 && reportContent.length > 100 && reportContent.includes('report(') && reportContent.includes(');')) {
+                  console.log(`✅ BackstopJS report file is stable after ${attempts * 500}ms`);
+                  reportStable = true;
+                } else {
+                  attempts++;
+                  console.log(`🔄 Waiting for report file to stabilize... (${attempts}/${maxAttempts})`);
+                  await new Promise(resolve => setTimeout(resolve, 500));
+                }
+              } else {
+                attempts++;
+                console.log(`🔄 Waiting for report file to exist... (${attempts}/${maxAttempts})`);
+                await new Promise(resolve => setTimeout(resolve, 500));
+              }
+            } catch (error) {
+              attempts++;
+              console.log(`⚠️  Error checking report stability (${attempts}/${maxAttempts}):`, error.message);
+              await new Promise(resolve => setTimeout(resolve, 500));
+            }
+          }
+
+          console.log('🔧 Starting delayed report enhancement process...');
+          
+          // Now enhance the report with invalid scenarios using our backup and stable system
+          console.log('🔧 Reading current BackstopJS report for delayed enhancement...');
+          
+          // Ensure we have a proper result structure for the enhancement
+          const enhancementResult = result || { 
+            tests: [], 
+            hasNetworkErrors: false, 
+            networkErrorCount: 0 
+          };
+          
+          console.log(`🔧 DEBUG: Enhancement result structure:`, {
+            hasResult: !!result,
+            testsCount: enhancementResult.tests?.length || 0,
+            resultType: typeof enhancementResult
+          });
+          
+          const enhancedResult = await appendInvalidScenariosToReport(projectId, config, invalidScenarios, enhancementResult);
+          console.log('✅ Successfully enhanced report with invalid scenarios after delay');
+          console.log(`📊 Enhanced result summary: ${enhancedResult.tests?.length || 0} total tests (including ${invalidScenarios.length} network errors)`);
+          
+          // Verify the enhancement was actually written
+          setTimeout(async () => {
+            try {
+              const verifyPath = path.join(config.paths.html_report, 'config.js');
+              const finalContent = await fs.readFile(verifyPath, 'utf8');
+              const hasNetworkErrors = finalContent.includes('networkError');
+              const hasInvalidLabel = invalidScenarios.some(inv => finalContent.includes(inv.scenario.label));
+              
+              console.log(`🔍 Final verification: networkErrors=${hasNetworkErrors}, invalidScenarios=${hasInvalidLabel}`);
+              
+              if (hasNetworkErrors && hasInvalidLabel) {
+                console.log('🎉 SUCCESS: Final report contains enhanced data with invalid scenarios!');
+              } else {
+                console.log('⚠️  WARNING: Final report may not contain complete enhanced data');
+              }
+            } catch (verifyError) {
+              console.error('❌ Could not verify final report:', verifyError.message);
+            }
+          }, 1000);
+          
+          // Emit socket update to notify frontend about the enhancement
+          io.emit('report-enhanced', {
+            status: 'enhanced',
+            totalScenarios: enhancedResult.tests?.length || 0,
+            networkErrorCount: invalidScenarios.length,
+            message: `Report enhanced with ${invalidScenarios.length} invalid scenarios`,
+            timestamp: new Date().toISOString()
+          });
+          
+        } catch (delayedEnhancementError) {
+          console.error('❌ Failed to enhance report with delayed enhancement:', delayedEnhancementError);
+          console.error('Error details:', delayedEnhancementError.stack);
+          
+          // Emit error to frontend
+          io.emit('report-enhancement-failed', {
+            status: 'error',
+            error: delayedEnhancementError.message,
+            timestamp: new Date().toISOString()
+          });
+        }
+      }, 3000); // 3 second delay to ensure BackstopJS is completely done
+      
+      console.log('⏱️  Response sent to client, report enhancement scheduled for 3 seconds delay');
+    }
   } catch (error) {
     // BackstopJS throws error when there are visual differences, but this is expected
     console.error('BackstopJS test error (may be expected):', error);
@@ -1876,9 +2588,76 @@ app.post('/api/sync-reference', async (req, res) => {
 
 // Run BackstopJS test
 app.post('/api/test', async (req, res) => {
+  console.log('📊 /api/test endpoint called - enhanced validation enabled');
+  
+  let tempConfigPath = null;
+  const projectId = 'default'; // Use default project ID for this endpoint
+  
   try {
     const configPath = path.join(configDir, 'backstop.json');
     let config = await fs.readJson(configPath);
+    
+    // ENHANCED PRE-VALIDATION: Check all URLs and separate valid/invalid scenarios
+    console.log('🔍 Enhanced pre-validation: Checking all URLs to prevent BackstopJS interruption...');
+    const validScenarios = [];
+    const invalidScenarios = [];
+    
+    if (config.scenarios && config.scenarios.length > 0) {
+      console.log(`🔗 Validating ${config.scenarios.length} scenario URLs...`);
+      
+      for (const scenario of config.scenarios) {
+        console.log(`  🔍 Checking: "${scenario.label}" -> ${scenario.url}`);
+        const validation = await validateUrl(scenario.url);
+        
+        if (validation.isValid) {
+          console.log(`  ✅ "${scenario.label}" - URL is accessible`);
+          validScenarios.push(scenario);
+        } else {
+          console.log(`  ❌ "${scenario.label}" - ${validation.reason}: ${validation.message}`);
+          invalidScenarios.push({
+            scenario: scenario,
+            reason: validation.reason,
+            message: validation.message
+          });
+        }
+      }
+      
+      console.log(`✅ URL validation completed:`);
+      console.log(`   📈 Valid scenarios: ${validScenarios.length}`);
+      console.log(`   📉 Invalid scenarios: ${invalidScenarios.length}`);
+      
+      if (validScenarios.length === 0) {
+        console.log('❌ No valid URLs found - cannot proceed with BackstopJS execution');
+        return res.status(400).json({
+          success: false,
+          error: 'No valid URLs found',
+          message: 'All scenarios have network connectivity issues',
+          invalidScenarios: invalidScenarios.length,
+          details: invalidScenarios.map(item => ({
+            scenario: item.scenario.label,
+            reason: item.reason,
+            message: item.message
+          }))
+        });
+      }
+      
+      // Create filtered configuration for BackstopJS with only valid scenarios
+      if (invalidScenarios.length > 0) {
+        console.log(`🔧 Creating filtered configuration with ${validScenarios.length} valid scenarios...`);
+        const filteredConfig = {
+          ...config,
+          scenarios: validScenarios
+        };
+        
+        tempConfigPath = path.join(configDir, 'temp-filtered-config.json');
+        await fs.writeJson(tempConfigPath, filteredConfig, { spaces: 2 });
+        console.log(`💾 Filtered configuration saved to: ${tempConfigPath}`);
+      }
+    }
+    
+    // Use filtered config if we have invalid scenarios, otherwise use original
+    const configToUse = tempConfigPath || configPath;
+    config = await fs.readJson(configToUse);
     
     // Ensure config has all required paths
     const defaultPaths = {
@@ -1963,12 +2742,58 @@ app.post('/api/test', async (req, res) => {
       fs.ensureDir(path.join(configDir, p))
     ));
     
-    // Now run the test
+    // Now run the test with enhanced configuration
     console.log('Running BackstopJS test...');
+    console.log(`📊 Executing BackstopJS with ${validScenarios.length} valid scenarios...`);
+    
     const result = await backstop('test', { 
-      config: configPath,
+      config: configToUse, // Use filtered config if available
       filter: req.body.filter || undefined
     });
+    
+    console.log('✅ BackstopJS test completed successfully');
+    console.log(`📊 BackstopJS result summary: ${result?.tests?.length || 0} tests executed`);
+    console.log(`📋 Invalid scenarios count from validation phase: ${invalidScenarios.length}`);
+    
+    if (invalidScenarios.length > 0) {
+      console.log(`🔍 Invalid scenarios detected during validation:`);
+      invalidScenarios.forEach(({ scenario, reason, message }, index) => {
+        console.log(`   ${index + 1}. "${scenario.label}" - ${reason}: ${message}`);
+      });
+      
+      // Enhanced report processing - add invalid scenarios to result
+      console.log(`📝 Enhancing report with ${invalidScenarios.length} invalid scenario(s)`);
+      try {
+        const enhancedResult = await appendInvalidScenariosToReport(projectId, config, invalidScenarios, result);
+        console.log('✅ Successfully enhanced report with invalid scenarios');
+        console.log('📊 Enhanced result summary:', {
+          originalTests: result.tests?.length || 0,
+          totalTests: enhancedResult.tests?.length || 0,
+          hasNetworkErrors: enhancedResult.hasNetworkErrors,
+          networkErrorCount: enhancedResult.networkErrorCount
+        });
+        
+        // Log details of network error tests that were added
+        const networkErrorTests = enhancedResult.tests?.filter(test => test.status === 'network-error') || [];
+        console.log(`🔍 Network error tests in enhanced result: ${networkErrorTests.length}`);
+        networkErrorTests.forEach((test, index) => {
+          console.log(`   ${index + 1}. "${test.pair.label}" - Status: ${test.status}, Reason: ${test.pair.reason}`);
+        });
+        
+        // Update the result object for further processing
+        result.tests = enhancedResult.tests;
+        result.hasNetworkErrors = enhancedResult.hasNetworkErrors;
+        result.networkErrorCount = enhancedResult.networkErrorCount;
+        
+        console.log(`✅ Enhanced report created with ${validScenarios.length} tested + ${invalidScenarios.length} network error scenarios`);
+        
+      } catch (enhancementError) {
+        console.error('❌ Failed to enhance report with invalid scenarios:', enhancementError);
+        console.error('Error details:', enhancementError.stack);
+      }
+    } else {
+      console.log(`ℹ️  No invalid scenarios detected during validation - all URLs were accessible`);
+    }
     
     // Get report path for frontend - strip backstop_data prefix from config path
     const htmlReportPath = config.paths.html_report.replace('backstop_data/', '');
@@ -1982,9 +2807,12 @@ app.post('/api/test', async (req, res) => {
       message: hasReferenceUrls 
         ? 'Reference images captured and test completed successfully' 
         : 'Test completed successfully',
-      referencesCreated: hasReferenceUrls
+      referencesCreated: hasReferenceUrls,
+      networkErrorCount: invalidScenarios.length,
+      hasNetworkErrors: invalidScenarios.length > 0
     });
   } catch (error) {
+    console.error('❌ Test execution error:', error);
     // BackstopJS throws error when there are visual differences, but this is expected
     try {
       const configPath = path.join(configDir, 'backstop.json');
@@ -1998,7 +2826,9 @@ app.post('/api/test', async (req, res) => {
         success: false, 
         error: error.message,
         reportPath: reportExists ? `/report/index.html` : null,
-        message: 'Test completed with visual differences detected'
+        message: 'Test completed with visual differences detected',
+        networkErrorCount: invalidScenarios.length,
+        hasNetworkErrors: invalidScenarios.length > 0
       });
     } catch (configError) {
       res.status(500).json({ 
@@ -2007,6 +2837,16 @@ app.post('/api/test', async (req, res) => {
         reportPath: null,
         message: 'Test failed due to configuration error'
       });
+    }
+  } finally {
+    // Cleanup temporary config file
+    if (tempConfigPath) {
+      try {
+        await fs.remove(tempConfigPath);
+        console.log(`🗑️  Cleaned up temporary configuration file: ${tempConfigPath}`);
+      } catch (cleanupError) {
+        console.warn('⚠️  Warning: Could not cleanup temporary config file:', cleanupError.message);
+      }
     }
   }
 });

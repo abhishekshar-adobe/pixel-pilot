@@ -1,5 +1,5 @@
-﻿{
-  "id": "network-error-test",
+{
+  "id": "test-network-debug",
   "viewports": [
     {
       "label": "phone",
@@ -14,17 +14,14 @@
       "referenceUrl": ""
     },
     {
+      "label": "valid-github-test",
+      "url": "https://www.github.com",
+      "referenceUrl": ""
+    },
+    {
       "label": "invalid-network-test",
       "url": "https://this-domain-does-not-exist-12345.com/invalid-page",
       "referenceUrl": ""
     }
-  ],
-  "paths": {
-    "bitmaps_reference": "backstop_data/bitmaps_reference",
-    "bitmaps_test": "backstop_data/bitmaps_test", 
-    "engine_scripts": "backstop_data/engine_scripts",
-    "html_report": "backstop_data/html_report"
-  },
-  "report": ["browser"],
-  "engine": "puppeteer"
+  ]
 }
