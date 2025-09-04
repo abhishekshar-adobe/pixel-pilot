@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import axios from 'axios'
+import pixelPilotLogo from '../assets/pixelpilot-logo.svg'
 import {
   Box,
   Typography,
@@ -178,7 +179,7 @@ function ConfigEditor({ project, onConfigUpdate }) {
 
   if (loading) {
     return (
-      <Box sx={{ maxWidth: '1400px', mx: 'auto', py: 4 }}>
+      <Box sx={{ width: '100%', py: 4 }}>
         <Stack alignItems="center" spacing={3}>
           <CircularProgress size={60} thickness={4} />
           <Typography variant="h6" color="text.secondary">
@@ -191,7 +192,7 @@ function ConfigEditor({ project, onConfigUpdate }) {
 
   if (!config) {
     return (
-      <Box sx={{ maxWidth: '1400px', mx: 'auto', py: 4 }}>
+      <Box sx={{ width: '100%', py: 4 }}>
         <Alert 
           severity="error" 
           sx={{ borderRadius: 3, p: 3 }}
@@ -242,9 +243,16 @@ function ConfigEditor({ project, onConfigUpdate }) {
       {/* Header Section */}
       <Box sx={{ mb: 4 }}>
         <Stack direction="row" alignItems="center" spacing={2} sx={{ mb: 2 }}>
-          <Avatar sx={{ bgcolor: 'primary.main', width: 56, height: 56 }}>
-            <Tune />
-          </Avatar>
+          <Box
+            component="img"
+            src={pixelPilotLogo}
+            alt="PixelPilot Logo"
+            sx={{
+              width: 56,
+              height: 56,
+              flexShrink: 0
+            }}
+          />
           <Box>
             <Typography variant="h3" component="h1" sx={{ fontWeight: 700, color: 'text.primary' }}>
               BackstopJS Configuration

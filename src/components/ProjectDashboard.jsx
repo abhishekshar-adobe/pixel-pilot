@@ -21,6 +21,7 @@ import {
   ArrowBack as ArrowBackIcon
 } from '@mui/icons-material';
 import axios from 'axios';
+import pixelPilotLogo from '../assets/pixelpilot-logo.svg';
 
 // Import existing components
 import ConfigEditor from './ConfigEditor';
@@ -134,6 +135,17 @@ function ProjectContent({ project, onBack }) {
           >
             Back to Projects
           </Button>
+          <Box
+            component="img"
+            src={pixelPilotLogo}
+            alt="PixelPilot Logo"
+            sx={{
+              width: 32,
+              height: 32,
+              mr: 2,
+              flexShrink: 0
+            }}
+          />
           <Typography 
             variant="h6" 
             component="div" 
@@ -330,9 +342,7 @@ function ProjectContent({ project, onBack }) {
       >
         <Box 
           sx={{ 
-            maxWidth: '1600px', 
             width: '100%', 
-            mx: 'auto',
             flexGrow: 1
           }}
         >

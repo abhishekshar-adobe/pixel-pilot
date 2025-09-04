@@ -4,7 +4,6 @@ import {
   Button,
   Card,
   CardContent,
-  Container,
   Grid,
   Typography,
   Alert,
@@ -39,6 +38,7 @@ import {
 } from '@mui/icons-material'
 import axios from 'axios'
 import io from 'socket.io-client'
+import pixelPilotLogo from '../assets/pixelpilot-logo.svg'
 
 const API_BASE = 'http://localhost:5000/api'
 
@@ -237,13 +237,30 @@ function TestRunner({ project, config, scenarios: initialScenarios = [] }) {
   })
 
   return (
-    <Container maxWidth="xl" sx={{ py: 2 }}>
+    <Box sx={{ width: '100%', py: 2 }}>
       {/* Compact Page Header */}
       <Box sx={{ mb: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
         <Box>
-          <Typography variant="h5" sx={{ fontWeight: 700, color: 'text.primary', mb: 0.5 }}>
-            Visual Testing
-          </Typography>
+          <Box sx={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            gap: 2, 
+            mb: 1 
+          }}>
+            <Box
+              component="img"
+              src={pixelPilotLogo}
+              alt="PixelPilot Logo"
+              sx={{
+                width: 32,
+                height: 32,
+                flexShrink: 0
+              }}
+            />
+            <Typography variant="h5" sx={{ fontWeight: 700, color: 'text.primary' }}>
+              Visual Testing
+            </Typography>
+          </Box>
           <Typography variant="body2" sx={{ color: 'text.secondary' }}>
             Execute tests with real-time tracking
           </Typography>
@@ -700,7 +717,7 @@ function TestRunner({ project, config, scenarios: initialScenarios = [] }) {
           </Box>
         </CardContent>
       </Card>
-    </Container>
+    </Box>
   )
 }
 

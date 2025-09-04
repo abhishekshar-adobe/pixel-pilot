@@ -48,6 +48,7 @@ import {
 import Papa from 'papaparse';
 import { BarChart, Bar, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, CartesianGrid, Legend, PieChart, Pie, Cell, Rectangle } from 'recharts';
 import axios from 'axios';
+import pixelPilotLogo from '../assets/pixelpilot-logo.svg';
 
 const API_BASE = 'http://localhost:5000/api';
 
@@ -299,17 +300,33 @@ const Dashboard = ({ project, config }) => {
       >
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
           <Box>
-            <Typography 
-              variant="h4" 
-              sx={{
-                color: 'text.primary',
-                fontWeight: 700,
-                letterSpacing: '-0.025em',
-                mb: 0.5
-              }}
-            >
-              Project Dashboard
-            </Typography>
+            <Box sx={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: 2, 
+              mb: 1 
+            }}>
+              <Box
+                component="img"
+                src={pixelPilotLogo}
+                alt="PixelPilot Logo"
+                sx={{
+                  width: 40,
+                  height: 40,
+                  flexShrink: 0
+                }}
+              />
+              <Typography 
+                variant="h4" 
+                sx={{
+                  color: 'text.primary',
+                  fontWeight: 700,
+                  letterSpacing: '-0.025em'
+                }}
+              >
+                Project Dashboard
+              </Typography>
+            </Box>
             <Typography 
               variant="body2" 
               sx={{ 

@@ -29,6 +29,7 @@ import {
   Info as InfoOutlined
 } from '@mui/icons-material';
 import axios from 'axios';
+import pixelPilotLogo from '../assets/pixelpilot-logo.svg';
 
 const API_BASE = 'http://localhost:5000/api';
 
@@ -143,13 +144,17 @@ const ProjectSelector = ({ onProjectSelect }) => {
   return (
     <Box 
       sx={{ 
-        maxWidth: '1000px', 
-        mx: 'auto', 
-        p: { xs: 2, sm: 3, md: 4 },
+        width: '100%',
         minHeight: '100vh',
-        bgcolor: 'background.default'
+        bgcolor: 'background.default',
+        p: { xs: 2, sm: 3, md: 4 }
       }}
     >
+      <Box 
+        sx={{
+          width: '100%'
+        }}
+      >
       <Box 
         sx={{
           display: 'flex',
@@ -161,18 +166,34 @@ const ProjectSelector = ({ onProjectSelect }) => {
         }}
       >
         <Box>
-          <Typography 
-            variant="h4" 
-            component="h1" 
-            sx={{
-              fontWeight: 700,
-              color: 'text.primary',
-              letterSpacing: '-0.025em',
-              mb: 1
-            }}
-          >
-            PixelPilot Projects
-          </Typography>
+          <Box sx={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            gap: 2, 
+            mb: 1 
+          }}>
+            <Box
+              component="img"
+              src={pixelPilotLogo}
+              alt="PixelPilot Logo"
+              sx={{
+                width: 48,
+                height: 48,
+                flexShrink: 0
+              }}
+            />
+            <Typography 
+              variant="h4" 
+              component="h1" 
+              sx={{
+                fontWeight: 700,
+                color: 'text.primary',
+                letterSpacing: '-0.025em'
+              }}
+            >
+              PixelPilot Projects
+            </Typography>
+          </Box>
           <Typography 
             variant="body1" 
             sx={{ 
@@ -312,7 +333,13 @@ const ProjectSelector = ({ onProjectSelect }) => {
         <Box 
           sx={{
             display: 'grid',
-            gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' },
+            gridTemplateColumns: { 
+              xs: '1fr', 
+              sm: '1fr 1fr', 
+              md: 'repeat(3, 1fr)', 
+              lg: 'repeat(4, 1fr)',
+              xl: 'repeat(5, 1fr)'
+            },
             gap: 3
           }}
         >
@@ -572,6 +599,7 @@ const ProjectSelector = ({ onProjectSelect }) => {
           </Button>
         </DialogActions>
       </Dialog>
+      </Box>
     </Box>
   );
 };
