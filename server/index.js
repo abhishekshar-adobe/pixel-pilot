@@ -804,6 +804,9 @@ app.get('/api/projects/:projectId/test-results', async (req, res) => {
 app.post('/api/projects/:projectId/test', async (req, res) => {
   let tempConfigPath = null; // For cleanup
   let configToUse = null;
+  let validScenarios = []; // Move outside try block for catch block access
+  let invalidScenarios = []; // Move outside try block for catch block access
+  let config = null; // Move outside try block for catch block access
   const { projectId } = req.params; // Move projectId outside try block
   
   console.log(`\n🚀 === TEST REQUEST RECEIVED ===`);
@@ -822,7 +825,7 @@ app.post('/api/projects/:projectId/test', async (req, res) => {
     }
 
     console.log(`📖 Reading configuration...`);
-    const config = await fs.readJson(configPath);
+    config = await fs.readJson(configPath);
     console.log(`📊 Found ${config.scenarios?.length || 0} scenarios in configuration`);
     
     // Log scenario names
@@ -847,8 +850,7 @@ app.post('/api/projects/:projectId/test', async (req, res) => {
       message: 'Pre-validating all URLs to ensure stable test execution...'
     });
 
-    const validScenarios = [];
-    const invalidScenarios = [];
+    // validScenarios and invalidScenarios already declared outside try block
     const validationResults = [];
     
     const scenariosToValidate = config.scenarios || [];
@@ -1367,8 +1369,145 @@ app.post('/api/projects/:projectId/test', async (req, res) => {
         success: false, 
         error: error.message,
         reportPath: reportExists ? `/api/projects/${projectId}/report/index.html` : null,
-        message: 'Test completed with visual differences detected'
+        message: 'Test completed with visual differences detected',
+        enhancedReport: invalidScenarios.length > 0,
+        totalScenarios: (validScenarios?.length || 0) + (invalidScenarios?.length || 0),
+        validScenarios: validScenarios?.length || 0,
+        invalidScenarios: invalidScenarios?.length || 0,
+        networkErrorDetails: invalidScenarios?.length > 0 ? invalidScenarios.map(({ scenario, reason, message }) => ({
+          scenario: scenario.label,
+          reason,
+          message
+        })) : []
       });
+
+      // CRITICAL: Enhance report AFTER returning response (CATCH BLOCK VERSION)
+      // This solves the timing issue where BackstopJS continues writing files asynchronously
+      if (invalidScenarios && invalidScenarios.length > 0) {
+        console.log(`🕒 Starting delayed report enhancement in catch block for ${invalidScenarios.length} invalid scenarios...`);
+        
+        // Delay to ensure BackstopJS has completely finished all async operations
+        setTimeout(async () => {
+          try {
+            console.log('⏱️  BackstopJS has returned (with errors), now waiting additional time for async file operations...');
+            
+            // Wait for BackstopJS to finish all async file writing
+            const reportPath = path.join(config.paths.html_report, 'config.js');
+            let reportStable = false;
+            let attempts = 0;
+            const maxAttempts = 30; // Wait up to 15 seconds
+            
+            while (!reportStable && attempts < maxAttempts) {
+              try {
+                if (await fs.pathExists(reportPath)) {
+                  const reportContent = await fs.readFile(reportPath, 'utf8');
+                  
+                  // Check if file is stable (wait for two consecutive reads to be identical)
+                  await new Promise(resolve => setTimeout(resolve, 200));
+                  const reportContent2 = await fs.readFile(reportPath, 'utf8');
+                  
+                  if (reportContent === reportContent2 && reportContent.length > 100 && reportContent.includes('report(') && reportContent.includes(');')) {
+                    console.log(`✅ BackstopJS report file is stable after ${attempts * 500}ms (catch block)`);
+                    reportStable = true;
+                  } else {
+                    attempts++;
+                    console.log(`🔄 Waiting for report file to stabilize in catch block... (${attempts}/${maxAttempts})`);
+                    await new Promise(resolve => setTimeout(resolve, 500));
+                  }
+                } else {
+                  attempts++;
+                  console.log(`🔄 Waiting for report file to exist in catch block... (${attempts}/${maxAttempts})`);
+                  await new Promise(resolve => setTimeout(resolve, 500));
+                }
+              } catch (error) {
+                attempts++;
+                console.log(`⚠️  Error checking report stability in catch block (${attempts}/${maxAttempts}):`, error.message);
+                await new Promise(resolve => setTimeout(resolve, 500));
+              }
+            }
+
+            console.log('🔧 Starting delayed report enhancement process in catch block...');
+            
+            // Create a proper result structure from the error context
+            // BackstopJS error usually contains the result data
+            let backstopResult = null;
+            if (error.name === 'BackstopException' && error.result) {
+              backstopResult = error.result;
+            } else {
+              // Try to read the existing report to get test results
+              try {
+                const reportContent = await fs.readFile(reportPath, 'utf8');
+                const reportMatch = reportContent.match(/report\((.*)\);/s);
+                if (reportMatch) {
+                  backstopResult = JSON.parse(reportMatch[1]);
+                }
+              } catch (parseError) {
+                console.warn('⚠️  Could not parse existing report, using empty result structure');
+                backstopResult = { tests: [] };
+              }
+            }
+            
+            // Ensure we have a proper result structure for the enhancement
+            const enhancementResult = backstopResult || { 
+              tests: [], 
+              hasNetworkErrors: false, 
+              networkErrorCount: 0 
+            };
+            
+            console.log(`🔧 DEBUG: Catch block enhancement result structure:`, {
+              hasResult: !!backstopResult,
+              testsCount: enhancementResult.tests?.length || 0,
+              resultType: typeof enhancementResult
+            });
+            
+            const enhancedResult = await appendInvalidScenariosToReport(projectId, config, invalidScenarios, enhancementResult);
+            console.log('✅ Successfully enhanced report with invalid scenarios after delay (catch block)');
+            console.log(`📊 Enhanced result summary: ${enhancedResult.tests?.length || 0} total tests (including ${invalidScenarios.length} network errors)`);
+            
+            // Verify the enhancement was actually written
+            setTimeout(async () => {
+              try {
+                const verifyPath = path.join(config.paths.html_report, 'config.js');
+                const finalContent = await fs.readFile(verifyPath, 'utf8');
+                const hasNetworkErrors = finalContent.includes('networkError');
+                const hasInvalidLabel = invalidScenarios.some(inv => finalContent.includes(inv.scenario.label));
+                
+                console.log(`🔍 Final verification (catch block): networkErrors=${hasNetworkErrors}, invalidScenarios=${hasInvalidLabel}`);
+                
+                if (hasNetworkErrors && hasInvalidLabel) {
+                  console.log('🎉 SUCCESS: Final report contains enhanced data with invalid scenarios (catch block)!');
+                } else {
+                  console.log('⚠️  WARNING: Final report may not contain complete enhanced data (catch block)');
+                }
+              } catch (verifyError) {
+                console.error('❌ Could not verify final report (catch block):', verifyError.message);
+              }
+            }, 1000);
+            
+            // Emit socket update to notify frontend about the enhancement
+            io.emit('report-enhanced', {
+              status: 'enhanced',
+              totalScenarios: enhancedResult.tests?.length || 0,
+              networkErrorCount: invalidScenarios.length,
+              message: `Report enhanced with ${invalidScenarios.length} invalid scenarios (with visual differences)`,
+              timestamp: new Date().toISOString()
+            });
+            
+          } catch (delayedEnhancementError) {
+            console.error('❌ Failed to enhance report with delayed enhancement (catch block):', delayedEnhancementError);
+            console.error('Error details:', delayedEnhancementError.stack);
+            
+            // Emit error to frontend
+            io.emit('report-enhancement-failed', {
+              status: 'error',
+              error: delayedEnhancementError.message,
+              timestamp: new Date().toISOString()
+            });
+          }
+        }, 3000); // 3 second delay to ensure BackstopJS is completely done
+        
+        console.log('⏱️  Response sent to client (catch block), report enhancement scheduled for 3 seconds delay');
+      }
     } catch (configError) {
       res.status(500).json({ 
         success: false,
