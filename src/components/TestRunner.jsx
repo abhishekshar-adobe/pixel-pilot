@@ -237,25 +237,24 @@ function TestRunner({ project, config, scenarios: initialScenarios = [] }) {
   })
 
   return (
-    <Container maxWidth="xl" sx={{ py: 3 }}>
-      {/* Page Header */}
-      <Box sx={{ mb: 4, textAlign: 'center' }}>
-        <Typography variant="h4" sx={{ fontWeight: 700, color: 'text.primary', mb: 1 }}>
-          Visual Regression Testing
-        </Typography>
-        <Typography variant="body1" sx={{ color: 'text.secondary', maxWidth: '600px', mx: 'auto' }}>
-          Execute visual regression tests with real-time progress tracking and comprehensive reporting
-        </Typography>
-        {/* Connection Status */}
-        <Box sx={{ mt: 2, display: 'flex', justifyContent: 'center' }}>
-          <Chip
-            size="small"
-            icon={socketConnected ? <CheckCircle /> : <WarningAmber />}
-            label={socketConnected ? 'Real-time Connected' : 'Real-time Disconnected'}
-            color={socketConnected ? 'success' : 'warning'}
-            variant="outlined"
-          />
+    <Container maxWidth="xl" sx={{ py: 2 }}>
+      {/* Compact Page Header */}
+      <Box sx={{ mb: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
+        <Box>
+          <Typography variant="h5" sx={{ fontWeight: 700, color: 'text.primary', mb: 0.5 }}>
+            Visual Testing
+          </Typography>
+          <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+            Execute tests with real-time tracking
+          </Typography>
         </Box>
+        <Chip
+          size="small"
+          icon={socketConnected ? <CheckCircle /> : <WarningAmber />}
+          label={socketConnected ? 'Connected' : 'Disconnected'}
+          color={socketConnected ? 'success' : 'warning'}
+          variant="outlined"
+        />
       </Box>
 
       {/* Alert Messages */}
@@ -263,72 +262,66 @@ function TestRunner({ project, config, scenarios: initialScenarios = [] }) {
         <Alert 
           severity={message.includes('Error') || message.includes('Failed') ? 'error' : 
                    message.includes('approved') || message.includes('completed') ? 'success' : 'info'} 
-          sx={{ mb: 3, borderRadius: '12px' }}
+          sx={{ mb: 2, borderRadius: '8px' }}
           onClose={() => setMessage('')}
         >
           {message}
         </Alert>
       )}
 
-      {/* Main Control Panel */}
-      <Card elevation={0} sx={{ mb: 4, borderRadius: '16px', border: '1px solid', borderColor: 'divider' }}>
-        <CardContent sx={{ p: 4 }}>
-          <Typography variant="h6" sx={{ fontWeight: 600, mb: 3, display: 'flex', alignItems: 'center', gap: 1 }}>
-            <PlayArrow sx={{ color: 'primary.main' }} />
-            Test Controls
-          </Typography>
-          
-          <Grid container spacing={4} alignItems="center">
+      {/* Compact Control Panel */}
+      <Card elevation={0} sx={{ mb: 2, borderRadius: '12px', border: '1px solid', borderColor: 'divider' }}>
+        <CardContent sx={{ p: 2 }}>
+          <Grid container spacing={2} alignItems="center">
             {/* Test Actions */}
-            <Grid item xs={12} lg={8}>
-              <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+            <Grid item xs={12} lg={9}>
+              <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap', alignItems: 'center' }}>
                 <Button
                   variant="contained"
-                  size="large"
-                  startIcon={testRunning ? <CircularProgress size={20} /> : <PlayArrow />}
+                  size="medium"
+                  startIcon={testRunning ? <CircularProgress size={18} /> : <PlayArrow />}
                   onClick={runTest}
                   disabled={testRunning || selectedScenarios.length === 0}
                   sx={{
-                    borderRadius: '12px',
+                    borderRadius: '8px',
                     textTransform: 'none',
                     fontWeight: 600,
-                    px: 4,
-                    py: 1.5,
-                    minWidth: '200px'
+                    px: 3,
+                    py: 1
                   }}
                 >
-                  {testRunning ? 'Running Tests...' : 'Run Visual Test'}
+                  {testRunning ? 'Running...' : 'Run Test'}
                 </Button>
                 
                 <Button
                   variant="outlined"
-                  size="large"
+                  size="medium"
                   startIcon={<CheckCircle />}
                   onClick={approveImages}
                   disabled={!backstopReport || testRunning}
-                  sx={{ borderRadius: '12px', textTransform: 'none', fontWeight: 600, px: 3, py: 1.5 }}
+                  sx={{ borderRadius: '8px', textTransform: 'none', fontWeight: 600, px: 2, py: 1 }}
                 >
-                  Approve Images
+                  Approve
                 </Button>
                 
                 <Button
                   variant="outlined"
-                  size="large"
+                  size="medium"
                   startIcon={<GetApp />}
                   onClick={downloadResults}
                   disabled={!backstopReport}
-                  sx={{ borderRadius: '12px', textTransform: 'none', fontWeight: 600, px: 3, py: 1.5 }}
+                  sx={{ borderRadius: '8px', textTransform: 'none', fontWeight: 600, px: 2, py: 1 }}
                 >
-                  Export Results
+                  Export
                 </Button>
                 
                 {backstopReport && (
                   <Button
                     variant="outlined"
-                    size="large"
+                    size="medium"
                     startIcon={<Visibility />}
                     onClick={() => window.open(`${API_BASE}/projects/${project.id}/report/index.html`, '_blank')}
-                    sx={{ borderRadius: '12px', textTransform: 'none', fontWeight: 600, px: 3, py: 1.5 }}
+                    sx={{ borderRadius: '8px', textTransform: 'none', fontWeight: 600, px: 2, py: 1 }}
                   >
                     View Report
                   </Button>
@@ -336,10 +329,10 @@ function TestRunner({ project, config, scenarios: initialScenarios = [] }) {
                 
                 <Button
                   variant="outlined"
-                  size="large"
+                  size="medium"
                   startIcon={<Refresh />}
                   onClick={() => window.location.reload()}
-                  sx={{ borderRadius: '12px', textTransform: 'none', fontWeight: 600, px: 3, py: 1.5 }}
+                  sx={{ borderRadius: '8px', textTransform: 'none', fontWeight: 600, px: 2, py: 1 }}
                 >
                   Reset
                 </Button>
@@ -347,13 +340,13 @@ function TestRunner({ project, config, scenarios: initialScenarios = [] }) {
             </Grid>
 
             {/* Selection Info */}
-            <Grid item xs={12} lg={4}>
+            <Grid item xs={12} lg={3}>
               <Box sx={{ textAlign: { xs: 'left', lg: 'right' } }}>
                 <Typography variant="h6" sx={{ fontWeight: 600, color: 'primary.main' }}>
-                  {selectedScenarios.length} of {scenarios?.length || 0}
+                  {selectedScenarios.length}/{scenarios?.length || 0}
                 </Typography>
-                <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-                  scenarios selected for testing
+                <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+                  scenarios selected
                 </Typography>
               </Box>
             </Grid>
@@ -361,63 +354,63 @@ function TestRunner({ project, config, scenarios: initialScenarios = [] }) {
         </CardContent>
       </Card>
 
-      {/* Quick Stats Dashboard */}
-      <Grid container spacing={3} sx={{ mb: 4 }}>
+      {/* Compact Stats Dashboard */}
+      <Grid container spacing={2} sx={{ mb: 2 }}>
         <Grid item xs={6} sm={3}>
-          <Card elevation={0} sx={{ textAlign: 'center', p: 3, borderRadius: '16px', bgcolor: 'primary.lighter' }}>
-            <Typography variant="h4" sx={{ fontWeight: 700, color: 'primary.main' }}>
+          <Card elevation={0} sx={{ textAlign: 'center', p: 1.5, borderRadius: '8px', bgcolor: 'primary.lighter' }}>
+            <Typography variant="h5" sx={{ fontWeight: 700, color: 'primary.main' }}>
               {selectedScenarios.length}
             </Typography>
-            <Typography variant="body2" sx={{ color: 'primary.dark', fontWeight: 500 }}>
+            <Typography variant="caption" sx={{ color: 'primary.dark', fontWeight: 500 }}>
               Selected
             </Typography>
           </Card>
         </Grid>
         <Grid item xs={6} sm={3}>
-          <Card elevation={0} sx={{ textAlign: 'center', p: 3, borderRadius: '16px', bgcolor: 'success.lighter' }}>
-            <Typography variant="h4" sx={{ fontWeight: 700, color: 'success.main' }}>
+          <Card elevation={0} sx={{ textAlign: 'center', p: 1.5, borderRadius: '8px', bgcolor: 'success.lighter' }}>
+            <Typography variant="h5" sx={{ fontWeight: 700, color: 'success.main' }}>
               {Object.values(scenarioResults).filter(r => r.status === 'passed').length}
             </Typography>
-            <Typography variant="body2" sx={{ color: 'success.dark', fontWeight: 500 }}>
+            <Typography variant="caption" sx={{ color: 'success.dark', fontWeight: 500 }}>
               Passed
             </Typography>
           </Card>
         </Grid>
         <Grid item xs={6} sm={3}>
-          <Card elevation={0} sx={{ textAlign: 'center', p: 3, borderRadius: '16px', bgcolor: 'error.lighter' }}>
-            <Typography variant="h4" sx={{ fontWeight: 700, color: 'error.main' }}>
+          <Card elevation={0} sx={{ textAlign: 'center', p: 1.5, borderRadius: '8px', bgcolor: 'error.lighter' }}>
+            <Typography variant="h5" sx={{ fontWeight: 700, color: 'error.main' }}>
               {Object.values(scenarioResults).filter(r => r.status === 'failed' || r.status === 'network_error').length}
             </Typography>
-            <Typography variant="body2" sx={{ color: 'error.dark', fontWeight: 500 }}>
+            <Typography variant="caption" sx={{ color: 'error.dark', fontWeight: 500 }}>
               Failed
             </Typography>
           </Card>
         </Grid>
         <Grid item xs={6} sm={3}>
-          <Card elevation={0} sx={{ textAlign: 'center', p: 3, borderRadius: '16px', bgcolor: 'warning.lighter' }}>
-            <Typography variant="h4" sx={{ fontWeight: 700, color: 'warning.main' }}>
+          <Card elevation={0} sx={{ textAlign: 'center', p: 1.5, borderRadius: '8px', bgcolor: 'warning.lighter' }}>
+            <Typography variant="h5" sx={{ fontWeight: 700, color: 'warning.main' }}>
               {Object.values(scenarioResults).filter(r => r.status === 'network_error').length + Object.values(liveScenarioResults).filter(r => r.status === 'running').length}
             </Typography>
-            <Typography variant="body2" sx={{ color: 'warning.dark', fontWeight: 500 }}>
+            <Typography variant="caption" sx={{ color: 'warning.dark', fontWeight: 500 }}>
               Network/Running
             </Typography>
           </Card>
         </Grid>
       </Grid>
 
-      {/* Test Results Summary - Only show when there are results */}
+      {/* Test Results Summary - Compact */}
       {Object.keys(scenarioResults).length > 0 && (
-        <Card elevation={0} sx={{ mb: 4, borderRadius: '16px', border: '1px solid', borderColor: 'divider' }}>
-          <CardContent sx={{ p: 3 }}>
-            <Typography variant="h6" sx={{ mb: 3, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 1 }}>
-              <Assessment sx={{ color: 'primary.main' }} />
+        <Card elevation={0} sx={{ mb: 2, borderRadius: '12px', border: '1px solid', borderColor: 'divider' }}>
+          <CardContent sx={{ p: 2 }}>
+            <Typography variant="subtitle1" sx={{ mb: 2, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 1 }}>
+              <Assessment sx={{ color: 'primary.main', fontSize: 20 }} />
               Performance Overview
             </Typography>
             
-            <Grid container spacing={3}>
-              <Grid item xs={12} sm={6} md={3}>
-                <Box sx={{ textAlign: 'center', p: 3, bgcolor: 'success.lighter', borderRadius: '12px' }}>
-                  <Typography variant="h4" sx={{ fontWeight: 700, color: 'success.main' }}>
+            <Grid container spacing={2}>
+              <Grid item xs={6} sm={4} md={2}>
+                <Box sx={{ textAlign: 'center', p: 1.5, bgcolor: 'success.lighter', borderRadius: '8px' }}>
+                  <Typography variant="h5" sx={{ fontWeight: 700, color: 'success.main' }}>
                     {(() => {
                       const totalResults = Object.values(scenarioResults)
                       const passedResults = totalResults.filter(r => r.status === 'passed')
@@ -425,14 +418,14 @@ function TestRunner({ project, config, scenarios: initialScenarios = [] }) {
                       return Math.round((passedResults.length / totalResults.length) * 100)
                     })()}%
                   </Typography>
-                  <Typography variant="body2" sx={{ color: 'success.dark', fontWeight: 500 }}>
-                    Success Rate
+                  <Typography variant="caption" sx={{ color: 'success.dark', fontWeight: 500 }}>
+                    Success
                   </Typography>
                 </Box>
               </Grid>
-              <Grid item xs={12} sm={6} md={3}>
-                <Box sx={{ textAlign: 'center', p: 3, bgcolor: 'warning.lighter', borderRadius: '12px' }}>
-                  <Typography variant="h4" sx={{ fontWeight: 700, color: 'warning.main' }}>
+              <Grid item xs={6} sm={4} md={2}>
+                <Box sx={{ textAlign: 'center', p: 1.5, bgcolor: 'warning.lighter', borderRadius: '8px' }}>
+                  <Typography variant="h6" sx={{ fontWeight: 700, color: 'warning.main' }}>
                     {(() => {
                       const mismatchResults = Object.values(scenarioResults)
                         .filter(r => r.status === 'failed' && typeof r.misMatchPercentage !== 'undefined' && r.misMatchPercentage > 0)
@@ -441,44 +434,44 @@ function TestRunner({ project, config, scenarios: initialScenarios = [] }) {
                       return avgMismatch.toFixed(1)
                     })()}%
                   </Typography>
-                  <Typography variant="body2" sx={{ color: 'warning.dark', fontWeight: 500 }}>
-                    Avg Mismatch
+                  <Typography variant="caption" sx={{ color: 'warning.dark', fontWeight: 500 }}>
+                    Avg Diff
                   </Typography>
                 </Box>
               </Grid>
-              <Grid item xs={12} sm={6} md={3}>
-                <Box sx={{ textAlign: 'center', p: 3, bgcolor: 'error.lighter', borderRadius: '12px' }}>
-                  <Typography variant="h4" sx={{ fontWeight: 700, color: 'error.main' }}>
+              <Grid item xs={6} sm={4} md={2}>
+                <Box sx={{ textAlign: 'center', p: 1.5, bgcolor: 'error.lighter', borderRadius: '8px' }}>
+                  <Typography variant="h6" sx={{ fontWeight: 700, color: 'error.main' }}>
                     {Object.values(scenarioResults).filter(r => r.status === 'network_error').length}
                   </Typography>
-                  <Typography variant="body2" sx={{ color: 'error.dark', fontWeight: 500 }}>
-                    Network Errors
+                  <Typography variant="caption" sx={{ color: 'error.dark', fontWeight: 500 }}>
+                    Network
                   </Typography>
                 </Box>
               </Grid>
-              <Grid item xs={12} sm={6} md={3}>
-                <Box sx={{ textAlign: 'center', p: 3, bgcolor: 'warning.lighter', borderRadius: '12px' }}>
-                  <Typography variant="h4" sx={{ fontWeight: 700, color: 'warning.main' }}>
+              <Grid item xs={6} sm={4} md={2}>
+                <Box sx={{ textAlign: 'center', p: 1.5, bgcolor: 'warning.lighter', borderRadius: '8px' }}>
+                  <Typography variant="h6" sx={{ fontWeight: 700, color: 'warning.main' }}>
                     {Object.values(scenarioResults).filter(r => r.isSameDimensions === false).length}
                   </Typography>
-                  <Typography variant="body2" sx={{ color: 'warning.dark', fontWeight: 500 }}>
+                  <Typography variant="caption" sx={{ color: 'warning.dark', fontWeight: 500 }}>
                     Size Issues
                   </Typography>
                 </Box>
               </Grid>
-              <Grid item xs={12} sm={6} md={3}>
-                <Box sx={{ textAlign: 'center', p: 3, bgcolor: 'info.lighter', borderRadius: '12px' }}>
+              <Grid item xs={6} sm={4} md={2}>
+                <Box sx={{ textAlign: 'center', p: 1.5, bgcolor: 'info.lighter', borderRadius: '8px' }}>
                   <Typography variant="h6" sx={{ fontWeight: 700, color: 'info.main' }}>
                     {(() => {
                       if (backstopReport?.testSuite?.date) {
-                        return new Date(backstopReport.testSuite.date).toLocaleDateString()
+                        return new Date(backstopReport.testSuite.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
                       } else if (backstopReport?.testSuite && typeof backstopReport.testSuite === 'string') {
                         return 'Recent'
                       }
                       return 'Never'
                     })()}
                   </Typography>
-                  <Typography variant="body2" sx={{ color: 'info.dark', fontWeight: 500 }}>
+                  <Typography variant="caption" sx={{ color: 'info.dark', fontWeight: 500 }}>
                     Last Run
                   </Typography>
                 </Box>
@@ -488,55 +481,38 @@ function TestRunner({ project, config, scenarios: initialScenarios = [] }) {
         </Card>
       )}
 
-      {/* Test Configuration - Only show when config is available */}
+      {/* Compact Configuration - Only show when config is available */}
       {config && (
-        <Card elevation={0} sx={{ mb: 4, borderRadius: '16px', border: '1px solid', borderColor: 'divider' }}>
-          <CardContent sx={{ p: 3 }}>
-            <Typography variant="h6" sx={{ mb: 3, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 1 }}>
-              <Settings sx={{ color: 'primary.main' }} />
-              Configuration
-            </Typography>
-            
-            <Grid container spacing={3}>
+        <Card elevation={0} sx={{ mb: 2, borderRadius: '12px', border: '1px solid', borderColor: 'divider' }}>
+          <CardContent sx={{ p: 2 }}>
+            <Grid container spacing={2} alignItems="center">
               <Grid item xs={12} md={8}>
-                <Box sx={{ p: 2, bgcolor: 'background.default', borderRadius: '12px' }}>
-                  <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <Computer sx={{ fontSize: 18 }} />
-                    Viewports ({config?.viewports?.length || 0})
-                  </Typography>
-                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-                    {config?.viewports?.map((viewport, index) => (
-                      <Chip
-                        key={index}
-                        size="small"
-                        icon={getViewportIcon(viewport)}
-                        label={`${viewport.width}×${viewport.height}`}
-                        sx={{
-                          bgcolor: 'primary.lighter',
-                          color: 'primary.dark',
-                          fontWeight: 500,
-                          borderRadius: '8px'
-                        }}
-                      />
-                    ))}
-                  </Box>
+                <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <Settings sx={{ fontSize: 16, color: 'primary.main' }} />
+                  Viewports ({config?.viewports?.length || 0})
+                </Typography>
+                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                  {config?.viewports?.map((viewport, index) => (
+                    <Chip
+                      key={index}
+                      size="small"
+                      icon={getViewportIcon(viewport)}
+                      label={`${viewport.width}×${viewport.height}`}
+                      sx={{
+                        bgcolor: 'primary.lighter',
+                        color: 'primary.dark',
+                        fontWeight: 500,
+                        borderRadius: '6px',
+                        fontSize: '0.75rem'
+                      }}
+                    />
+                  ))}
                 </Box>
               </Grid>
               <Grid item xs={12} md={4}>
-                <Box sx={{ p: 2, bgcolor: 'background.default', borderRadius: '12px' }}>
-                  <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 2 }}>
-                    Settings
-                  </Typography>
-                  <Typography variant="body2" sx={{ color: 'text.secondary', mb: 1 }}>
-                    <strong>Scenarios:</strong> {scenarios?.length || 0}
-                  </Typography>
-                  <Typography variant="body2" sx={{ color: 'text.secondary', mb: 1 }}>
-                    <strong>Engine:</strong> BackstopJS
-                  </Typography>
-                  <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-                    <strong>Threshold:</strong> {config?.misMatchThreshold || 0.1}%
-                  </Typography>
-                </Box>
+                <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block', mb: 0.5 }}>
+                  <strong>Scenarios:</strong> {scenarios?.length || 0} | <strong>Engine:</strong> BackstopJS | <strong>Threshold:</strong> {config?.misMatchThreshold || 0.1}%
+                </Typography>
               </Grid>
             </Grid>
           </CardContent>
@@ -544,25 +520,25 @@ function TestRunner({ project, config, scenarios: initialScenarios = [] }) {
       )}
 
       {/* Scenario Selection */}
-      <Card elevation={0} sx={{ borderRadius: '16px', border: '1px solid', borderColor: 'divider' }}>
-        <CardContent sx={{ p: 3 }}>
-          <Box sx={{ mb: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
+      <Card elevation={0} sx={{ borderRadius: '12px', border: '1px solid', borderColor: 'divider' }}>
+        <CardContent sx={{ p: 2 }}>
+          <Box sx={{ mb: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 1 }}>
             <Typography variant="h6" sx={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: 1 }}>
-              <List sx={{ color: 'primary.main' }} />
+              <List sx={{ color: 'primary.main', fontSize: 20 }} />
               Scenarios ({filteredScenarios.length})
             </Typography>
-            <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
+            <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', flexWrap: 'wrap' }}>
               <TextField
                 size="small"
-                placeholder="Search scenarios..."
+                placeholder="Search..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 sx={{ 
-                  minWidth: '200px',
-                  '& .MuiOutlinedInput-root': { borderRadius: '8px' }
+                  minWidth: '160px',
+                  '& .MuiOutlinedInput-root': { borderRadius: '6px', fontSize: '0.875rem' }
                 }}
                 InputProps={{
-                  startAdornment: <Search sx={{ color: 'text.secondary', mr: 1 }} />
+                  startAdornment: <Search sx={{ color: 'text.secondary', mr: 1, fontSize: 18 }} />
                 }}
               />
               <Button
@@ -570,23 +546,23 @@ function TestRunner({ project, config, scenarios: initialScenarios = [] }) {
                 size="small"
                 startIcon={<FilterList />}
                 onClick={() => setShowSelectedOnly(!showSelectedOnly)}
-                sx={{ borderRadius: '8px', textTransform: 'none' }}
+                sx={{ borderRadius: '6px', textTransform: 'none', fontSize: '0.875rem' }}
               >
-                {showSelectedOnly ? 'Show All' : 'Selected Only'}
+                {showSelectedOnly ? 'All' : 'Selected'}
               </Button>
               <Button
                 variant="outlined"
                 size="small"
                 onClick={selectAllScenarios}
-                sx={{ borderRadius: '8px', textTransform: 'none' }}
+                sx={{ borderRadius: '6px', textTransform: 'none', fontSize: '0.875rem' }}
               >
                 Select All
               </Button>
             </Box>
           </Box>
 
-          {/* Scenario List */}
-          <Box sx={{ display: 'grid', gap: 2 }}>
+          {/* Compact Scenario List */}
+          <Box sx={{ display: 'grid', gap: 1.5 }}>
             {filteredScenarios.map((scenario) => {
               const result = scenarioResults[scenario.label] || {}
               const liveResult = liveScenarioResults[scenario.label]
@@ -598,35 +574,36 @@ function TestRunner({ project, config, scenarios: initialScenarios = [] }) {
                   key={scenario.label || scenario.url}
                   elevation={0}
                   sx={{ 
-                    p: 3, 
+                    p: 2, 
                     border: '1px solid', 
                     borderColor: selectedScenarios.includes(scenario.label) ? 'primary.main' : 'divider', 
-                    borderRadius: '12px', 
+                    borderRadius: '8px', 
                     cursor: 'pointer', 
                     transition: 'all 0.2s',
                     bgcolor: selectedScenarios.includes(scenario.label) ? 'primary.lighter' : 'background.paper',
                     '&:hover': { 
                       borderColor: 'primary.main',
                       transform: 'translateY(-1px)',
-                      boxShadow: '0 4px 8px -2px rgba(0, 0, 0, 0.1)'
+                      boxShadow: '0 2px 4px -1px rgba(0, 0, 0, 0.1)'
                     }
                   }}
                   onClick={() => handleScenarioSelection(scenario.label)}
                 >
-                  <Stack direction="row" alignItems="flex-start" spacing={2}>
+                  <Stack direction="row" alignItems="flex-start" spacing={1.5}>
                     {selectedScenarios.includes(scenario.label) ? (
-                      <CheckCircleRounded sx={{ color: 'primary.main', fontSize: 24 }} />
+                      <CheckCircleRounded sx={{ color: 'primary.main', fontSize: 20, mt: 0.25 }} />
                     ) : (
-                      <RadioButtonUnchecked sx={{ color: 'text.secondary', fontSize: 24 }} />
+                      <RadioButtonUnchecked sx={{ color: 'text.secondary', fontSize: 20, mt: 0.25 }} />
                     )}
                     
-                    <Box sx={{ flex: 1 }}>
+                    <Box sx={{ flex: 1, minWidth: 0 }}>
                       <Typography 
-                        variant="h6" 
+                        variant="subtitle1" 
                         sx={{ 
                           fontWeight: 600,
                           color: selectedScenarios.includes(scenario.label) ? 'primary.dark' : 'text.primary',
-                          mb: 1
+                          mb: 0.5,
+                          lineHeight: 1.3
                         }}
                       >
                         {scenario.label}
@@ -636,30 +613,35 @@ function TestRunner({ project, config, scenarios: initialScenarios = [] }) {
                         variant="body2" 
                         sx={{ 
                           color: 'text.secondary',
-                          mb: 2,
+                          mb: 1,
                           display: 'flex',
                           alignItems: 'center',
-                          gap: 1
+                          gap: 0.5,
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap'
                         }}
                       >
-                        <Link sx={{ fontSize: 16 }} />
+                        <Link sx={{ fontSize: 14 }} />
                         {scenario.url}
                       </Typography>
 
                       {/* Status Display */}
                       {displayStatus && (
-                        <Box sx={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 1 }}>
                           <Chip
                             size="small"
                             icon={getStatusIcon(displayStatus)}
                             label={
-                              displayStatus === 'passed' ? '✅ Passed' :
-                              displayStatus === 'failed' ? '❌ Failed' :
-                              displayStatus === 'network_error' ? '🚫 Network Error' :
-                              displayStatus === 'running' ? '⏳ Running' : 'Pending'
+                              displayStatus === 'passed' ? 'Passed' :
+                              displayStatus === 'failed' ? 'Failed' :
+                              displayStatus === 'network_error' ? 'Network Error' :
+                              displayStatus === 'running' ? 'Running' : 'Pending'
                             }
                             sx={{
-                              borderRadius: '8px',
+                              borderRadius: '6px',
+                              fontSize: '0.75rem',
+                              height: '20px',
                               bgcolor: displayStatus === 'passed' ? 'rgba(76, 175, 80, 0.1)' :
                                        displayStatus === 'failed' ? 'rgba(244, 67, 54, 0.1)' :
                                        displayStatus === 'network_error' ? 'rgba(211, 47, 47, 0.1)' :
@@ -670,16 +652,19 @@ function TestRunner({ project, config, scenarios: initialScenarios = [] }) {
                                      displayStatus === 'network_error' ? '#d32f2f' :
                                      displayStatus === 'running' ? '#ff9800' :
                                      'text.secondary',
-                              fontWeight: 500
+                              fontWeight: 500,
+                              '& .MuiChip-icon': { fontSize: '14px' }
                             }}
                           />
                           
                           {typeof displayMismatch !== 'undefined' && displayMismatch > 0 && (
                             <Chip
                               size="small"
-                              label={`Diff: ${displayMismatch}%`}
+                              label={`${displayMismatch}%`}
                               sx={{
-                                borderRadius: '8px',
+                                borderRadius: '6px',
+                                fontSize: '0.75rem',
+                                height: '20px',
                                 bgcolor: 'background.paper',
                                 color: 'text.secondary',
                                 border: '1px solid',
@@ -688,26 +673,9 @@ function TestRunner({ project, config, scenarios: initialScenarios = [] }) {
                             />
                           )}
                           
-                          {/* Show network error details */}
-                          {result.networkError && (
-                            <Chip
-                              size="small"
-                              label={`${result.networkError.type}: ${result.networkError.message.substring(0, 30)}...`}
-                              sx={{
-                                borderRadius: '8px',
-                                bgcolor: 'error.lighter',
-                                color: 'error.dark',
-                                border: '1px solid',
-                                borderColor: 'error.main',
-                                maxWidth: '200px'
-                              }}
-                              title={result.networkError.message}
-                            />
-                          )}
-                          
                           {liveResult?.timestamp && (
                             <Typography variant="caption" sx={{ color: 'text.secondary', display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                              <AccessTime sx={{ fontSize: 12 }} />
+                              <AccessTime sx={{ fontSize: 10 }} />
                               {new Date(liveResult.timestamp).toLocaleTimeString()}
                             </Typography>
                           )}
@@ -720,8 +688,8 @@ function TestRunner({ project, config, scenarios: initialScenarios = [] }) {
             })}
             
             {filteredScenarios.length === 0 && (
-              <Card elevation={0} sx={{ p: 6, textAlign: 'center', bgcolor: 'background.default', borderRadius: '12px' }}>
-                <Typography variant="h6" sx={{ color: 'text.secondary', mb: 1 }}>
+              <Card elevation={0} sx={{ p: 4, textAlign: 'center', bgcolor: 'background.default', borderRadius: '8px' }}>
+                <Typography variant="subtitle1" sx={{ color: 'text.secondary', mb: 0.5 }}>
                   No scenarios found
                 </Typography>
                 <Typography variant="body2" sx={{ color: 'text.secondary' }}>
