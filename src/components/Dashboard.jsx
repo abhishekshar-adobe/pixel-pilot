@@ -297,48 +297,46 @@ const Dashboard = ({ project, config }) => {
           boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)',
         }}
       >
-        <Typography 
-          variant="h4" 
-          gutterBottom 
-          sx={{
-            color: 'text.primary',
-            fontWeight: 700,
-            letterSpacing: '-0.025em'
-          }}
-        >
-          Project Dashboard
-        </Typography>
-        <Typography 
-          variant="body1" 
-          sx={{ 
-            color: 'text.secondary',
-            mb: 3
-          }}
-        >
-          {project.description || 'BackstopJS visual regression testing project'}
-        </Typography>
-        <Box 
-          sx={{
-            display: 'flex',
-            gap: 2,
-            flexWrap: 'wrap',
-            alignItems: 'center'
-          }}>
-          <Chip
-            icon={<InfoOutlined />}
-            label={`Created: ${new Date(project.created).toLocaleDateString()}`}
-            variant="outlined"
-            size="small"
-            sx={{ bgcolor: 'background.paper' }}
-          />
-          <Chip
-            icon={<SettingsOutlined />}
-            label={config ? 'Config Available' : 'No Config'}
-            color={config ? 'success' : 'warning'}
-            variant="outlined"
-            size="small"
-            sx={{ bgcolor: 'background.paper' }}
-          />
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+          <Box>
+            <Typography 
+              variant="h4" 
+              sx={{
+                color: 'text.primary',
+                fontWeight: 700,
+                letterSpacing: '-0.025em',
+                mb: 0.5
+              }}
+            >
+              Project Dashboard
+            </Typography>
+            <Typography 
+              variant="body2" 
+              sx={{ 
+                color: 'text.secondary'
+              }}
+            >
+              Visual regression testing results and analytics
+            </Typography>
+          </Box>
+          <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+            <Chip
+              icon={<SettingsOutlined />}
+              label={config ? `${config.scenarios?.length || 0} scenarios` : 'No config'}
+              color={config ? 'primary' : 'warning'}
+              variant="outlined"
+              size="small"
+            />
+            {config && (
+              <Chip
+                icon={<ViewListOutlined />}
+                label={`${config.viewports?.length || 0} viewports`}
+                color="info"
+                variant="outlined"
+                size="small"
+              />
+            )}
+          </Box>
         </Box>
       </Box>
 
@@ -767,8 +765,7 @@ const Dashboard = ({ project, config }) => {
           </Button>
         </DialogActions>
       </Dialog>
-
-  </Box>
+    </Box>
   );
 }
 
