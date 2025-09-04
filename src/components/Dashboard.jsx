@@ -46,7 +46,7 @@ import {
   FolderOpen
 } from '@mui/icons-material';
 import Papa from 'papaparse';
-import { BarChart, Bar, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, CartesianGrid, Legend, PieChart, Pie, Cell } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, CartesianGrid, Legend, PieChart, Pie, Cell, Rectangle } from 'recharts';
 import axios from 'axios';
 
 const API_BASE = 'http://localhost:5000/api';
@@ -84,14 +84,20 @@ const Dashboard = ({ project, config }) => {
           : Array.isArray(response.data)
             ? response.data
             : [];
-      // Summarize status counts
+      
+      // Summarize status counts - simplified to 3 categories
+      const passedTests = results.filter(r => r.status === 'pass');
+      const networkErrorTests = results.filter(r => r.status === 'fail' && r.networkError);
+      const failedTests = results.filter(r => r.status === 'fail' && !r.networkError);
+      
       const summary = {
         total: results.length,
-        passed: results.filter(r => r.status === 'pass').length,
-        failed: results.filter(r => r.status === 'fail').length,
-        new: results.filter(r => r.status === 'new').length,
-        referenceMissing: results.filter(r => r.status === 'referenceMissing').length,
-        other: results.filter(r => !['pass','fail','new','referenceMissing'].includes(r.status)).length
+        passed: passedTests.length,
+        failed: failedTests.length,
+        networkError: networkErrorTests.length,
+        // Enhanced data from server
+        hasNetworkErrors: response.data.hasNetworkErrors || networkErrorTests.length > 0,
+        networkErrorCount: response.data.networkErrorCount || networkErrorTests.length
       };
       setTestSummary({ summary, results });
     } catch (err) {
@@ -382,8 +388,7 @@ const Dashboard = ({ project, config }) => {
               <Chip label={`Total: ${testSummary.summary.total}`} color="info" />
               <Chip label={`Passed: ${testSummary.summary.passed}`} color="success" />
               <Chip label={`Failed: ${testSummary.summary.failed}`} color="error" />
-              <Chip label={`New: ${testSummary.summary.new}`} color="warning" />
-              <Chip label={`Missing Ref: ${testSummary.summary.referenceMissing}`} color="default" />
+              <Chip label={`Network Errors: ${testSummary.summary.networkError}`} color="warning" />
               <Button
                 variant="contained"
                 color="primary"
@@ -393,12 +398,12 @@ const Dashboard = ({ project, config }) => {
                 Export Report
               </Button>
             </Box>
-            {/* Pass/Fail/Other Pie Chart */}
+            {/* Pass/Fail/Network Error Pie Chart */}
             <Box mb={2}>
               <Typography variant="subtitle1" color="textSecondary" gutterBottom>
-                Pass vs Fail Ratio
+                Test Results Distribution
               </Typography>
-              <ResponsiveContainer width="100%" height={220}>
+              <ResponsiveContainer width="100%" height={280}>
                 <PieChart>
                   <Pie
                     data={[{
@@ -406,7 +411,7 @@ const Dashboard = ({ project, config }) => {
                     }, {
                       name: 'Fail', value: testSummary.summary.failed
                     }, {
-                      name: 'Error', value: testSummary.summary.other
+                      name: 'Network Error', value: testSummary.summary.networkError
                     }]}
                     dataKey="value"
                     nameKey="name"
@@ -415,38 +420,76 @@ const Dashboard = ({ project, config }) => {
                     innerRadius={60}
                     outerRadius={90}
                     fill="#8884d8"
-                    label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                    labelLine={false}
+                    label={({ name, percent, value }) => 
+                      value > 0 ? `${name}: ${value} (${(percent * 100).toFixed(0)}%)` : ''
+                    }
                   >
                     <Cell key="pass" fill="#4caf50" />
                     <Cell key="fail" fill="#f44336" />
-                    <Cell key="error" fill="#ff9800" />
+                    <Cell key="networkError" fill="#ff9800" />
                   </Pie>
-                  <RechartsTooltip />
-                  <Legend />
+                  <RechartsTooltip 
+                    formatter={(value, name) => [value, name]}
+                    labelFormatter={() => ''}
+                  />
+                  <Legend 
+                    verticalAlign="bottom" 
+                    height={36}
+                    formatter={(value, entry) => `${value}: ${entry.payload.value}`}
+                  />
                 </PieChart>
               </ResponsiveContainer>
             </Box>
             {/* Status Breakdown Graph */}
-            <ResponsiveContainer width="100%" height={200}>
-              <BarChart
-                data={[{
-                  status: 'Passed', value: testSummary.summary.passed
-                }, {
-                  status: 'Failed', value: testSummary.summary.failed
-                }, {
-                  status: 'New', value: testSummary.summary.new
-                }, {
-                  status: 'Missing Ref', value: testSummary.summary.referenceMissing
-                }]}
-                margin={{ top: 10, right: 30, left: 0, bottom: 5 }}
-              >
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="status" />
-                <YAxis allowDecimals={false} />
-                <RechartsTooltip />
-                <Bar dataKey="value" fill="#1976d2" />
-              </BarChart>
-            </ResponsiveContainer>
+            <Box mb={2}>
+              <Typography variant="subtitle1" color="textSecondary" gutterBottom>
+                Test Results Breakdown
+              </Typography>
+              <ResponsiveContainer width="100%" height={250}>
+                <BarChart
+                  data={[{
+                    status: 'Passed', value: testSummary.summary.passed, fill: '#4caf50'
+                  }, {
+                    status: 'Failed', value: testSummary.summary.failed, fill: '#f44336'
+                  }, {
+                    status: 'Network Error', value: testSummary.summary.networkError, fill: '#ff9800'
+                  }]}
+                  margin={{ top: 20, right: 30, left: 20, bottom: 40 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" />
+                  <XAxis 
+                    dataKey="status" 
+                    tick={{ fontSize: 12, fill: '#666' }}
+                    axisLine={{ stroke: '#e0e0e0' }}
+                    tickLine={{ stroke: '#e0e0e0' }}
+                  />
+                  <YAxis 
+                    allowDecimals={false} 
+                    tick={{ fontSize: 12, fill: '#666' }}
+                    axisLine={{ stroke: '#e0e0e0' }}
+                    tickLine={{ stroke: '#e0e0e0' }}
+                  />
+                  <RechartsTooltip 
+                    formatter={(value) => [value, 'Tests']}
+                    labelFormatter={(label) => `${label}`}
+                    contentStyle={{
+                      backgroundColor: '#f5f5f5',
+                      border: '1px solid #ddd',
+                      borderRadius: '4px'
+                    }}
+                  />
+                  <Bar 
+                    dataKey="value" 
+                    radius={[4, 4, 0, 0]}
+                    shape={(props) => {
+                      const { ...rest } = props;
+                      return <Rectangle {...rest} fill={props.payload.fill} />;
+                    }}
+                  />
+                </BarChart>
+              </ResponsiveContainer>
+            </Box>
           </>
         ) : null}
       </Box>
