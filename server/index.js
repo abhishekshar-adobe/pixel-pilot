@@ -781,6 +781,15 @@ app.get('/api/projects/:projectId/test-results', async (req, res) => {
     console.log('Getting test results for project:', projectId);
     
     await validateProject(projectId);
+    
+    // First, try to get enhanced results from config.js (includes invalid scenarios)
+    const enhancedResults = await getEnhancedTestResults(projectId);
+    if (enhancedResults) {
+      console.log(`📊 Returning enhanced test results: ${enhancedResults.tests?.length || 0} total tests`);
+      return res.json(enhancedResults);
+    }
+    
+    // Fallback to original method if enhanced results not available
     const results = await getLatestTestResults(projectId);
     
     if (!results) {
@@ -799,6 +808,53 @@ app.get('/api/projects/:projectId/test-results', async (req, res) => {
     }
   }
 });
+
+// Helper function to get enhanced test results (includes invalid scenarios)
+async function getEnhancedTestResults(projectId) {
+  try {
+    const htmlReportPath = path.join(__dirname, 'backstop_data', projectId, 'html_report', 'config.js');
+    
+    if (!await fs.pathExists(htmlReportPath)) {
+      console.log('📄 Enhanced config.js not found, falling back to standard results');
+      return null;
+    }
+    
+    // Read the enhanced config.js file
+    const configContent = await fs.readFile(htmlReportPath, 'utf8');
+    const reportMatch = configContent.match(/report\((.*)\);/s);
+    
+    if (!reportMatch) {
+      console.log('⚠️  Could not parse enhanced config.js file');
+      return null;
+    }
+    
+    const enhancedReport = JSON.parse(reportMatch[1]);
+    
+    // Add metadata about the enhancement
+    const enhancedResults = {
+      ...enhancedReport,
+      isEnhanced: true,
+      hasNetworkErrors: enhancedReport.hasNetworkErrors || false,
+      networkErrorCount: enhancedReport.networkErrorCount || 0,
+      totalTests: enhancedReport.tests?.length || 0,
+      validTests: enhancedReport.tests?.filter(test => !test.networkError)?.length || 0,
+      invalidTests: enhancedReport.tests?.filter(test => test.networkError)?.length || 0,
+      testSuite: {
+        name: enhancedReport.testSuite || `backstop_${projectId}`,
+        date: new Date().toISOString(), // Use current date for enhanced reports
+        enhanced: true
+      }
+    };
+    
+    console.log(`📊 Enhanced results summary: ${enhancedResults.totalTests} total (${enhancedResults.validTests} valid + ${enhancedResults.invalidTests} network errors)`);
+    
+    return enhancedResults;
+    
+  } catch (error) {
+    console.error('❌ Error reading enhanced test results:', error);
+    return null;
+  }
+}
 
 // Run BackstopJS test for project
 app.post('/api/projects/:projectId/test', async (req, res) => {
@@ -5891,6 +5947,62 @@ io.on('connection', (socket) => {
   socket.on('disconnect', () => {
     console.log('🔌 Client disconnected:', socket.id);
   });
+});
+
+// Simple test-results endpoint for quick access (uses latest project)
+app.get('/test-results', async (req, res) => {
+  try {
+    // Find the most recent project directory
+    const backstopDataDir = path.join(__dirname, 'backstop_data');
+    
+    if (!await fs.pathExists(backstopDataDir)) {
+      return res.status(404).json({ error: 'No test results found' });
+    }
+    
+    const projectDirs = await fs.readdir(backstopDataDir);
+    const projectDirsWithStats = [];
+    
+    for (const dir of projectDirs) {
+      const fullPath = path.join(backstopDataDir, dir);
+      const stats = await fs.stat(fullPath);
+      if (stats.isDirectory()) {
+        projectDirsWithStats.push({ name: dir, mtime: stats.mtime });
+      }
+    }
+    
+    if (projectDirsWithStats.length === 0) {
+      return res.status(404).json({ error: 'No project directories found' });
+    }
+    
+    // Sort by modification time, newest first
+    projectDirsWithStats.sort((a, b) => b.mtime - a.mtime);
+    const latestProjectId = projectDirsWithStats[0].name;
+    
+    console.log(`📊 Using latest project for /test-results: ${latestProjectId}`);
+    
+    // Get enhanced results from the latest project (includes network error scenarios)
+    const enhancedResults = await getEnhancedTestResults(latestProjectId);
+    if (enhancedResults) {
+      console.log(`✅ Returning enhanced results: ${enhancedResults.tests?.length || 0} tests (${enhancedResults.invalidTests} network errors)`);
+      return res.json(enhancedResults);
+    }
+    
+    // Fallback to original method
+    const results = await getLatestTestResults(latestProjectId);
+    if (!results) {
+      return res.status(404).json({ error: 'No test results found' });
+    }
+    
+    console.log(`📊 Returning standard results: ${results.tests?.length || 0} tests`);
+    res.json(results);
+    
+  } catch (error) {
+    console.error('❌ Error in /test-results endpoint:', error);
+    res.status(500).json({ 
+      error: 'Failed to fetch test results', 
+      details: error.message 
+    });
+  }
 });
 
 process.on('unhandledRejection', (reason, promise) => {
