@@ -94,3 +94,6 @@ temp/
 
 # Build outputs
 *.tsbuildinfo
+
+# Electron asar files
+*.asar
