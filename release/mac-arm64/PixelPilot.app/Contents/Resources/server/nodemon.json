@@ -1,6 +1,0 @@
-{
-  "watch": ["*.js", "**/*.js"],
-  "ext": "js,json",
-  "ignore": ["node_modules/**", "backstop_data/**", "uploads/**", "design-cache/**"],
-  "delay": "1000"
-}

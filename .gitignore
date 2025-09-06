@@ -48,6 +48,34 @@ ehthumbs.db
 coverage/
 *.lcov
 
+# Electron build output
+release/
+out/
+build/
+dist-electron/
+
+# Electron-specific
+.electron-builder.env
+
+# Application storage
+.config/
+.data/
+
+# Platform-specific installers
+*.exe
+*.dmg
+*.AppImage
+*.snap
+*.deb
+*.rpm
+*.pkg
+*.zip
+*.blockmap
+latest-mac.yml
+latest.yml
+builder-debug.yml
+builder-effective-config.yaml
+
 # Runtime data
 pids/
 *.pid
