@@ -18,6 +18,7 @@ import {
   UploadFileOutlined,
   ViewListOutlined,
   DashboardOutlined,
+  Build as BuildIcon,
   ArrowBack as ArrowBackIcon
 } from '@mui/icons-material';
 import axios from 'axios';
@@ -29,6 +30,7 @@ import ScenarioManager from './ScenarioManager';
 import ScreenshotUploader from './ScreenshotUploader';
 import TestRunner from './TestRunner';
 import Dashboard from './Dashboard';
+import Tools from './Tools';
 
 const API_BASE = 'http://localhost:5000/api';
 
@@ -66,12 +68,13 @@ function ProjectContent({ project, onBack }) {
       case '/scenarios': return 2;
       case '/upload': return 3;
       case '/test': return 4;
+      case '/tools': return 5;
       default: return 0;
     }
   };
 
   const handleTabChange = (event, newValue) => {
-    const routes = ['/dashboard', '/config', '/scenarios', '/upload', '/test'];
+    const routes = ['/dashboard', '/config', '/scenarios', '/upload', '/test', '/tools'];
     navigate(routes[newValue]);
   };
 
@@ -325,6 +328,27 @@ function ProjectContent({ project, onBack }) {
               }
             })}
           />
+          <Tab
+            icon={<BuildIcon />}
+            label="Tools"
+            iconPosition="start"
+            sx={theme => ({
+              minHeight: 64,
+              textTransform: 'none',
+              fontSize: '0.9375rem',
+              fontWeight: 500,
+              color: 'text.secondary',
+              '&.Mui-selected': {
+                color: 'primary.main',
+                fontWeight: 600
+              },
+              '& .MuiSvgIcon-root': {
+                fontSize: '1.25rem',
+                marginRight: 1,
+                transition: 'color 0.2s'
+              }
+            })}
+          />
         </Tabs>
       </Box>
 
@@ -386,6 +410,15 @@ function ProjectContent({ project, onBack }) {
                   project={project}
                   config={projectConfig}
                   scenarios={projectConfig?.scenarios || []}
+                />
+              } 
+            />
+            <Route 
+              path="/tools" 
+              element={
+                <Tools 
+                  project={project}
+                  config={projectConfig}
                 />
               } 
             />
