@@ -1,0 +1,55 @@
+{
+  "id": "preview_backstop",
+  "viewports": [
+    {
+      "label": "desktop",
+      "width": 1024,
+      "height": 768
+    }
+  ],
+  "onBeforeScript": "puppet/onBefore.js",
+  "onReadyScript": "puppet/onReady.js",
+  "scenarios": [
+    {
+      "id": 1756225949441,
+      "label": "preview_scenario",
+      "url": "https://aem.enablementadobe.com/content/asset-share-commons/en/light.html",
+      "referenceUrl": "",
+      "selectors": [
+        "document"
+      ],
+      "delay": 100,
+      "misMatchThreshold": 0.1,
+      "requireSameDimensions": true,
+      "removeSelectors": [],
+      "selectorExpansion": true,
+      "readyEvent": "",
+      "readySelector": "",
+      "hideSelectors": [],
+      "hoverSelector": "",
+      "clickSelector": "",
+      "postInteractionWait": 0,
+      "expect": 0
+    }
+  ],
+  "paths": {
+    "bitmaps_reference": "/Users/abhishekshar/Downloads/pixel-pilot/server/backstop_data/temp_preview/preview_reference",
+    "bitmaps_test": "/Users/abhishekshar/Downloads/pixel-pilot/server/backstop_data/temp_preview/preview_test",
+    "engine_scripts": "/Users/abhishekshar/Downloads/pixel-pilot/server/backstop_data/engine_scripts",
+    "json_report": "/Users/abhishekshar/Downloads/pixel-pilot/server/backstop_data/temp_preview/json_report",
+    "html_report": "/Users/abhishekshar/Downloads/pixel-pilot/server/backstop_data/temp_preview/html_report"
+  },
+  "report": [
+    "browser"
+  ],
+  "engine": "puppeteer",
+  "engineOptions": {
+    "args": [
+      "--no-sandbox"
+    ]
+  },
+  "asyncCaptureLimit": 5,
+  "asyncCompareLimit": 50,
+  "debug": false,
+  "debugWindow": false
+}

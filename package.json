@@ -1,7 +1,9 @@
 {
   "name": "pixelpilot",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
+  "description": "Visual Regression Testing Dashboard for BackstopJS",
+  "author": "Your Name",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -9,7 +11,52 @@
     "start": "concurrently \"npm run server\" \"npm run dev\"",
     "build": "vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "electron:dev": "cross-env NODE_ENV=development electron electron/main-new.cjs",
+    "electron:build": "npm run build && electron-builder build --mac --win",
+    "electron:dir": "npm run build && electron-builder --dir",
+    "electron:package": "npm run build && electron-builder build -mw"
+  },
+  "main": "electron/main.cjs",
+  "build": {
+    "appId": "com.pixelpilot.app",
+    "productName": "PixelPilot",
+    "files": [
+      "dist/**/*",
+      "electron/**/*"
+    ],
+    "protocols": {
+      "name": "PixelPilot",
+      "schemes": [
+        "pixelpilot"
+      ]
+    },
+    "directories": {
+      "buildResources": "assets",
+      "output": "release"
+    },
+    "extraResources": [
+      {
+        "from": "server",
+        "to": "server",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ],
+    "mac": {
+      "category": "public.app-category.developer-tools"
+    },
+    "win": {
+      "target": [
+        "nsis"
+      ]
+    },
+    "linux": {
+      "target": [
+        "AppImage"
+      ]
+    }
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",
@@ -21,6 +68,7 @@
     "backstopjs": "^6.3.25",
     "concurrently": "^9.2.0",
     "cors": "^2.8.5",
+    "electron-store": "^8.1.0",
     "express": "^5.1.0",
     "multer": "^2.0.2",
     "node-fetch": "^3.3.2",
@@ -36,6 +84,10 @@
     "@types/react": "^19.1.8",
     "@types/react-dom": "^19.1.6",
     "@vitejs/plugin-react": "^4.6.0",
+    "cross-env": "^10.0.0",
+    "electron": "^38.0.0",
+    "electron-builder": "24.6.4",
+    "electron-is-dev": "^3.0.1",
     "eslint": "^9.30.1",
     "eslint-plugin-react-hooks": "^5.2.0",
     "eslint-plugin-react-refresh": "^0.4.20",

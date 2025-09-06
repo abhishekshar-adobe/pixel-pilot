@@ -1,0 +1,93 @@
+{
+  "id": "backstop_22f386bf-8e19-4ff5-8e29-ae8063e6a93f",
+  "viewports": [
+    {
+      "label": "phone",
+      "width": 320,
+      "height": 480
+    },
+    {
+      "label": "tablet",
+      "width": 768,
+      "height": 1024
+    },
+    {
+      "label": "Tablet_Landscape",
+      "width": 1024,
+      "height": 768
+    },
+    {
+      "label": "desktop",
+      "width": 1920,
+      "height": 1080
+    }
+  ],
+  "scenarios": [
+    {
+      "label": "Homepage Header",
+      "url": "https://aem.enablementadobe.com/content/asset-share-commons/en/light.html",
+      "selectors": [
+        "document"
+      ],
+      "delay": 500,
+      "misMatchThreshold": 0.1,
+      "requireSameDimensions": false,
+      "hideSelectors": [],
+      "removeSelectors": [],
+      "clickSelector": "",
+      "hoverSelector": "",
+      "selectorExpansion": true,
+      "customScript": "",
+      "customBeforeScript": "",
+      "referenceUrl": "https://aem.enablementadobe.com/content/asset-share-commons/en/light.html",
+      "validationErrors": [],
+      "id": 1757066421878.039
+    },
+    {
+      "label": "Product Grid",
+      "url": "https://aem.enablementadobe.com/content/asset-share-commons/en/light.html",
+      "selectors": [
+        "document"
+      ],
+      "delay": 1000,
+      "misMatchThreshold": 0.2,
+      "requireSameDimensions": false,
+      "hideSelectors": [],
+      "removeSelectors": [],
+      "clickSelector": "",
+      "hoverSelector": "",
+      "selectorExpansion": true,
+      "customScript": "",
+      "customBeforeScript": "",
+      "referenceUrl": "https://aem.enablementadobe.com/content/asset-share-commons/en/light.html",
+      "validationErrors": [],
+      "id": 1757066421878.1887
+    }
+  ],
+  "paths": {
+    "bitmaps_reference": "/Users/abhishekshar/Downloads/pixel-pilot/server/backstop_data/22f386bf-8e19-4ff5-8e29-ae8063e6a93f/bitmaps_reference",
+    "bitmaps_test": "/Users/abhishekshar/Downloads/pixel-pilot/server/backstop_data/22f386bf-8e19-4ff5-8e29-ae8063e6a93f/bitmaps_test",
+    "engine_scripts": "/Users/abhishekshar/Downloads/pixel-pilot/server/backstop_data/22f386bf-8e19-4ff5-8e29-ae8063e6a93f/engine_scripts",
+    "html_report": "/Users/abhishekshar/Downloads/pixel-pilot/server/backstop_data/22f386bf-8e19-4ff5-8e29-ae8063e6a93f/html_report",
+    "ci_report": "/Users/abhishekshar/Downloads/pixel-pilot/server/backstop_data/22f386bf-8e19-4ff5-8e29-ae8063e6a93f/ci_report"
+  },
+  "report": [
+    "browser"
+  ],
+  "engine": "puppeteer",
+  "engineOptions": {
+    "args": [
+      "--no-sandbox",
+      "--disable-setuid-sandbox"
+    ],
+    "headless": "new",
+    "defaultViewport": null
+  },
+  "asyncCaptureLimit": 5,
+  "asyncCompareLimit": 50,
+  "debug": false,
+  "debugWindow": false,
+  "scenarioLogsInReports": true,
+  "puppeteerOffscreenCapture": true,
+  "projectId": "22f386bf-8e19-4ff5-8e29-ae8063e6a93f"
+}

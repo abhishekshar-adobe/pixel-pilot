@@ -91,7 +91,9 @@ function ScenarioManager({ project, config: projectConfig, onConfigUpdate }) {
       } else {
         scenariosData = [scenariosData];
       }
-      const scenariosWithIds = scenariosData.map((scenario, index) => ({
+      // Filter out scenarios that have a referenceUrl
+      const filteredScenarios = scenariosData.filter(scenario => !scenario.referenceUrl);
+      const scenariosWithIds = filteredScenarios.map((scenario, index) => ({
         ...scenario,
         id: scenario.id || `existing-${index}-${Date.now()}`
       }))

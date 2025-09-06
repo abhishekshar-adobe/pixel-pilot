@@ -1,0 +1,43 @@
+{
+  "id": "2025-09-02T12-24-19-172Z_auto_backup_2025-09-02T12-24-19-172Z",
+  "name": "Auto Backup - 9/2/2025",
+  "description": "Automated backup created after test execution with visual differences",
+  "projectId": "81fea7e0-4722-458d-a9a2-36a8ecbd8cb9",
+  "timestamp": "2025-09-02T12:24:19.181Z",
+  "testSummary": {
+    "totalTests": 4,
+    "passedTests": 4,
+    "failedTests": 0,
+    "avgMismatch": 0
+  },
+  "scenarios": [
+    {
+      "label": "Product Grid",
+      "viewport": "phone",
+      "status": "pass",
+      "mismatchPercentage": "0.00",
+      "url": "https://aem.enablementadobe.com/content/asset-share-commons/en/light.html"
+    },
+    {
+      "label": "Product Grid",
+      "viewport": "tablet",
+      "status": "pass",
+      "mismatchPercentage": "0.00",
+      "url": "https://aem.enablementadobe.com/content/asset-share-commons/en/light.html"
+    },
+    {
+      "label": "Product Grid",
+      "viewport": "Tablet_Landscape",
+      "status": "pass",
+      "mismatchPercentage": "0.00",
+      "url": "https://aem.enablementadobe.com/content/asset-share-commons/en/light.html"
+    },
+    {
+      "label": "Product Grid",
+      "viewport": "desktop",
+      "status": "pass",
+      "mismatchPercentage": "0.00",
+      "url": "https://aem.enablementadobe.com/content/asset-share-commons/en/light.html"
+    }
+  ]
+}

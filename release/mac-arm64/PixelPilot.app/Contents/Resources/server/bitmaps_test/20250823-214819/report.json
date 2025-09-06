@@ -1,0 +1,23 @@
+{
+  "testSuite": "BackstopJS",
+  "tests": [
+    {
+      "pair": {
+        "reference": "../bitmaps_reference/backstop_default_New_Scenario_0_document_0_phone.png",
+        "test": "../bitmaps_test/20250823-214819/backstop_default_New_Scenario_0_document_0_phone.png",
+        "selector": "document",
+        "fileName": "backstop_default_New_Scenario_0_document_0_phone.png",
+        "label": "New Scenario",
+        "requireSameDimensions": true,
+        "misMatchThreshold": 0.1,
+        "url": "https://www.adobe.com/in/creativecloud/photography.html",
+        "expect": 0,
+        "viewportLabel": "phone",
+        "engineErrorMsg": "net::ERR_HTTP2_PROTOCOL_ERROR at https://www.adobe.com/in/creativecloud/photography.html",
+        "error": "Reference file not found /Users/abhishekshar/Downloads/pixel-pilot/server/bitmaps_reference/backstop_default_New_Scenario_0_document_0_phone.png"
+      },
+      "status": "fail"
+    }
+  ],
+  "id": "backstop_default"
+}

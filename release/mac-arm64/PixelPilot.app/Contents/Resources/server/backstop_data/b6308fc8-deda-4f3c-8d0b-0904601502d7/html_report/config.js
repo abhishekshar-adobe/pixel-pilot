@@ -1,0 +1,119 @@
+report({
+  "testSuite": "BackstopJS",
+  "tests": [
+    {
+      "pair": {
+        "reference": "../bitmaps_reference/backstop_b6308fc8-deda-4f3c-8d0b-0904601502d7_google_0_document_0_desktop.png",
+        "referenceLog": "../bitmaps_reference/backstop_b6308fc8-deda-4f3c-8d0b-0904601502d7_google_0_document_0_desktop.log.json",
+        "test": "../bitmaps_test/20250828-220942/backstop_b6308fc8-deda-4f3c-8d0b-0904601502d7_google_0_document_0_desktop.png",
+        "testLog": "../bitmaps_test/20250828-220942/backstop_b6308fc8-deda-4f3c-8d0b-0904601502d7_google_0_document_0_desktop.log.json",
+        "selector": "document",
+        "fileName": "backstop_b6308fc8-deda-4f3c-8d0b-0904601502d7_google_0_document_0_desktop.png",
+        "label": "google",
+        "requireSameDimensions": true,
+        "misMatchThreshold": 0.1,
+        "url": "https://www.google.com",
+        "referenceUrl": "https://www.google.com",
+        "expect": 0,
+        "viewportLabel": "desktop",
+        "diff": {
+          "isSameDimensions": true,
+          "dimensionDifference": {
+            "width": 0,
+            "height": 0
+          },
+          "rawMisMatchPercentage": 0.777435302734375,
+          "misMatchPercentage": "0.78",
+          "analysisTime": 9
+        },
+        "diffImage": "../bitmaps_test/20250828-220942/failed_diff_backstop_b6308fc8-deda-4f3c-8d0b-0904601502d7_google_0_document_0_desktop.png"
+      },
+      "status": "fail"
+    },
+    {
+      "pair": {
+        "reference": "../bitmaps_reference/backstop_b6308fc8-deda-4f3c-8d0b-0904601502d7_google-home_0_document_0_desktop.png",
+        "referenceLog": "../bitmaps_reference/backstop_b6308fc8-deda-4f3c-8d0b-0904601502d7_google-home_0_document_0_desktop.log.json",
+        "test": "../bitmaps_test/20250828-220942/backstop_b6308fc8-deda-4f3c-8d0b-0904601502d7_google-home_0_document_0_desktop.png",
+        "testLog": "../bitmaps_test/20250828-220942/backstop_b6308fc8-deda-4f3c-8d0b-0904601502d7_google-home_0_document_0_desktop.log.json",
+        "selector": "document",
+        "fileName": "backstop_b6308fc8-deda-4f3c-8d0b-0904601502d7_google-home_0_document_0_desktop.png",
+        "label": "google-home",
+        "requireSameDimensions": true,
+        "misMatchThreshold": 0.1,
+        "url": "https://www.google.com",
+        "referenceUrl": "https://www.google.com",
+        "expect": 0,
+        "viewportLabel": "desktop",
+        "diff": {
+          "isSameDimensions": true,
+          "dimensionDifference": {
+            "width": 0,
+            "height": 0
+          },
+          "rawMisMatchPercentage": 0.28317769368489587,
+          "misMatchPercentage": "0.28",
+          "analysisTime": 12
+        },
+        "diffImage": "../bitmaps_test/20250828-220942/failed_diff_backstop_b6308fc8-deda-4f3c-8d0b-0904601502d7_google-home_0_document_0_desktop.png"
+      },
+      "status": "fail"
+    },
+    {
+      "pair": {
+        "reference": "../bitmaps_reference/backstop_b6308fc8-deda-4f3c-8d0b-0904601502d7_asset-share-commons_0_document_0_desktop.png",
+        "referenceLog": "../bitmaps_reference/backstop_b6308fc8-deda-4f3c-8d0b-0904601502d7_asset-share-commons_0_document_0_desktop.log.json",
+        "test": "../bitmaps_test/20250828-220942/backstop_b6308fc8-deda-4f3c-8d0b-0904601502d7_asset-share-commons_0_document_0_desktop.png",
+        "testLog": "../bitmaps_test/20250828-220942/backstop_b6308fc8-deda-4f3c-8d0b-0904601502d7_asset-share-commons_0_document_0_desktop.log.json",
+        "selector": "document",
+        "fileName": "backstop_b6308fc8-deda-4f3c-8d0b-0904601502d7_asset-share-commons_0_document_0_desktop.png",
+        "label": "asset-share-commons",
+        "requireSameDimensions": true,
+        "misMatchThreshold": 0.1,
+        "url": "https://aem.enablementadobe.com/content/asset-share-commons/en/light.html",
+        "referenceUrl": "https://aem.enablementadobe.com/content/asset-share-commons/en/light.html",
+        "expect": 0,
+        "viewportLabel": "desktop",
+        "diff": {
+          "isSameDimensions": true,
+          "dimensionDifference": {
+            "width": 0,
+            "height": 0
+          },
+          "misMatchPercentage": "0.00"
+        }
+      },
+      "status": "pass"
+    },
+    {
+      "pair": {
+        "reference": "../bitmaps_reference/backstop_b6308fc8-deda-4f3c-8d0b-0904601502d7_not_working_0_document_0_desktop.png",
+        "referenceLog": "../bitmaps_reference/backstop_b6308fc8-deda-4f3c-8d0b-0904601502d7_not_working_0_document_0_desktop.log.json",
+        "test": "../bitmaps_test/20250828-220942/backstop_b6308fc8-deda-4f3c-8d0b-0904601502d7_not_working_0_document_0_desktop.png",
+        "testLog": "../bitmaps_test/20250828-220942/backstop_b6308fc8-deda-4f3c-8d0b-0904601502d7_not_working_0_document_0_desktop.log.json",
+        "selector": "document",
+        "fileName": "backstop_b6308fc8-deda-4f3c-8d0b-0904601502d7_not_working_0_document_0_desktop.png",
+        "label": "not working",
+        "requireSameDimensions": true,
+        "misMatchThreshold": 0.1,
+        "url": "https://example.com",
+        "referenceUrl": "https://google.com",
+        "expect": 0,
+        "viewportLabel": "desktop",
+        "diff": {
+          "isSameDimensions": true,
+          "dimensionDifference": {
+            "width": 0,
+            "height": 0
+          },
+          "rawMisMatchPercentage": 5.117670694986979,
+          "misMatchPercentage": "5.12",
+          "analysisTime": 10
+        },
+        "diffImage": "../bitmaps_test/20250828-220942/failed_diff_backstop_b6308fc8-deda-4f3c-8d0b-0904601502d7_not_working_0_document_0_desktop.png"
+      },
+      "status": "fail"
+    }
+  ],
+  "id": "backstop_b6308fc8-deda-4f3c-8d0b-0904601502d7"
+});

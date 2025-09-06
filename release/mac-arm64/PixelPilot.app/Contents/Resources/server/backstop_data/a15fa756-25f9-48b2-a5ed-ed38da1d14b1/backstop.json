@@ -1,0 +1,51 @@
+{
+  "id": "backstop_a15fa756-25f9-48b2-a5ed-ed38da1d14b1",
+  "viewports": [
+    {
+      "label": "phone",
+      "width": 320,
+      "height": 480
+    },
+    {
+      "label": "tablet",
+      "width": 768,
+      "height": 1024
+    },
+    {
+      "label": "Tablet_Landscape",
+      "width": 1024,
+      "height": 768
+    },
+    {
+      "label": "desktop",
+      "width": 1920,
+      "height": 1080
+    }
+  ],
+  "scenarios": [],
+  "paths": {
+    "bitmaps_reference": "/Users/abhishekshar/Downloads/pixel-pilot/server/backstop_data/a15fa756-25f9-48b2-a5ed-ed38da1d14b1/bitmaps_reference",
+    "bitmaps_test": "/Users/abhishekshar/Downloads/pixel-pilot/server/backstop_data/a15fa756-25f9-48b2-a5ed-ed38da1d14b1/bitmaps_test",
+    "engine_scripts": "/Users/abhishekshar/Downloads/pixel-pilot/server/backstop_data/a15fa756-25f9-48b2-a5ed-ed38da1d14b1/engine_scripts",
+    "html_report": "/Users/abhishekshar/Downloads/pixel-pilot/server/backstop_data/a15fa756-25f9-48b2-a5ed-ed38da1d14b1/html_report",
+    "ci_report": "/Users/abhishekshar/Downloads/pixel-pilot/server/backstop_data/a15fa756-25f9-48b2-a5ed-ed38da1d14b1/ci_report"
+  },
+  "report": [
+    "browser"
+  ],
+  "engine": "puppeteer",
+  "engineOptions": {
+    "args": [
+      "--no-sandbox",
+      "--disable-setuid-sandbox"
+    ],
+    "headless": "new",
+    "defaultViewport": null
+  },
+  "asyncCaptureLimit": 1,
+  "asyncCompareLimit": 50,
+  "debug": false,
+  "debugWindow": false,
+  "scenarioLogsInReports": true,
+  "puppeteerOffscreenCapture": true
+}

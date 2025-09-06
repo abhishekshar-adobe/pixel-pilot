@@ -1,0 +1,214 @@
+report({
+  "testSuite": "BackstopJS",
+  "tests": [
+    {
+      "pair": {
+        "reference": "../bitmaps_reference/backstop_22f386bf-8e19-4ff5-8e29-ae8063e6a93f_Homepage_Header_0_document_0_phone.png",
+        "referenceLog": "../bitmaps_reference/backstop_22f386bf-8e19-4ff5-8e29-ae8063e6a93f_Homepage_Header_0_document_0_phone.log.json",
+        "test": "../bitmaps_test/20250905-153059/backstop_22f386bf-8e19-4ff5-8e29-ae8063e6a93f_Homepage_Header_0_document_0_phone.png",
+        "testLog": "../bitmaps_test/20250905-153059/backstop_22f386bf-8e19-4ff5-8e29-ae8063e6a93f_Homepage_Header_0_document_0_phone.log.json",
+        "selector": "document",
+        "fileName": "backstop_22f386bf-8e19-4ff5-8e29-ae8063e6a93f_Homepage_Header_0_document_0_phone.png",
+        "label": "Homepage Header",
+        "requireSameDimensions": false,
+        "misMatchThreshold": 0.1,
+        "url": "https://aem.enablementadobe.com/content/asset-share-commons/en/light.html",
+        "referenceUrl": "https://aem.enablementadobe.com/content/asset-share-commons/en/light.html",
+        "expect": 0,
+        "viewportLabel": "phone",
+        "diff": {
+          "isSameDimensions": true,
+          "dimensionDifference": {
+            "width": 0,
+            "height": 0
+          },
+          "misMatchPercentage": "0.00"
+        }
+      },
+      "status": "pass"
+    },
+    {
+      "pair": {
+        "reference": "../bitmaps_reference/backstop_22f386bf-8e19-4ff5-8e29-ae8063e6a93f_Homepage_Header_0_document_1_tablet.png",
+        "referenceLog": "../bitmaps_reference/backstop_22f386bf-8e19-4ff5-8e29-ae8063e6a93f_Homepage_Header_0_document_1_tablet.log.json",
+        "test": "../bitmaps_test/20250905-153059/backstop_22f386bf-8e19-4ff5-8e29-ae8063e6a93f_Homepage_Header_0_document_1_tablet.png",
+        "testLog": "../bitmaps_test/20250905-153059/backstop_22f386bf-8e19-4ff5-8e29-ae8063e6a93f_Homepage_Header_0_document_1_tablet.log.json",
+        "selector": "document",
+        "fileName": "backstop_22f386bf-8e19-4ff5-8e29-ae8063e6a93f_Homepage_Header_0_document_1_tablet.png",
+        "label": "Homepage Header",
+        "requireSameDimensions": false,
+        "misMatchThreshold": 0.1,
+        "url": "https://aem.enablementadobe.com/content/asset-share-commons/en/light.html",
+        "referenceUrl": "https://aem.enablementadobe.com/content/asset-share-commons/en/light.html",
+        "expect": 0,
+        "viewportLabel": "tablet",
+        "diff": {
+          "isSameDimensions": true,
+          "dimensionDifference": {
+            "width": 0,
+            "height": 0
+          },
+          "misMatchPercentage": "0.00"
+        }
+      },
+      "status": "pass"
+    },
+    {
+      "pair": {
+        "reference": "../bitmaps_reference/backstop_22f386bf-8e19-4ff5-8e29-ae8063e6a93f_Homepage_Header_0_document_2_Tablet_Landscape.png",
+        "referenceLog": "../bitmaps_reference/backstop_22f386bf-8e19-4ff5-8e29-ae8063e6a93f_Homepage_Header_0_document_2_Tablet_Landscape.log.json",
+        "test": "../bitmaps_test/20250905-153059/backstop_22f386bf-8e19-4ff5-8e29-ae8063e6a93f_Homepage_Header_0_document_2_Tablet_Landscape.png",
+        "testLog": "../bitmaps_test/20250905-153059/backstop_22f386bf-8e19-4ff5-8e29-ae8063e6a93f_Homepage_Header_0_document_2_Tablet_Landscape.log.json",
+        "selector": "document",
+        "fileName": "backstop_22f386bf-8e19-4ff5-8e29-ae8063e6a93f_Homepage_Header_0_document_2_Tablet_Landscape.png",
+        "label": "Homepage Header",
+        "requireSameDimensions": false,
+        "misMatchThreshold": 0.1,
+        "url": "https://aem.enablementadobe.com/content/asset-share-commons/en/light.html",
+        "referenceUrl": "https://aem.enablementadobe.com/content/asset-share-commons/en/light.html",
+        "expect": 0,
+        "viewportLabel": "Tablet_Landscape",
+        "diff": {
+          "isSameDimensions": true,
+          "dimensionDifference": {
+            "width": 0,
+            "height": 0
+          },
+          "misMatchPercentage": "0.00"
+        }
+      },
+      "status": "pass"
+    },
+    {
+      "pair": {
+        "reference": "../bitmaps_reference/backstop_22f386bf-8e19-4ff5-8e29-ae8063e6a93f_Homepage_Header_0_document_3_desktop.png",
+        "referenceLog": "../bitmaps_reference/backstop_22f386bf-8e19-4ff5-8e29-ae8063e6a93f_Homepage_Header_0_document_3_desktop.log.json",
+        "test": "../bitmaps_test/20250905-153059/backstop_22f386bf-8e19-4ff5-8e29-ae8063e6a93f_Homepage_Header_0_document_3_desktop.png",
+        "testLog": "../bitmaps_test/20250905-153059/backstop_22f386bf-8e19-4ff5-8e29-ae8063e6a93f_Homepage_Header_0_document_3_desktop.log.json",
+        "selector": "document",
+        "fileName": "backstop_22f386bf-8e19-4ff5-8e29-ae8063e6a93f_Homepage_Header_0_document_3_desktop.png",
+        "label": "Homepage Header",
+        "requireSameDimensions": false,
+        "misMatchThreshold": 0.1,
+        "url": "https://aem.enablementadobe.com/content/asset-share-commons/en/light.html",
+        "referenceUrl": "https://aem.enablementadobe.com/content/asset-share-commons/en/light.html",
+        "expect": 0,
+        "viewportLabel": "desktop",
+        "diff": {
+          "isSameDimensions": true,
+          "dimensionDifference": {
+            "width": 0,
+            "height": 0
+          },
+          "misMatchPercentage": "0.00"
+        }
+      },
+      "status": "pass"
+    },
+    {
+      "pair": {
+        "reference": "../bitmaps_reference/backstop_22f386bf-8e19-4ff5-8e29-ae8063e6a93f_Product_Grid_0_document_0_phone.png",
+        "referenceLog": "../bitmaps_reference/backstop_22f386bf-8e19-4ff5-8e29-ae8063e6a93f_Product_Grid_0_document_0_phone.log.json",
+        "test": "../bitmaps_test/20250905-153059/backstop_22f386bf-8e19-4ff5-8e29-ae8063e6a93f_Product_Grid_0_document_0_phone.png",
+        "testLog": "../bitmaps_test/20250905-153059/backstop_22f386bf-8e19-4ff5-8e29-ae8063e6a93f_Product_Grid_0_document_0_phone.log.json",
+        "selector": "document",
+        "fileName": "backstop_22f386bf-8e19-4ff5-8e29-ae8063e6a93f_Product_Grid_0_document_0_phone.png",
+        "label": "Product Grid",
+        "requireSameDimensions": false,
+        "misMatchThreshold": 0.2,
+        "url": "https://aem.enablementadobe.com/content/asset-share-commons/en/light.html",
+        "referenceUrl": "https://aem.enablementadobe.com/content/asset-share-commons/en/light.html",
+        "expect": 0,
+        "viewportLabel": "phone",
+        "diff": {
+          "isSameDimensions": true,
+          "dimensionDifference": {
+            "width": 0,
+            "height": 0
+          },
+          "misMatchPercentage": "0.00"
+        }
+      },
+      "status": "pass"
+    },
+    {
+      "pair": {
+        "reference": "../bitmaps_reference/backstop_22f386bf-8e19-4ff5-8e29-ae8063e6a93f_Product_Grid_0_document_1_tablet.png",
+        "referenceLog": "../bitmaps_reference/backstop_22f386bf-8e19-4ff5-8e29-ae8063e6a93f_Product_Grid_0_document_1_tablet.log.json",
+        "test": "../bitmaps_test/20250905-153059/backstop_22f386bf-8e19-4ff5-8e29-ae8063e6a93f_Product_Grid_0_document_1_tablet.png",
+        "testLog": "../bitmaps_test/20250905-153059/backstop_22f386bf-8e19-4ff5-8e29-ae8063e6a93f_Product_Grid_0_document_1_tablet.log.json",
+        "selector": "document",
+        "fileName": "backstop_22f386bf-8e19-4ff5-8e29-ae8063e6a93f_Product_Grid_0_document_1_tablet.png",
+        "label": "Product Grid",
+        "requireSameDimensions": false,
+        "misMatchThreshold": 0.2,
+        "url": "https://aem.enablementadobe.com/content/asset-share-commons/en/light.html",
+        "referenceUrl": "https://aem.enablementadobe.com/content/asset-share-commons/en/light.html",
+        "expect": 0,
+        "viewportLabel": "tablet",
+        "diff": {
+          "isSameDimensions": true,
+          "dimensionDifference": {
+            "width": 0,
+            "height": 0
+          },
+          "misMatchPercentage": "0.00"
+        }
+      },
+      "status": "pass"
+    },
+    {
+      "pair": {
+        "reference": "../bitmaps_reference/backstop_22f386bf-8e19-4ff5-8e29-ae8063e6a93f_Product_Grid_0_document_2_Tablet_Landscape.png",
+        "referenceLog": "../bitmaps_reference/backstop_22f386bf-8e19-4ff5-8e29-ae8063e6a93f_Product_Grid_0_document_2_Tablet_Landscape.log.json",
+        "test": "../bitmaps_test/20250905-153059/backstop_22f386bf-8e19-4ff5-8e29-ae8063e6a93f_Product_Grid_0_document_2_Tablet_Landscape.png",
+        "testLog": "../bitmaps_test/20250905-153059/backstop_22f386bf-8e19-4ff5-8e29-ae8063e6a93f_Product_Grid_0_document_2_Tablet_Landscape.log.json",
+        "selector": "document",
+        "fileName": "backstop_22f386bf-8e19-4ff5-8e29-ae8063e6a93f_Product_Grid_0_document_2_Tablet_Landscape.png",
+        "label": "Product Grid",
+        "requireSameDimensions": false,
+        "misMatchThreshold": 0.2,
+        "url": "https://aem.enablementadobe.com/content/asset-share-commons/en/light.html",
+        "referenceUrl": "https://aem.enablementadobe.com/content/asset-share-commons/en/light.html",
+        "expect": 0,
+        "viewportLabel": "Tablet_Landscape",
+        "diff": {
+          "isSameDimensions": true,
+          "dimensionDifference": {
+            "width": 0,
+            "height": 0
+          },
+          "misMatchPercentage": "0.00"
+        }
+      },
+      "status": "pass"
+    },
+    {
+      "pair": {
+        "reference": "../bitmaps_reference/backstop_22f386bf-8e19-4ff5-8e29-ae8063e6a93f_Product_Grid_0_document_3_desktop.png",
+        "referenceLog": "../bitmaps_reference/backstop_22f386bf-8e19-4ff5-8e29-ae8063e6a93f_Product_Grid_0_document_3_desktop.log.json",
+        "test": "../bitmaps_test/20250905-153059/backstop_22f386bf-8e19-4ff5-8e29-ae8063e6a93f_Product_Grid_0_document_3_desktop.png",
+        "testLog": "../bitmaps_test/20250905-153059/backstop_22f386bf-8e19-4ff5-8e29-ae8063e6a93f_Product_Grid_0_document_3_desktop.log.json",
+        "selector": "document",
+        "fileName": "backstop_22f386bf-8e19-4ff5-8e29-ae8063e6a93f_Product_Grid_0_document_3_desktop.png",
+        "label": "Product Grid",
+        "requireSameDimensions": false,
+        "misMatchThreshold": 0.2,
+        "url": "https://aem.enablementadobe.com/content/asset-share-commons/en/light.html",
+        "referenceUrl": "https://aem.enablementadobe.com/content/asset-share-commons/en/light.html",
+        "expect": 0,
+        "viewportLabel": "desktop",
+        "diff": {
+          "isSameDimensions": true,
+          "dimensionDifference": {
+            "width": 0,
+            "height": 0
+          },
+          "misMatchPercentage": "0.00"
+        }
+      },
+      "status": "pass"
+    }
+  ],
+  "id": "backstop_22f386bf-8e19-4ff5-8e29-ae8063e6a93f"
+});

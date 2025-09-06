@@ -1,0 +1,94 @@
+{
+  "projectId": "b6308fc8-deda-4f3c-8d0b-0904601502d7",
+  "id": "backstop_b6308fc8-deda-4f3c-8d0b-0904601502d7",
+  "viewports": [
+    {
+      "label": "desktop",
+      "width": 1024,
+      "height": 768
+    }
+  ],
+  "scenarios": [
+    {
+      "id": 1756222582091,
+      "label": "google",
+      "url": "https://www.google.com",
+      "referenceUrl": "https://www.google.com",
+      "selectors": [
+        "document"
+      ],
+      "delay": 100,
+      "misMatchThreshold": 0.1,
+      "requireSameDimensions": true,
+      "removeSelectors": [],
+      "selectorExpansion": true
+    },
+    {
+      "id": 1756224656114,
+      "label": "google-home",
+      "url": "https://www.google.com",
+      "referenceUrl": "https://www.google.com",
+      "selectors": [
+        "document"
+      ],
+      "delay": 100,
+      "misMatchThreshold": 0.1,
+      "requireSameDimensions": true,
+      "removeSelectors": [],
+      "selectorExpansion": true
+    },
+    {
+      "id": 1756225949441,
+      "label": "asset-share-commons",
+      "url": "https://aem.enablementadobe.com/content/asset-share-commons/en/light.html",
+      "referenceUrl": "https://aem.enablementadobe.com/content/asset-share-commons/en/light.html",
+      "selectors": [
+        "document"
+      ],
+      "delay": 100,
+      "misMatchThreshold": 0.1,
+      "requireSameDimensions": true,
+      "removeSelectors": [],
+      "selectorExpansion": true
+    },
+    {
+      "id": 1756270608649,
+      "label": "not working",
+      "url": "https://example.com",
+      "referenceUrl": "https://google.com",
+      "selectors": [
+        "document"
+      ],
+      "delay": 0,
+      "misMatchThreshold": 0.1,
+      "requireSameDimensions": true,
+      "removeSelectors": [],
+      "selectorExpansion": true
+    }
+  ],
+  "paths": {
+    "bitmaps_reference": "/Users/abhishekshar/Downloads/pixel-pilot/server/backstop_data/b6308fc8-deda-4f3c-8d0b-0904601502d7/bitmaps_reference",
+    "bitmaps_test": "/Users/abhishekshar/Downloads/pixel-pilot/server/backstop_data/b6308fc8-deda-4f3c-8d0b-0904601502d7/bitmaps_test",
+    "engine_scripts": "/Users/abhishekshar/Downloads/pixel-pilot/server/backstop_data/b6308fc8-deda-4f3c-8d0b-0904601502d7/engine_scripts",
+    "html_report": "/Users/abhishekshar/Downloads/pixel-pilot/server/backstop_data/b6308fc8-deda-4f3c-8d0b-0904601502d7/html_report",
+    "ci_report": "/Users/abhishekshar/Downloads/pixel-pilot/server/backstop_data/b6308fc8-deda-4f3c-8d0b-0904601502d7/ci_report"
+  },
+  "report": [
+    "browser"
+  ],
+  "engine": "puppeteer",
+  "engineOptions": {
+    "args": [
+      "--no-sandbox",
+      "--disable-setuid-sandbox"
+    ],
+    "headless": "new",
+    "defaultViewport": null
+  },
+  "asyncCaptureLimit": 1,
+  "asyncCompareLimit": 50,
+  "debug": false,
+  "debugWindow": false,
+  "scenarioLogsInReports": true,
+  "puppeteerOffscreenCapture": true
+}
