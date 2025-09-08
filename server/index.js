@@ -6,6 +6,7 @@ const path = require('path');
 const backstop = require('backstopjs');
 const sharp = require('sharp');
 const axios = require('axios');
+const cheerio = require('cheerio');
 const archiver = require('archiver');
 const { v4: uuidv4 } = require('uuid');
 const { DesignComparisonEngine } = require('./design-comparison-engine');
@@ -5857,6 +5858,32 @@ app.get('/api/projects/:projectId/backups/:backupId/csv', async (req, res) => {
   }
 });
 
+// Download CSV from clone results
+app.get('/api/download-csv/:projectFolder', async (req, res) => {
+  try {
+    const { projectFolder } = req.params;
+    const csvPath = path.join(__dirname, 'backstop_data', projectFolder, 'scenarios.csv');
+    
+    // Check if CSV file exists
+    if (!fs.existsSync(csvPath)) {
+      return res.status(404).json({ 
+        error: 'CSV file not found',
+        message: 'Please clone URLs first to generate scenarios CSV'
+      });
+    }
+    
+    const csvContent = fs.readFileSync(csvPath, 'utf8');
+    
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', `attachment; filename="${projectFolder}-scenarios.csv"`);
+    res.send(csvContent);
+    
+  } catch (error) {
+    console.error('❌ Error downloading CSV:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Serve backup HTML reports and assets
 app.use('/api/projects/:projectId/backups/:backupId/report', (req, res, next) => {
   const { projectId, backupId } = req.params;
@@ -5932,8 +5959,899 @@ async function getFolderSize(folderPath) {
   return size;
 }
 
+// Tools API Endpoints
+
+// Test endpoint to verify tools API is working
+app.get('/api/tools/test', (req, res) => {
+  res.json({ 
+    message: 'Tools API is working!', 
+    timestamp: new Date().toISOString(),
+    endpoints: [
+      'POST /api/clone-urls',
+      'POST /api/compare-links',
+      'GET /api/projects/:projectId/scenarios-csv',
+      'POST /api/projects/:projectId/clean',
+      'GET /api/projects/:projectId/export'
+    ]
+  });
+});
+
+// Clean Project endpoint
+app.post('/api/projects/:projectId/clean', async (req, res) => {
+  try {
+    const { projectId } = req.params;
+    
+    if (!projectId) {
+      return res.status(400).json({ error: 'Project ID is required' });
+    }
+
+    console.log(`🧹 Cleaning project: ${projectId}`);
+
+    const projectDir = path.join(__dirname, 'backstop_data', projectId);
+    
+    // Check if project exists
+    if (!await fs.pathExists(projectDir)) {
+      return res.status(404).json({ error: 'Project not found' });
+    }
+
+    // Clean test results and temporary files
+    const filesToClean = [
+      path.join(projectDir, 'backstop_data', 'bitmaps_test'),
+      path.join(projectDir, 'backstop_data', 'html_report'),
+      path.join(projectDir, 'backstop_data', 'ci_report'),
+      path.join(projectDir, 'test_results.json'),
+      path.join(projectDir, 'test_output.txt')
+    ];
+
+    for (const filePath of filesToClean) {
+      if (await fs.pathExists(filePath)) {
+        await fs.remove(filePath);
+        console.log(`🗑️ Removed: ${path.relative(projectDir, filePath)}`);
+      }
+    }
+
+    console.log(`✅ Project ${projectId} cleaned successfully`);
+    res.json({ 
+      message: 'Project cleaned successfully',
+      projectId,
+      cleanedItems: filesToClean.length
+    });
+
+  } catch (error) {
+    console.error('❌ Error cleaning project:', error);
+    res.status(500).json({ 
+      error: 'Failed to clean project', 
+      details: error.message 
+    });
+  }
+});
+
+// Export Configuration endpoint
+app.get('/api/projects/:projectId/export', async (req, res) => {
+  try {
+    const { projectId } = req.params;
+    
+    if (!projectId) {
+      return res.status(400).json({ error: 'Project ID is required' });
+    }
+
+    console.log(`📤 Exporting configuration for project: ${projectId}`);
+
+    const projectDir = path.join(__dirname, 'backstop_data', projectId);
+    const configPath = path.join(projectDir, 'backstop.json');
+    
+    // Check if project exists
+    if (!await fs.pathExists(configPath)) {
+      return res.status(404).json({ error: 'Project configuration not found' });
+    }
+
+    // Read the configuration
+    const config = await fs.readJson(configPath);
+    
+    // Add export metadata
+    const exportData = {
+      ...config,
+      exportMetadata: {
+        projectId,
+        exportedAt: new Date().toISOString(),
+        exportedFrom: 'PixelPilot Dashboard',
+        version: '1.0'
+      }
+    };
+
+    // Set headers for file download
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Content-Disposition', `attachment; filename="${projectId}-config-${new Date().toISOString().split('T')[0]}.json"`);
+    
+    console.log(`✅ Configuration exported for project: ${projectId}`);
+    res.json(exportData);
+
+  } catch (error) {
+    console.error('❌ Error exporting configuration:', error);
+    res.status(500).json({ 
+      error: 'Failed to export configuration', 
+      details: error.message 
+    });
+  }
+});
+
+// URL Clone endpoint (enhanced version)
+app.post('/api/clone-urls', async (req, res) => {
+  try {
+    const { targetUrl, referenceUrl, projectId } = req.body;
+    
+    if (!targetUrl || !projectId) {
+      return res.status(400).json({ error: 'Target URL and project ID are required' });
+    }
+
+    console.log(`🔗 Cloning URLs from: ${targetUrl}`);
+    if (referenceUrl) {
+      console.log(`📎 Reference URL: ${referenceUrl}`);
+    }
+
+    // Create axios instance for URL crawling
+    const crawlerAxios = axios.create({
+      timeout: 30000,
+      maxRedirects: 5,
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.5'
+      },
+      httpsAgent: new https.Agent({
+        rejectUnauthorized: false,
+        keepAlive: true,
+        timeout: 60000
+      })
+    });
+
+    // Function to normalize URLs
+    function normalizeUrl(href, baseUrl) {
+      try {
+        const fullUrl = new URL(href, baseUrl);
+        let normalized = fullUrl.href
+          .toLowerCase()
+          .replace(/#.*$/, '')
+          .replace(/\?$/, '')
+          .replace(/([^:]\/)\/+/g, '$1')
+          .replace(/\/$/, '');
+        
+        const urlObj = new URL(normalized);
+        const searchParams = new URLSearchParams(urlObj.search);
+        const trackingParams = ['utm_source', 'utm_medium', 'utm_campaign', 'fbclid', '_ga'];
+        trackingParams.forEach(param => searchParams.delete(param));
+        
+        urlObj.search = searchParams.toString();
+        return urlObj.href;
+      } catch {
+        return null;
+      }
+    }
+
+    // Function to get all links from a page
+    async function getAllLinks(url) {
+      console.log(`🔍 Extracting links from: ${url}`);
+      
+      // First try with Cheerio (faster for static content)
+      const cheerioResult = await extractLinksWithCheerio(url);
+      
+      // If we found links with Cheerio, use them
+      if (cheerioResult.urls.length > 0) {
+        console.log(`✅ Found ${cheerioResult.urls.length} links using Cheerio`);
+        return cheerioResult;
+      }
+      
+      // If no links found with Cheerio, try with Puppeteer (for JavaScript-heavy sites)
+      console.log(`🔄 No links found with Cheerio, trying Puppeteer for dynamic content...`);
+      const puppeteerResult = await extractLinksWithPuppeteer(url);
+      
+      if (puppeteerResult.urls.length > 0) {
+        console.log(`✅ Found ${puppeteerResult.urls.length} links using Puppeteer`);
+        return puppeteerResult;
+      }
+      
+      console.log(`⚠️ No navigation links found on ${url}`);
+      return {
+        success: true,
+        urls: [],
+        normalized: [],
+        mapping: {}
+      };
+    }
+
+    // Extract links using Cheerio (for static content)
+    async function extractLinksWithCheerio(url) {
+      const selectors = [
+        'nav a[href]:not([href*=".css"]):not([href*=".js"])',
+        '.menu a[href]:not([href*=".css"]):not([href*=".js"])', 
+        '.navigation a[href]:not([href*=".css"]):not([href*=".js"])',
+        '.navbar a[href]:not([href*=".css"]):not([href*=".js"])',
+        '.nav a[href]:not([href*=".css"]):not([href*=".js"])',
+        'header a[href]:not([href*=".css"]):not([href*=".js"])',
+        '.header a[href]:not([href*=".css"]):not([href*=".js"])',
+        '.main-nav a[href]:not([href*=".css"]):not([href*=".js"])',
+        '.primary-nav a[href]:not([href*=".css"]):not([href*=".js"])',
+        '.footer a[href]:not([href*=".css"]):not([href*=".js"]):not([href*="mailto:"]):not([href*="tel:"])',
+        '[role="navigation"] a[href]:not([href*=".css"]):not([href*=".js"])',
+        '.breadcrumb a[href]:not([href*=".css"]):not([href*=".js"])',
+        'main a[href]:not([href*=".css"]):not([href*=".js"]):not([href*="mailto:"]):not([href*="tel:"])',
+        // Fallback for general page links
+        'a[href]:not([href*=".css"]):not([href*=".js"]):not([href*="mailto:"]):not([href*="tel:"]):not([href*="javascript:"])'
+      ];
+
+      try {
+        const response = await crawlerAxios.get(url);
+        const $ = cheerio.load(response.data);
+        const links = new Map();
+
+        const addUrl = (href, context = '') => {
+          if (!href || (!href.match(/^(https?:)?\/\//i) && !href.startsWith('/'))) return;
+          
+          const normalizedUrl = normalizeUrl(href, url);
+          if (!normalizedUrl) return;
+          
+          const urlObj = new URL(normalizedUrl);
+          const baseUrlObj = new URL(url);
+          if (urlObj.hostname !== baseUrlObj.hostname) return;
+          
+          // Filter out static assets and non-navigation links
+          const path = urlObj.pathname.toLowerCase();
+          const isStaticAsset = 
+            path.includes('.css') ||
+            path.includes('.js') ||
+            path.includes('.ico') ||
+            path.includes('.png') ||
+            path.includes('.jpg') ||
+            path.includes('.jpeg') ||
+            path.includes('.gif') ||
+            path.includes('.svg') ||
+            path.includes('.woff') ||
+            path.includes('.woff2') ||
+            path.includes('.ttf') ||
+            path.includes('.eot') ||
+            path.includes('.pdf') ||
+            path.includes('.zip') ||
+            path.includes('.doc') ||
+            path.includes('.xml') ||
+            path.startsWith('/_next/') ||
+            path.startsWith('/api/') ||
+            path.startsWith('/static/') ||
+            path.startsWith('/assets/') ||
+            path.startsWith('/cdn-cgi/') ||
+            href.includes('mailto:') ||
+            href.includes('tel:') ||
+            href.includes('javascript:');
+          
+          if (isStaticAsset) return;
+          
+          // Only include meaningful navigation paths
+          if (path === '/' || path.length < 2) return;
+          
+          if (!links.has(normalizedUrl)) {
+            links.set(normalizedUrl, new Set());
+          }
+          links.get(normalizedUrl).add(href);
+          
+          if (context) {
+            links.get(normalizedUrl).add(`${context}: ${href}`);
+          }
+        };
+
+        for (const selector of selectors) {
+          $(selector).each((_, element) => {
+            const $el = $(element);
+            const href = $el.attr('href');
+            if (href) {
+              const context = $el.closest('[class]').attr('class') || 
+                            $el.closest('[id]').attr('id') ||
+                            selector.split(' ')[0];
+              addUrl(href, context);
+            }
+          });
+        }
+
+        const processedLinks = Array.from(links.entries()).map(([normalizedUrl, originalUrls]) => ({
+          normalizedUrl,
+          originalUrls: Array.from(originalUrls),
+          valid: true
+        }));
+
+        return {
+          success: true,
+          urls: processedLinks,
+          normalized: processedLinks.map(link => link.normalizedUrl),
+          mapping: Object.fromEntries(
+            processedLinks.map(link => [
+              link.normalizedUrl,
+              link.originalUrls
+            ])
+          )
+        };
+      } catch (error) {
+        console.error(`❌ Cheerio extraction failed for ${url}:`, error.message);
+        return {
+          success: false,
+          urls: [],
+          normalized: [],
+          mapping: {}
+        };
+      }
+    }
+
+    // Extract links using Puppeteer (for dynamic content)
+    async function extractLinksWithPuppeteer(url) {
+      const puppeteer = require('puppeteer');
+      let browser;
+      
+      try {
+        browser = await puppeteer.launch({
+          headless: true,
+          args: [
+            '--no-sandbox',
+            '--disable-setuid-sandbox',
+            '--disable-dev-shm-usage',
+            '--disable-web-security',
+            '--disable-features=VizDisplayCompositor'
+          ]
+        });
+
+        const page = await browser.newPage();
+        
+        // Set a realistic user agent
+        await page.setUserAgent('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36');
+        
+        // Set viewport
+        await page.setViewport({ width: 1280, height: 800 });
+        
+        // Navigate to the page and wait for network idle
+        await page.goto(url, { 
+          waitUntil: 'networkidle2',
+          timeout: 30000 
+        });
+
+        // Wait a bit more for any lazy-loaded content
+        await page.waitForTimeout(2000);
+
+        // Extract links using page.evaluate
+        const links = await page.evaluate((baseUrl) => {
+          const foundLinks = new Map();
+          const baseHostname = new URL(baseUrl).hostname;
+          
+          const addUrl = (href, context = '') => {
+            if (!href) return;
+            
+            try {
+              let absoluteUrl;
+              if (href.startsWith('http')) {
+                absoluteUrl = new URL(href);
+              } else {
+                absoluteUrl = new URL(href, baseUrl);
+              }
+              
+              // Only include links from the same domain
+              if (absoluteUrl.hostname !== baseHostname) return;
+              
+              const path = absoluteUrl.pathname.toLowerCase();
+              
+              // Filter out static assets
+              const isStaticAsset = 
+                path.includes('.css') ||
+                path.includes('.js') ||
+                path.includes('.ico') ||
+                path.includes('.png') ||
+                path.includes('.jpg') ||
+                path.includes('.jpeg') ||
+                path.includes('.gif') ||
+                path.includes('.svg') ||
+                path.includes('.woff') ||
+                path.includes('.woff2') ||
+                path.includes('.ttf') ||
+                path.includes('.eot') ||
+                path.includes('.pdf') ||
+                path.includes('.zip') ||
+                path.includes('.doc') ||
+                path.includes('.xml') ||
+                path.startsWith('/_next/') ||
+                path.startsWith('/api/') ||
+                path.startsWith('/static/') ||
+                path.startsWith('/assets/') ||
+                path.startsWith('/cdn-cgi/') ||
+                href.includes('mailto:') ||
+                href.includes('tel:') ||
+                href.includes('javascript:');
+              
+              if (isStaticAsset) return;
+              
+              // Only include meaningful navigation paths
+              if (path === '/' || path.length < 2) return;
+              
+              const normalizedUrl = absoluteUrl.href;
+              if (!foundLinks.has(normalizedUrl)) {
+                foundLinks.set(normalizedUrl, new Set());
+              }
+              foundLinks.get(normalizedUrl).add(href);
+              
+              if (context) {
+                foundLinks.get(normalizedUrl).add(`${context}: ${href}`);
+              }
+            } catch {
+              // Skip invalid URLs
+            }
+          };
+
+          // Look for navigation links with various selectors
+          const selectors = [
+            'nav a[href]',
+            '.menu a[href]', 
+            '.navigation a[href]',
+            '.navbar a[href]',
+            '.nav a[href]',
+            'header a[href]',
+            '.header a[href]',
+            '.main-nav a[href]',
+            '.primary-nav a[href]',
+            '.footer a[href]',
+            '[role="navigation"] a[href]',
+            '.breadcrumb a[href]',
+            'main a[href]',
+            // Next.js specific selectors
+            '[data-testid] a[href]',
+            '.MuiButton-root[href]',
+            'button[href]',
+            // General fallback
+            'a[href]'
+          ];
+
+          for (const selector of selectors) {
+            // eslint-disable-next-line no-undef
+            const elements = document.querySelectorAll(selector);
+            elements.forEach(element => {
+              const href = element.getAttribute('href');
+              if (href) {
+                const context = element.closest('[class]')?.className ||
+                              element.closest('[id]')?.id ||
+                              selector;
+                addUrl(href, context);
+              }
+            });
+          }
+
+          return Array.from(foundLinks.entries()).map(([normalizedUrl, originalUrls]) => ({
+            normalizedUrl,
+            originalUrls: Array.from(originalUrls)
+          }));
+        }, url);
+
+        return {
+          success: true,
+          urls: links,
+          normalized: links.map(link => link.normalizedUrl),
+          mapping: Object.fromEntries(
+            links.map(link => [
+              link.normalizedUrl,
+              link.originalUrls
+            ])
+          )
+        };
+
+      } catch (error) {
+        console.error(`❌ Puppeteer extraction failed for ${url}:`, error.message);
+        return {
+          success: false,
+          urls: [],
+          normalized: [],
+          mapping: {}
+        };
+      } finally {
+        if (browser) {
+          await browser.close();
+        }
+      }
+    }
+
+    // Get all links from the target page
+    const targetResult = await getAllLinks(targetUrl);
+    
+    if (!targetResult || !targetResult.urls || !Array.isArray(targetResult.urls)) {
+      throw new Error('Failed to extract valid URLs from the target page');
+    }
+
+    const targetUrls = targetResult.normalized;
+
+    if (!targetUrls || targetUrls.length === 0) {
+      return res.status(400).json({
+        error: 'No valid URLs found',
+        message: 'Could not find any valid URLs to process on the target page'
+      });
+    }
+
+    // If reference URL is provided, also get links from reference page
+    let referenceResult = null;
+    let referenceUrls = [];
+    
+    if (referenceUrl) {
+      console.log(`🔗 Also scanning reference URL: ${referenceUrl}`);
+      try {
+        referenceResult = await getAllLinks(referenceUrl);
+        if (referenceResult && referenceResult.normalized) {
+          referenceUrls = referenceResult.normalized;
+          console.log(`📋 Found ${referenceUrls.length} links on reference page`);
+        }
+      } catch (error) {
+        console.warn(`⚠️ Warning: Could not scan reference URL: ${error.message}`);
+      }
+    }
+
+    // Helper function to convert target URL to reference URL
+    const convertToReferenceUrl = (targetPageUrl) => {
+      if (!referenceUrl) return '';
+      
+      try {
+        const referenceBaseUrl = new URL(referenceUrl);
+        const targetPath = new URL(targetPageUrl).pathname;
+        return referenceBaseUrl.origin + targetPath;
+      } catch {
+        return '';
+      }
+    };
+
+    // Create comprehensive URL mapping
+    const urlMapping = {
+      target: {
+        baseUrl: targetUrl,
+        links: targetResult.mapping,
+        count: targetUrls.length,
+        paths: targetUrls.map(url => new URL(url).pathname)
+      }
+    };
+
+    if (referenceUrl && referenceResult) {
+      urlMapping.reference = {
+        baseUrl: referenceUrl,
+        links: referenceResult.mapping,
+        count: referenceUrls.length,
+        paths: referenceUrls.map(url => new URL(url).pathname)
+      };
+
+      // Create path comparison
+      const targetPaths = urlMapping.target.paths;
+      const referencePaths = urlMapping.reference.paths;
+      
+      urlMapping.comparison = {
+        commonPaths: targetPaths.filter(path => referencePaths.includes(path)),
+        targetOnlyPaths: targetPaths.filter(path => !referencePaths.includes(path)),
+        referenceOnlyPaths: referencePaths.filter(path => !targetPaths.includes(path))
+      };
+    }
+
+    // Create project directory
+    const projectDir = path.join(__dirname, 'backstop_data', projectId);
+    await fs.ensureDir(projectDir);
+    
+    // Create scenarios from the URLs
+    const scenarios = targetUrls.map(targetPageUrl => ({
+      label: targetPageUrl.replace(/https?:\/\//, '').replace(/[^a-z0-9]/gi, '_').slice(0, 50),
+      url: targetPageUrl,
+      referenceUrl: convertToReferenceUrl(targetPageUrl),
+      readySelector: '', // Empty as requested
+      delay: 500, // Changed from 2000 to 500
+      hideSelectors: [],
+      removeSelectors: [],
+      selectors: ['document'], // Changed from 'viewport' to 'document'
+      selectorExpansion: true,
+      expect: 0,
+      misMatchThreshold: 0.1, // Keeping the same as it wasn't specified differently
+    }));
+
+    // Save URL mapping for reference
+    const mappingData = {
+      targetUrl,
+      referenceUrl: referenceUrl || null,
+      timestamp: new Date().toISOString(),
+      urlMapping,
+      scenarioCount: scenarios.length,
+      // Legacy mapping for backward compatibility
+      mapping: targetResult.mapping
+    };
+    
+    await fs.writeJson(
+      path.join(projectDir, 'url_mapping.json'),
+      mappingData,
+      { spaces: 2 }
+    );
+
+    // Create CSV export of scenarios
+    const csvHeaders = [
+      'label',
+      'url', 
+      'referenceUrl',
+      'selector',
+      'readySelector',
+      'delay',
+      'hideSelectors',
+      'removeSelectors',
+      'misMatchThreshold'
+    ];
+    
+    const csvRows = scenarios.map(scenario => [
+      scenario.label,
+      scenario.url,
+      scenario.referenceUrl || '',
+      scenario.selectors.join(';'),
+      scenario.readySelector,
+      scenario.delay,
+      scenario.hideSelectors.join(';'),
+      scenario.removeSelectors.join(';'),
+      scenario.misMatchThreshold
+    ]);
+    
+    const csvContent = [
+      csvHeaders.join(','),
+      ...csvRows.map(row => row.map(cell => `"${cell}"`).join(','))
+    ].join('\n');
+    
+    await fs.writeFile(
+      path.join(projectDir, 'scenarios.csv'),
+      csvContent,
+      'utf8'
+    );
+
+    // Load existing config or create new one
+    const configPath = path.join(projectDir, 'backstop.json');
+    let config;
+    
+    try {
+      config = await fs.readJson(configPath);
+    } catch {
+      config = {
+        id: projectId,
+        viewports: [
+          { label: "phone", width: 320, height: 480 },
+          { label: "tablet", width: 768, height: 1024 },
+          { label: "desktop", width: 1920, height: 1080 }
+        ],
+        scenarios: [],
+        paths: {
+          bitmaps_reference: 'backstop_data/bitmaps_reference',
+          bitmaps_test: 'backstop_data/bitmaps_test',
+          engine_scripts: 'backstop_data/engine_scripts',
+          html_report: 'backstop_data/html_report',
+          ci_report: 'backstop_data/ci_report'
+        },
+        engine: 'puppeteer',
+        report: ['browser'],
+        debug: false
+      };
+    }
+
+    // Update config with new scenarios
+    config.scenarios = scenarios;
+    await fs.writeJson(configPath, config, { spaces: 2 });
+
+    console.log(`✅ URL cloning completed: ${targetUrls.length} URLs found`);
+    console.log(`📄 CSV export created with ${scenarios.length} scenarios`);
+
+    res.json({
+      message: 'URL processing completed',
+      urlCount: targetUrls.length,
+      scenarios: scenarios.length,
+      targetUrl,
+      referenceUrl: referenceUrl || null,
+      projectId, // Include projectId in response
+      urlMapping,
+      csvGenerated: true,
+      files: {
+        config: 'backstop.json',
+        urlMapping: 'url_mapping.json',
+        csvExport: 'scenarios.csv'
+      },
+      // Legacy mapping for backward compatibility
+      mapping: targetResult.mapping
+    });
+
+  } catch (error) {
+    console.error('❌ Error in URL cloning:', error);
+    res.status(500).json({
+      error: 'Failed to process URLs',
+      message: error.message
+    });
+  }
+});
+
+// Download Scenarios CSV endpoint
+app.get('/api/projects/:projectId/scenarios-csv', async (req, res) => {
+  try {
+    const { projectId } = req.params;
+    
+    if (!projectId) {
+      return res.status(400).json({ error: 'Project ID is required' });
+    }
+
+    console.log(`📄 Downloading scenarios CSV for project: ${projectId}`);
+
+    const projectDir = path.join(__dirname, 'backstop_data', projectId);
+    const csvPath = path.join(projectDir, 'scenarios.csv');
+    
+    // Check if CSV exists
+    if (!await fs.pathExists(csvPath)) {
+      return res.status(404).json({ error: 'CSV file not found. Please clone URLs first to generate scenarios.' });
+    }
+
+    // Read the CSV content
+    const csvContent = await fs.readFile(csvPath, 'utf8');
+    
+    // Set headers for file download
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', `attachment; filename="${projectId}-scenarios-${new Date().toISOString().split('T')[0]}.csv"`);
+    
+    console.log(`✅ CSV downloaded for project: ${projectId}`);
+    res.send(csvContent);
+
+  } catch (error) {
+    console.error('❌ Error downloading CSV:', error);
+    res.status(500).json({ 
+      error: 'Failed to download CSV', 
+      details: error.message 
+    });
+  }
+});
+
+// Compare Links endpoint - compares links between STAGE and QA environments
+app.post('/api/compare-links', async (req, res) => {
+  try {
+    const { stageUrl, qaUrl } = req.body;
+    
+    if (!stageUrl || !qaUrl) {
+      return res.status(400).json({ error: 'Both STAGE and QA URLs are required' });
+    }
+
+    console.log(`🔍 Comparing links between STAGE and QA:`);
+    console.log(`   STAGE: ${stageUrl}`);
+    console.log(`   QA: ${qaUrl}`);
+
+    // Create axios instance for web crawling
+    const crawlerAxios = axios.create({
+      timeout: 30000,
+      maxRedirects: 5,
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.5'
+      },
+      httpsAgent: new https.Agent({
+        rejectUnauthorized: false,
+        keepAlive: true,
+        timeout: 60000
+      })
+    });
+
+    // Function to extract links from a page
+    async function extractLinks(url) {
+      try {
+        const response = await crawlerAxios.get(url);
+        const $ = cheerio.load(response.data);
+        const links = new Set();
+        const baseHostname = new URL(url).hostname;
+        let totalHrefs = 0;
+        
+        // Extract all href attributes
+        $('a[href]').each((_, element) => {
+          const href = $(element).attr('href');
+          totalHrefs++;
+          
+          if (href) {
+            try {
+              // Convert relative URLs to absolute
+              let absoluteUrl;
+              if (href.startsWith('http')) {
+                absoluteUrl = new URL(href);
+              } else {
+                absoluteUrl = new URL(href, url);
+              }
+              
+              // Only include links from the same domain
+              if (absoluteUrl.hostname === baseHostname) {
+                let path = absoluteUrl.pathname;
+                
+                // Normalize path
+                if (path.endsWith('/') && path.length > 1) {
+                  path = path.slice(0, -1);
+                }
+                
+                // More lenient filtering - include any meaningful paths
+                const isValidPath = path && 
+                  path !== '/' && 
+                  path.length > 1 &&
+                  !path.includes('.pdf') &&
+                  !path.includes('.jpg') &&
+                  !path.includes('.jpeg') &&
+                  !path.includes('.png') &&
+                  !path.includes('.gif') &&
+                  !path.includes('.svg') &&
+                  !path.includes('.css') &&
+                  !path.includes('.js') &&
+                  !path.includes('.ico') &&
+                  !path.includes('.woff') &&
+                  !path.startsWith('/cdn-cgi/') &&
+                  !path.includes('mailto:') &&
+                  !path.includes('tel:');
+                
+                if (isValidPath) {
+                  links.add(path);
+                }
+              }
+            } catch {
+              // Skip invalid URLs
+            }
+          }
+        });
+        
+        console.log(`   🔗 Found ${totalHrefs} total hrefs, extracted ${links.size} valid internal links from ${url}`);
+        if (links.size > 0) {
+          console.log(`   📋 Sample links: ${Array.from(links).slice(0, 5).join(', ')}`);
+        }
+        
+        return Array.from(links).sort();
+      } catch (error) {
+        console.error(`❌ Error extracting links from ${url}:`, error.message);
+        return [];
+      }
+    }
+
+    // Extract links from both environments
+    const [stageLinks, qaLinks] = await Promise.all([
+      extractLinks(stageUrl),
+      extractLinks(qaUrl)
+    ]);
+
+    console.log(`📊 Found ${stageLinks.length} links on STAGE, ${qaLinks.length} links on QA`);
+
+    // Create comparison table
+    const allPaths = new Set([...stageLinks, ...qaLinks]);
+    const comparison = Array.from(allPaths).map(path => ({
+      path,
+      onStage: stageLinks.includes(path),
+      onQA: qaLinks.includes(path),
+      status: stageLinks.includes(path) && qaLinks.includes(path) ? 'both' :
+              stageLinks.includes(path) ? 'stage-only' : 'qa-only'
+    })).sort((a, b) => a.path.localeCompare(b.path));
+
+    // Calculate statistics
+    const stats = {
+      total: comparison.length,
+      onBoth: comparison.filter(item => item.status === 'both').length,
+      stageOnly: comparison.filter(item => item.status === 'stage-only').length,
+      qaOnly: comparison.filter(item => item.status === 'qa-only').length,
+      stagePaths: stageLinks.length,
+      qaPaths: qaLinks.length
+    };
+
+    console.log(`✅ Link comparison completed:`);
+    console.log(`   📈 Total unique paths: ${stats.total}`);
+    console.log(`   ✅ On both environments: ${stats.onBoth}`);
+    console.log(`   🟡 STAGE only: ${stats.stageOnly}`);
+    console.log(`   🔴 QA only: ${stats.qaOnly}`);
+
+    res.json({
+      message: 'Link comparison completed',
+      stageUrl,
+      qaUrl,
+      comparison,
+      stats,
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error('❌ Error in link comparison:', error);
+    res.status(500).json({
+      error: 'Failed to compare links',
+      message: error.message
+    });
+  }
+});
+
 // 404 handler - should be after all other routes
-app.use((req, res, next) => {
+app.use((req, res) => {
   if (!res.headersSent) {
     console.log(`404 Not Found: ${req.method} ${req.url}`);
     return res.status(404).json({ error: 'Endpoint not found' });
