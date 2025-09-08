@@ -1,0 +1,551 @@
+{
+  "targetUrl": "https://www.barbequenation.com/",
+  "referenceUrl": "https://www.barbequenation.com/",
+  "timestamp": "2025-09-07T03:45:47.765Z",
+  "urlMapping": {
+    "target": {
+      "baseUrl": "https://www.barbequenation.com/",
+      "links": {
+        "https://www.barbequenation.com/vouchers": [
+          "/vouchers",
+          "relative text-sm font-inter font-medium text-gray-800 hover:text-primary-5 leading-[22.4px] transition-colors duration-300 \n                  : /vouchers",
+          "flex flex-col items-center justify-center: /vouchers",
+          "justify-center font-inter px-3 font-normal rounded-lg border duration-300 bg-transparent text-gray-6 border-gray-3 hover:bg-gray-1 flex items-center py-1.5 text-xs md:text-base: /vouchers",
+          "hover:text-primary-5 duration-300 font-inter-16-regular: /vouchers",
+          "hover:text-primary-5 duration-300 font-inter text-sm font-normal leading-[22.4px] text-gray-5: /vouchers"
+        ],
+        "https://www.barbequenation.com/promotion": [
+          "/promotion",
+          "relative text-sm font-inter font-medium text-gray-800 hover:text-primary-5 leading-[22.4px] transition-colors duration-300 \n                  : /promotion",
+          "hover:text-primary-5 duration-300 font-inter-16-regular: /promotion",
+          "hover:text-primary-5 duration-300 font-inter text-sm font-normal leading-[22.4px] text-gray-5: /promotion"
+        ],
+        "https://www.barbequenation.com/deals": [
+          "/deals",
+          "relative text-sm font-inter font-medium text-gray-800 hover:text-primary-5 leading-[22.4px] transition-colors duration-300 \n                  : /deals",
+          "hover:text-primary-5 duration-300 font-inter-16-regular: /deals"
+        ],
+        "https://www.barbequenation.com/restaurants": [
+          "/restaurants",
+          "relative text-sm font-inter font-medium text-gray-800 hover:text-primary-5 leading-[22.4px] transition-colors duration-300 \n                  : /restaurants",
+          "px-[36px] py-[12px] justify-center font-inter text-base font-normal rounded-lg border duration-300 leading-[22.4px] bg-transparent text-primary-5 border-primary-5 hover:bg-primary-5 hover:text-white hover:shadow-shadow-btn flex items-center group max-[767px]:py-[7px]: /restaurants",
+          "hover:text-primary-5 duration-300 font-inter-16-regular: /restaurants",
+          "hover:text-primary-5 duration-300 font-inter text-sm font-normal leading-[22.4px] text-gray-5: /restaurants"
+        ],
+        "https://www.barbequenation.com/catering": [
+          "/catering",
+          "relative text-sm font-inter font-medium text-gray-800 hover:text-primary-5 leading-[22.4px] transition-colors duration-300 \n                  : /catering",
+          "flex flex-col items-center justify-center: /catering",
+          "justify-center font-inter px-3 py-2 text-base font-normal rounded-lg border duration-300 leading-[22.4px] bg-primary-5 text-white border-primary-5 hover:bg-transparent hover:text-primary-5 hover:shadow-shadow-btn flex items-center group w-fit: /catering",
+          "hover:text-primary-5 duration-300 font-inter-16-regular: /catering"
+        ],
+        "https://www.barbequenation.com/ubq-delivery": [
+          "/ubq-delivery",
+          "text-primary-6 md:flex hidden font-inter text-sm items-center gap-2 px-3 py-2.5 bg-primary-2 rounded-lg: /ubq-delivery",
+          "flex flex-col items-center justify-center: /ubq-delivery",
+          "bg-[#FFCFC5] h-[154px] flex rounded-[5px]: /ubq-delivery",
+          "hover:text-primary-5 duration-300 font-inter-16-regular: /ubq-delivery"
+        ],
+        "https://www.barbequenation.com/vouchers/happiness-gift-card": [
+          "/vouchers/happiness-gift-card",
+          "grid grid-cols-1 sm:grid-cols-2 items-center md:gap-6 gap-3 rounded-lg md:p-3 p-1.5 border border-gray-2 shadow-[12px_12px_24px_0px_#0000000A]: /vouchers/happiness-gift-card",
+          "opacity-70 text-sm font-semibold whitespace-nowrap ml-1 underline: /vouchers/happiness-gift-card",
+          "rounded-lg md:p-3 p-2 border border-gray-2: /vouchers/happiness-gift-card",
+          "opacity-70 font-semibold whitespace-nowrap ml-1 underline: /vouchers/happiness-gift-card"
+        ],
+        "https://www.barbequenation.com/vouchers/happiness-gift-card-0": [
+          "/vouchers/happiness-gift-card-0",
+          "grid grid-cols-1 sm:grid-cols-2 items-center md:gap-6 gap-3 rounded-lg md:p-3 p-1.5 border border-gray-2 shadow-[12px_12px_24px_0px_#0000000A]: /vouchers/happiness-gift-card-0",
+          "opacity-70 text-sm font-semibold whitespace-nowrap ml-1 underline: /vouchers/happiness-gift-card-0",
+          "rounded-lg md:p-3 p-2 border border-gray-2: /vouchers/happiness-gift-card-0",
+          "opacity-70 font-semibold whitespace-nowrap ml-1 underline: /vouchers/happiness-gift-card-0"
+        ],
+        "https://www.barbequenation.com/vouchers/happiness-gift-card-1": [
+          "/vouchers/happiness-gift-card-1",
+          "grid grid-cols-1 sm:grid-cols-2 items-center md:gap-6 gap-3 rounded-lg md:p-3 p-1.5 border border-gray-2 shadow-[12px_12px_24px_0px_#0000000A]: /vouchers/happiness-gift-card-1",
+          "opacity-70 text-sm font-semibold whitespace-nowrap ml-1 underline: /vouchers/happiness-gift-card-1",
+          "rounded-lg md:p-3 p-2 border border-gray-2: /vouchers/happiness-gift-card-1",
+          "opacity-70 font-semibold whitespace-nowrap ml-1 underline: /vouchers/happiness-gift-card-1"
+        ],
+        "https://www.barbequenation.com/vouchers/happiness-gift-card-2": [
+          "/vouchers/happiness-gift-card-2",
+          "grid grid-cols-1 sm:grid-cols-2 items-center md:gap-6 gap-3 rounded-lg md:p-3 p-1.5 border border-gray-2 shadow-[12px_12px_24px_0px_#0000000A]: /vouchers/happiness-gift-card-2",
+          "opacity-70 text-sm font-semibold whitespace-nowrap ml-1 underline: /vouchers/happiness-gift-card-2",
+          "rounded-lg md:p-3 p-2 border border-gray-2: /vouchers/happiness-gift-card-2",
+          "opacity-70 font-semibold whitespace-nowrap ml-1 underline: /vouchers/happiness-gift-card-2"
+        ],
+        "https://www.barbequenation.com/news-listings": [
+          "/news-listings",
+          "justify-center font-inter px-3 py-2 text-base font-normal rounded-lg border duration-300 leading-[22.4px] bg-wireframe-heading text-white border-wireframe-grey hover:bg-transparent hover:text-wireframe-heading hover:shadow-shadow-btn items-center hidden lg:block: /news-listings",
+          "justify-center font-inter px-3 py-2 text-base font-normal rounded-lg border duration-300 leading-[22.4px] bg-wireframe-heading text-white border-wireframe-grey hover:bg-transparent hover:text-wireframe-heading hover:shadow-shadow-btn flex items-center w-full mt-4 lg:hidden: /news-listings",
+          "hover:text-primary-5 duration-300 font-inter-16-regular: /news-listings",
+          "hover:text-primary-5 duration-300 font-inter text-sm font-normal leading-[22.4px] text-gray-5: /news-listings"
+        ],
+        "https://www.barbequenation.com/profile#reservations": [
+          "/profile#reservations",
+          "hover:text-primary-5 duration-300 font-inter-16-regular: /profile#reservations"
+        ],
+        "https://www.barbequenation.com/profile#myProfile": [
+          "/profile#myProfile",
+          "hover:text-primary-5 duration-300 font-inter-16-regular: /profile#myProfile"
+        ],
+        "https://www.barbequenation.com/profile#smiles": [
+          "/profile#smiles",
+          "hover:text-primary-5 duration-300 font-inter-16-regular: /profile#smiles"
+        ],
+        "https://www.barbequenation.com/profile#vouchers": [
+          "/profile#vouchers",
+          "hover:text-primary-5 duration-300 font-inter-16-regular: /profile#vouchers"
+        ],
+        "https://www.barbequenation.com/profile#delivery": [
+          "/profile#delivery",
+          "hover:text-primary-5 duration-300 font-inter-16-regular: /profile#delivery"
+        ],
+        "https://www.barbequenation.com/about-us": [
+          "/about-us",
+          "hover:text-primary-5 duration-300 font-inter-16-regular: /about-us",
+          "hover:text-primary-5 duration-300 font-inter text-sm font-normal leading-[22.4px] text-gray-5: /about-us"
+        ],
+        "https://www.barbequenation.com/blogs": [
+          "/blogs",
+          "hover:text-primary-5 duration-300 font-inter-16-regular: /blogs",
+          "hover:text-primary-5 duration-300 font-inter text-sm font-normal leading-[22.4px] text-gray-5: /blogs"
+        ],
+        "https://www.barbequenation.com/smiles": [
+          "/smiles",
+          "hover:text-primary-5 duration-300 font-inter-16-regular: /smiles"
+        ],
+        "https://www.barbequenation.com/contact-us": [
+          "/contact-us",
+          "hover:text-primary-5 duration-300 font-inter-16-regular: /contact-us",
+          "hover:text-primary-5 duration-300 font-inter text-sm font-normal leading-[22.4px] text-gray-5: /contact-us"
+        ],
+        "https://www.barbequenation.com/faq": [
+          "/faq",
+          "hover:text-primary-5 duration-300 font-inter-16-regular: /faq",
+          "hover:text-primary-5 duration-300 font-inter text-sm font-normal leading-[22.4px] text-gray-5: /faq"
+        ],
+        "https://www.barbequenation.com/corporate-enquiry": [
+          "/corporate-enquiry",
+          "hover:text-primary-5 duration-300 font-inter-16-regular: /corporate-enquiry",
+          "hover:text-primary-5 duration-300 font-inter text-sm font-normal leading-[22.4px] text-gray-5: /corporate-enquiry"
+        ],
+        "https://www.barbequenation.com/investors": [
+          "/investors",
+          "hover:text-primary-5 duration-300 font-inter-16-regular: /investors",
+          "hover:text-primary-5 duration-300 font-inter text-sm font-normal leading-[22.4px] text-gray-5: /investors"
+        ],
+        "https://www.barbequenation.com/webform/barbeque-nation-partnership": [
+          "/webform/barbeque-nation-partnership",
+          "hover:text-primary-5 duration-300 font-inter-16-regular: /webform/barbeque-nation-partnership",
+          "hover:text-primary-5 duration-300 font-inter text-sm font-normal leading-[22.4px] text-gray-5: /webform/barbeque-nation-partnership"
+        ],
+        "https://www.barbequenation.com/careers": [
+          "/careers",
+          "hover:text-primary-5 duration-300 font-inter text-sm font-normal leading-[22.4px] text-gray-5: /careers"
+        ],
+        "https://www.barbequenation.com/privacy-policy": [
+          "/privacy-policy",
+          "hover:text-primary-5 duration-300 font-inter-16-regular !text-xs: /privacy-policy"
+        ],
+        "https://www.barbequenation.com/terms-conditions": [
+          "/terms-conditions",
+          "hover:text-primary-5 duration-300 font-inter-16-regular  !text-xs: /terms-conditions"
+        ]
+      },
+      "count": 27,
+      "paths": [
+        "/vouchers",
+        "/promotion",
+        "/deals",
+        "/restaurants",
+        "/catering",
+        "/ubq-delivery",
+        "/vouchers/happiness-gift-card",
+        "/vouchers/happiness-gift-card-0",
+        "/vouchers/happiness-gift-card-1",
+        "/vouchers/happiness-gift-card-2",
+        "/news-listings",
+        "/profile",
+        "/profile",
+        "/profile",
+        "/profile",
+        "/profile",
+        "/about-us",
+        "/blogs",
+        "/smiles",
+        "/contact-us",
+        "/faq",
+        "/corporate-enquiry",
+        "/investors",
+        "/webform/barbeque-nation-partnership",
+        "/careers",
+        "/privacy-policy",
+        "/terms-conditions"
+      ]
+    },
+    "reference": {
+      "baseUrl": "https://www.barbequenation.com/",
+      "links": {
+        "https://www.barbequenation.com/vouchers": [
+          "/vouchers",
+          "relative text-sm font-inter font-medium text-gray-800 hover:text-primary-5 leading-[22.4px] transition-colors duration-300 \n                  : /vouchers",
+          "flex flex-col items-center justify-center: /vouchers",
+          "justify-center font-inter px-3 font-normal rounded-lg border duration-300 bg-transparent text-gray-6 border-gray-3 hover:bg-gray-1 flex items-center py-1.5 text-xs md:text-base: /vouchers",
+          "hover:text-primary-5 duration-300 font-inter-16-regular: /vouchers",
+          "hover:text-primary-5 duration-300 font-inter text-sm font-normal leading-[22.4px] text-gray-5: /vouchers"
+        ],
+        "https://www.barbequenation.com/promotion": [
+          "/promotion",
+          "relative text-sm font-inter font-medium text-gray-800 hover:text-primary-5 leading-[22.4px] transition-colors duration-300 \n                  : /promotion",
+          "hover:text-primary-5 duration-300 font-inter-16-regular: /promotion",
+          "hover:text-primary-5 duration-300 font-inter text-sm font-normal leading-[22.4px] text-gray-5: /promotion"
+        ],
+        "https://www.barbequenation.com/deals": [
+          "/deals",
+          "relative text-sm font-inter font-medium text-gray-800 hover:text-primary-5 leading-[22.4px] transition-colors duration-300 \n                  : /deals",
+          "hover:text-primary-5 duration-300 font-inter-16-regular: /deals"
+        ],
+        "https://www.barbequenation.com/restaurants": [
+          "/restaurants",
+          "relative text-sm font-inter font-medium text-gray-800 hover:text-primary-5 leading-[22.4px] transition-colors duration-300 \n                  : /restaurants",
+          "px-[36px] py-[12px] justify-center font-inter text-base font-normal rounded-lg border duration-300 leading-[22.4px] bg-transparent text-primary-5 border-primary-5 hover:bg-primary-5 hover:text-white hover:shadow-shadow-btn flex items-center group max-[767px]:py-[7px]: /restaurants",
+          "hover:text-primary-5 duration-300 font-inter-16-regular: /restaurants",
+          "hover:text-primary-5 duration-300 font-inter text-sm font-normal leading-[22.4px] text-gray-5: /restaurants"
+        ],
+        "https://www.barbequenation.com/catering": [
+          "/catering",
+          "relative text-sm font-inter font-medium text-gray-800 hover:text-primary-5 leading-[22.4px] transition-colors duration-300 \n                  : /catering",
+          "flex flex-col items-center justify-center: /catering",
+          "justify-center font-inter px-3 py-2 text-base font-normal rounded-lg border duration-300 leading-[22.4px] bg-primary-5 text-white border-primary-5 hover:bg-transparent hover:text-primary-5 hover:shadow-shadow-btn flex items-center group w-fit: /catering",
+          "hover:text-primary-5 duration-300 font-inter-16-regular: /catering"
+        ],
+        "https://www.barbequenation.com/ubq-delivery": [
+          "/ubq-delivery",
+          "text-primary-6 md:flex hidden font-inter text-sm items-center gap-2 px-3 py-2.5 bg-primary-2 rounded-lg: /ubq-delivery",
+          "flex flex-col items-center justify-center: /ubq-delivery",
+          "bg-[#FFCFC5] h-[154px] flex rounded-[5px]: /ubq-delivery",
+          "hover:text-primary-5 duration-300 font-inter-16-regular: /ubq-delivery"
+        ],
+        "https://www.barbequenation.com/vouchers/happiness-gift-card": [
+          "/vouchers/happiness-gift-card",
+          "grid grid-cols-1 sm:grid-cols-2 items-center md:gap-6 gap-3 rounded-lg md:p-3 p-1.5 border border-gray-2 shadow-[12px_12px_24px_0px_#0000000A]: /vouchers/happiness-gift-card",
+          "opacity-70 text-sm font-semibold whitespace-nowrap ml-1 underline: /vouchers/happiness-gift-card",
+          "rounded-lg md:p-3 p-2 border border-gray-2: /vouchers/happiness-gift-card",
+          "opacity-70 font-semibold whitespace-nowrap ml-1 underline: /vouchers/happiness-gift-card"
+        ],
+        "https://www.barbequenation.com/vouchers/happiness-gift-card-0": [
+          "/vouchers/happiness-gift-card-0",
+          "grid grid-cols-1 sm:grid-cols-2 items-center md:gap-6 gap-3 rounded-lg md:p-3 p-1.5 border border-gray-2 shadow-[12px_12px_24px_0px_#0000000A]: /vouchers/happiness-gift-card-0",
+          "opacity-70 text-sm font-semibold whitespace-nowrap ml-1 underline: /vouchers/happiness-gift-card-0",
+          "rounded-lg md:p-3 p-2 border border-gray-2: /vouchers/happiness-gift-card-0",
+          "opacity-70 font-semibold whitespace-nowrap ml-1 underline: /vouchers/happiness-gift-card-0"
+        ],
+        "https://www.barbequenation.com/vouchers/happiness-gift-card-1": [
+          "/vouchers/happiness-gift-card-1",
+          "grid grid-cols-1 sm:grid-cols-2 items-center md:gap-6 gap-3 rounded-lg md:p-3 p-1.5 border border-gray-2 shadow-[12px_12px_24px_0px_#0000000A]: /vouchers/happiness-gift-card-1",
+          "opacity-70 text-sm font-semibold whitespace-nowrap ml-1 underline: /vouchers/happiness-gift-card-1",
+          "rounded-lg md:p-3 p-2 border border-gray-2: /vouchers/happiness-gift-card-1",
+          "opacity-70 font-semibold whitespace-nowrap ml-1 underline: /vouchers/happiness-gift-card-1"
+        ],
+        "https://www.barbequenation.com/vouchers/happiness-gift-card-2": [
+          "/vouchers/happiness-gift-card-2",
+          "grid grid-cols-1 sm:grid-cols-2 items-center md:gap-6 gap-3 rounded-lg md:p-3 p-1.5 border border-gray-2 shadow-[12px_12px_24px_0px_#0000000A]: /vouchers/happiness-gift-card-2",
+          "opacity-70 text-sm font-semibold whitespace-nowrap ml-1 underline: /vouchers/happiness-gift-card-2",
+          "rounded-lg md:p-3 p-2 border border-gray-2: /vouchers/happiness-gift-card-2",
+          "opacity-70 font-semibold whitespace-nowrap ml-1 underline: /vouchers/happiness-gift-card-2"
+        ],
+        "https://www.barbequenation.com/news-listings": [
+          "/news-listings",
+          "justify-center font-inter px-3 py-2 text-base font-normal rounded-lg border duration-300 leading-[22.4px] bg-wireframe-heading text-white border-wireframe-grey hover:bg-transparent hover:text-wireframe-heading hover:shadow-shadow-btn items-center hidden lg:block: /news-listings",
+          "justify-center font-inter px-3 py-2 text-base font-normal rounded-lg border duration-300 leading-[22.4px] bg-wireframe-heading text-white border-wireframe-grey hover:bg-transparent hover:text-wireframe-heading hover:shadow-shadow-btn flex items-center w-full mt-4 lg:hidden: /news-listings",
+          "hover:text-primary-5 duration-300 font-inter-16-regular: /news-listings",
+          "hover:text-primary-5 duration-300 font-inter text-sm font-normal leading-[22.4px] text-gray-5: /news-listings"
+        ],
+        "https://www.barbequenation.com/profile#reservations": [
+          "/profile#reservations",
+          "hover:text-primary-5 duration-300 font-inter-16-regular: /profile#reservations"
+        ],
+        "https://www.barbequenation.com/profile#myProfile": [
+          "/profile#myProfile",
+          "hover:text-primary-5 duration-300 font-inter-16-regular: /profile#myProfile"
+        ],
+        "https://www.barbequenation.com/profile#smiles": [
+          "/profile#smiles",
+          "hover:text-primary-5 duration-300 font-inter-16-regular: /profile#smiles"
+        ],
+        "https://www.barbequenation.com/profile#vouchers": [
+          "/profile#vouchers",
+          "hover:text-primary-5 duration-300 font-inter-16-regular: /profile#vouchers"
+        ],
+        "https://www.barbequenation.com/profile#delivery": [
+          "/profile#delivery",
+          "hover:text-primary-5 duration-300 font-inter-16-regular: /profile#delivery"
+        ],
+        "https://www.barbequenation.com/about-us": [
+          "/about-us",
+          "hover:text-primary-5 duration-300 font-inter-16-regular: /about-us",
+          "hover:text-primary-5 duration-300 font-inter text-sm font-normal leading-[22.4px] text-gray-5: /about-us"
+        ],
+        "https://www.barbequenation.com/blogs": [
+          "/blogs",
+          "hover:text-primary-5 duration-300 font-inter-16-regular: /blogs",
+          "hover:text-primary-5 duration-300 font-inter text-sm font-normal leading-[22.4px] text-gray-5: /blogs"
+        ],
+        "https://www.barbequenation.com/smiles": [
+          "/smiles",
+          "hover:text-primary-5 duration-300 font-inter-16-regular: /smiles"
+        ],
+        "https://www.barbequenation.com/contact-us": [
+          "/contact-us",
+          "hover:text-primary-5 duration-300 font-inter-16-regular: /contact-us",
+          "hover:text-primary-5 duration-300 font-inter text-sm font-normal leading-[22.4px] text-gray-5: /contact-us"
+        ],
+        "https://www.barbequenation.com/faq": [
+          "/faq",
+          "hover:text-primary-5 duration-300 font-inter-16-regular: /faq",
+          "hover:text-primary-5 duration-300 font-inter text-sm font-normal leading-[22.4px] text-gray-5: /faq"
+        ],
+        "https://www.barbequenation.com/corporate-enquiry": [
+          "/corporate-enquiry",
+          "hover:text-primary-5 duration-300 font-inter-16-regular: /corporate-enquiry",
+          "hover:text-primary-5 duration-300 font-inter text-sm font-normal leading-[22.4px] text-gray-5: /corporate-enquiry"
+        ],
+        "https://www.barbequenation.com/investors": [
+          "/investors",
+          "hover:text-primary-5 duration-300 font-inter-16-regular: /investors",
+          "hover:text-primary-5 duration-300 font-inter text-sm font-normal leading-[22.4px] text-gray-5: /investors"
+        ],
+        "https://www.barbequenation.com/webform/barbeque-nation-partnership": [
+          "/webform/barbeque-nation-partnership",
+          "hover:text-primary-5 duration-300 font-inter-16-regular: /webform/barbeque-nation-partnership",
+          "hover:text-primary-5 duration-300 font-inter text-sm font-normal leading-[22.4px] text-gray-5: /webform/barbeque-nation-partnership"
+        ],
+        "https://www.barbequenation.com/careers": [
+          "/careers",
+          "hover:text-primary-5 duration-300 font-inter text-sm font-normal leading-[22.4px] text-gray-5: /careers"
+        ],
+        "https://www.barbequenation.com/privacy-policy": [
+          "/privacy-policy",
+          "hover:text-primary-5 duration-300 font-inter-16-regular !text-xs: /privacy-policy"
+        ],
+        "https://www.barbequenation.com/terms-conditions": [
+          "/terms-conditions",
+          "hover:text-primary-5 duration-300 font-inter-16-regular  !text-xs: /terms-conditions"
+        ]
+      },
+      "count": 27,
+      "paths": [
+        "/vouchers",
+        "/promotion",
+        "/deals",
+        "/restaurants",
+        "/catering",
+        "/ubq-delivery",
+        "/vouchers/happiness-gift-card",
+        "/vouchers/happiness-gift-card-0",
+        "/vouchers/happiness-gift-card-1",
+        "/vouchers/happiness-gift-card-2",
+        "/news-listings",
+        "/profile",
+        "/profile",
+        "/profile",
+        "/profile",
+        "/profile",
+        "/about-us",
+        "/blogs",
+        "/smiles",
+        "/contact-us",
+        "/faq",
+        "/corporate-enquiry",
+        "/investors",
+        "/webform/barbeque-nation-partnership",
+        "/careers",
+        "/privacy-policy",
+        "/terms-conditions"
+      ]
+    },
+    "comparison": {
+      "commonPaths": [
+        "/vouchers",
+        "/promotion",
+        "/deals",
+        "/restaurants",
+        "/catering",
+        "/ubq-delivery",
+        "/vouchers/happiness-gift-card",
+        "/vouchers/happiness-gift-card-0",
+        "/vouchers/happiness-gift-card-1",
+        "/vouchers/happiness-gift-card-2",
+        "/news-listings",
+        "/profile",
+        "/profile",
+        "/profile",
+        "/profile",
+        "/profile",
+        "/about-us",
+        "/blogs",
+        "/smiles",
+        "/contact-us",
+        "/faq",
+        "/corporate-enquiry",
+        "/investors",
+        "/webform/barbeque-nation-partnership",
+        "/careers",
+        "/privacy-policy",
+        "/terms-conditions"
+      ],
+      "targetOnlyPaths": [],
+      "referenceOnlyPaths": []
+    }
+  },
+  "scenarioCount": 27,
+  "mapping": {
+    "https://www.barbequenation.com/vouchers": [
+      "/vouchers",
+      "relative text-sm font-inter font-medium text-gray-800 hover:text-primary-5 leading-[22.4px] transition-colors duration-300 \n                  : /vouchers",
+      "flex flex-col items-center justify-center: /vouchers",
+      "justify-center font-inter px-3 font-normal rounded-lg border duration-300 bg-transparent text-gray-6 border-gray-3 hover:bg-gray-1 flex items-center py-1.5 text-xs md:text-base: /vouchers",
+      "hover:text-primary-5 duration-300 font-inter-16-regular: /vouchers",
+      "hover:text-primary-5 duration-300 font-inter text-sm font-normal leading-[22.4px] text-gray-5: /vouchers"
+    ],
+    "https://www.barbequenation.com/promotion": [
+      "/promotion",
+      "relative text-sm font-inter font-medium text-gray-800 hover:text-primary-5 leading-[22.4px] transition-colors duration-300 \n                  : /promotion",
+      "hover:text-primary-5 duration-300 font-inter-16-regular: /promotion",
+      "hover:text-primary-5 duration-300 font-inter text-sm font-normal leading-[22.4px] text-gray-5: /promotion"
+    ],
+    "https://www.barbequenation.com/deals": [
+      "/deals",
+      "relative text-sm font-inter font-medium text-gray-800 hover:text-primary-5 leading-[22.4px] transition-colors duration-300 \n                  : /deals",
+      "hover:text-primary-5 duration-300 font-inter-16-regular: /deals"
+    ],
+    "https://www.barbequenation.com/restaurants": [
+      "/restaurants",
+      "relative text-sm font-inter font-medium text-gray-800 hover:text-primary-5 leading-[22.4px] transition-colors duration-300 \n                  : /restaurants",
+      "px-[36px] py-[12px] justify-center font-inter text-base font-normal rounded-lg border duration-300 leading-[22.4px] bg-transparent text-primary-5 border-primary-5 hover:bg-primary-5 hover:text-white hover:shadow-shadow-btn flex items-center group max-[767px]:py-[7px]: /restaurants",
+      "hover:text-primary-5 duration-300 font-inter-16-regular: /restaurants",
+      "hover:text-primary-5 duration-300 font-inter text-sm font-normal leading-[22.4px] text-gray-5: /restaurants"
+    ],
+    "https://www.barbequenation.com/catering": [
+      "/catering",
+      "relative text-sm font-inter font-medium text-gray-800 hover:text-primary-5 leading-[22.4px] transition-colors duration-300 \n                  : /catering",
+      "flex flex-col items-center justify-center: /catering",
+      "justify-center font-inter px-3 py-2 text-base font-normal rounded-lg border duration-300 leading-[22.4px] bg-primary-5 text-white border-primary-5 hover:bg-transparent hover:text-primary-5 hover:shadow-shadow-btn flex items-center group w-fit: /catering",
+      "hover:text-primary-5 duration-300 font-inter-16-regular: /catering"
+    ],
+    "https://www.barbequenation.com/ubq-delivery": [
+      "/ubq-delivery",
+      "text-primary-6 md:flex hidden font-inter text-sm items-center gap-2 px-3 py-2.5 bg-primary-2 rounded-lg: /ubq-delivery",
+      "flex flex-col items-center justify-center: /ubq-delivery",
+      "bg-[#FFCFC5] h-[154px] flex rounded-[5px]: /ubq-delivery",
+      "hover:text-primary-5 duration-300 font-inter-16-regular: /ubq-delivery"
+    ],
+    "https://www.barbequenation.com/vouchers/happiness-gift-card": [
+      "/vouchers/happiness-gift-card",
+      "grid grid-cols-1 sm:grid-cols-2 items-center md:gap-6 gap-3 rounded-lg md:p-3 p-1.5 border border-gray-2 shadow-[12px_12px_24px_0px_#0000000A]: /vouchers/happiness-gift-card",
+      "opacity-70 text-sm font-semibold whitespace-nowrap ml-1 underline: /vouchers/happiness-gift-card",
+      "rounded-lg md:p-3 p-2 border border-gray-2: /vouchers/happiness-gift-card",
+      "opacity-70 font-semibold whitespace-nowrap ml-1 underline: /vouchers/happiness-gift-card"
+    ],
+    "https://www.barbequenation.com/vouchers/happiness-gift-card-0": [
+      "/vouchers/happiness-gift-card-0",
+      "grid grid-cols-1 sm:grid-cols-2 items-center md:gap-6 gap-3 rounded-lg md:p-3 p-1.5 border border-gray-2 shadow-[12px_12px_24px_0px_#0000000A]: /vouchers/happiness-gift-card-0",
+      "opacity-70 text-sm font-semibold whitespace-nowrap ml-1 underline: /vouchers/happiness-gift-card-0",
+      "rounded-lg md:p-3 p-2 border border-gray-2: /vouchers/happiness-gift-card-0",
+      "opacity-70 font-semibold whitespace-nowrap ml-1 underline: /vouchers/happiness-gift-card-0"
+    ],
+    "https://www.barbequenation.com/vouchers/happiness-gift-card-1": [
+      "/vouchers/happiness-gift-card-1",
+      "grid grid-cols-1 sm:grid-cols-2 items-center md:gap-6 gap-3 rounded-lg md:p-3 p-1.5 border border-gray-2 shadow-[12px_12px_24px_0px_#0000000A]: /vouchers/happiness-gift-card-1",
+      "opacity-70 text-sm font-semibold whitespace-nowrap ml-1 underline: /vouchers/happiness-gift-card-1",
+      "rounded-lg md:p-3 p-2 border border-gray-2: /vouchers/happiness-gift-card-1",
+      "opacity-70 font-semibold whitespace-nowrap ml-1 underline: /vouchers/happiness-gift-card-1"
+    ],
+    "https://www.barbequenation.com/vouchers/happiness-gift-card-2": [
+      "/vouchers/happiness-gift-card-2",
+      "grid grid-cols-1 sm:grid-cols-2 items-center md:gap-6 gap-3 rounded-lg md:p-3 p-1.5 border border-gray-2 shadow-[12px_12px_24px_0px_#0000000A]: /vouchers/happiness-gift-card-2",
+      "opacity-70 text-sm font-semibold whitespace-nowrap ml-1 underline: /vouchers/happiness-gift-card-2",
+      "rounded-lg md:p-3 p-2 border border-gray-2: /vouchers/happiness-gift-card-2",
+      "opacity-70 font-semibold whitespace-nowrap ml-1 underline: /vouchers/happiness-gift-card-2"
+    ],
+    "https://www.barbequenation.com/news-listings": [
+      "/news-listings",
+      "justify-center font-inter px-3 py-2 text-base font-normal rounded-lg border duration-300 leading-[22.4px] bg-wireframe-heading text-white border-wireframe-grey hover:bg-transparent hover:text-wireframe-heading hover:shadow-shadow-btn items-center hidden lg:block: /news-listings",
+      "justify-center font-inter px-3 py-2 text-base font-normal rounded-lg border duration-300 leading-[22.4px] bg-wireframe-heading text-white border-wireframe-grey hover:bg-transparent hover:text-wireframe-heading hover:shadow-shadow-btn flex items-center w-full mt-4 lg:hidden: /news-listings",
+      "hover:text-primary-5 duration-300 font-inter-16-regular: /news-listings",
+      "hover:text-primary-5 duration-300 font-inter text-sm font-normal leading-[22.4px] text-gray-5: /news-listings"
+    ],
+    "https://www.barbequenation.com/profile#reservations": [
+      "/profile#reservations",
+      "hover:text-primary-5 duration-300 font-inter-16-regular: /profile#reservations"
+    ],
+    "https://www.barbequenation.com/profile#myProfile": [
+      "/profile#myProfile",
+      "hover:text-primary-5 duration-300 font-inter-16-regular: /profile#myProfile"
+    ],
+    "https://www.barbequenation.com/profile#smiles": [
+      "/profile#smiles",
+      "hover:text-primary-5 duration-300 font-inter-16-regular: /profile#smiles"
+    ],
+    "https://www.barbequenation.com/profile#vouchers": [
+      "/profile#vouchers",
+      "hover:text-primary-5 duration-300 font-inter-16-regular: /profile#vouchers"
+    ],
+    "https://www.barbequenation.com/profile#delivery": [
+      "/profile#delivery",
+      "hover:text-primary-5 duration-300 font-inter-16-regular: /profile#delivery"
+    ],
+    "https://www.barbequenation.com/about-us": [
+      "/about-us",
+      "hover:text-primary-5 duration-300 font-inter-16-regular: /about-us",
+      "hover:text-primary-5 duration-300 font-inter text-sm font-normal leading-[22.4px] text-gray-5: /about-us"
+    ],
+    "https://www.barbequenation.com/blogs": [
+      "/blogs",
+      "hover:text-primary-5 duration-300 font-inter-16-regular: /blogs",
+      "hover:text-primary-5 duration-300 font-inter text-sm font-normal leading-[22.4px] text-gray-5: /blogs"
+    ],
+    "https://www.barbequenation.com/smiles": [
+      "/smiles",
+      "hover:text-primary-5 duration-300 font-inter-16-regular: /smiles"
+    ],
+    "https://www.barbequenation.com/contact-us": [
+      "/contact-us",
+      "hover:text-primary-5 duration-300 font-inter-16-regular: /contact-us",
+      "hover:text-primary-5 duration-300 font-inter text-sm font-normal leading-[22.4px] text-gray-5: /contact-us"
+    ],
+    "https://www.barbequenation.com/faq": [
+      "/faq",
+      "hover:text-primary-5 duration-300 font-inter-16-regular: /faq",
+      "hover:text-primary-5 duration-300 font-inter text-sm font-normal leading-[22.4px] text-gray-5: /faq"
+    ],
+    "https://www.barbequenation.com/corporate-enquiry": [
+      "/corporate-enquiry",
+      "hover:text-primary-5 duration-300 font-inter-16-regular: /corporate-enquiry",
+      "hover:text-primary-5 duration-300 font-inter text-sm font-normal leading-[22.4px] text-gray-5: /corporate-enquiry"
+    ],
+    "https://www.barbequenation.com/investors": [
+      "/investors",
+      "hover:text-primary-5 duration-300 font-inter-16-regular: /investors",
+      "hover:text-primary-5 duration-300 font-inter text-sm font-normal leading-[22.4px] text-gray-5: /investors"
+    ],
+    "https://www.barbequenation.com/webform/barbeque-nation-partnership": [
+      "/webform/barbeque-nation-partnership",
+      "hover:text-primary-5 duration-300 font-inter-16-regular: /webform/barbeque-nation-partnership",
+      "hover:text-primary-5 duration-300 font-inter text-sm font-normal leading-[22.4px] text-gray-5: /webform/barbeque-nation-partnership"
+    ],
+    "https://www.barbequenation.com/careers": [
+      "/careers",
+      "hover:text-primary-5 duration-300 font-inter text-sm font-normal leading-[22.4px] text-gray-5: /careers"
+    ],
+    "https://www.barbequenation.com/privacy-policy": [
+      "/privacy-policy",
+      "hover:text-primary-5 duration-300 font-inter-16-regular !text-xs: /privacy-policy"
+    ],
+    "https://www.barbequenation.com/terms-conditions": [
+      "/terms-conditions",
+      "hover:text-primary-5 duration-300 font-inter-16-regular  !text-xs: /terms-conditions"
+    ]
+  }
+}

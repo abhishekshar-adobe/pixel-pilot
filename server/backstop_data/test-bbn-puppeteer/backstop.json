@@ -1,0 +1,439 @@
+{
+  "id": "test-bbn-puppeteer",
+  "viewports": [
+    {
+      "label": "phone",
+      "width": 320,
+      "height": 480
+    },
+    {
+      "label": "tablet",
+      "width": 768,
+      "height": 1024
+    },
+    {
+      "label": "desktop",
+      "width": 1920,
+      "height": 1080
+    }
+  ],
+  "scenarios": [
+    {
+      "label": "www_barbequenation_com_vouchers",
+      "url": "https://www.barbequenation.com/vouchers",
+      "referenceUrl": "https://www.barbequenation.com/vouchers",
+      "readySelector": "body",
+      "delay": 2000,
+      "hideSelectors": [],
+      "removeSelectors": [],
+      "selectors": [
+        "viewport"
+      ],
+      "selectorExpansion": true,
+      "expect": 0,
+      "misMatchThreshold": 0.1
+    },
+    {
+      "label": "www_barbequenation_com_promotion",
+      "url": "https://www.barbequenation.com/promotion",
+      "referenceUrl": "https://www.barbequenation.com/promotion",
+      "readySelector": "body",
+      "delay": 2000,
+      "hideSelectors": [],
+      "removeSelectors": [],
+      "selectors": [
+        "viewport"
+      ],
+      "selectorExpansion": true,
+      "expect": 0,
+      "misMatchThreshold": 0.1
+    },
+    {
+      "label": "www_barbequenation_com_deals",
+      "url": "https://www.barbequenation.com/deals",
+      "referenceUrl": "https://www.barbequenation.com/deals",
+      "readySelector": "body",
+      "delay": 2000,
+      "hideSelectors": [],
+      "removeSelectors": [],
+      "selectors": [
+        "viewport"
+      ],
+      "selectorExpansion": true,
+      "expect": 0,
+      "misMatchThreshold": 0.1
+    },
+    {
+      "label": "www_barbequenation_com_restaurants",
+      "url": "https://www.barbequenation.com/restaurants",
+      "referenceUrl": "https://www.barbequenation.com/restaurants",
+      "readySelector": "body",
+      "delay": 2000,
+      "hideSelectors": [],
+      "removeSelectors": [],
+      "selectors": [
+        "viewport"
+      ],
+      "selectorExpansion": true,
+      "expect": 0,
+      "misMatchThreshold": 0.1
+    },
+    {
+      "label": "www_barbequenation_com_catering",
+      "url": "https://www.barbequenation.com/catering",
+      "referenceUrl": "https://www.barbequenation.com/catering",
+      "readySelector": "body",
+      "delay": 2000,
+      "hideSelectors": [],
+      "removeSelectors": [],
+      "selectors": [
+        "viewport"
+      ],
+      "selectorExpansion": true,
+      "expect": 0,
+      "misMatchThreshold": 0.1
+    },
+    {
+      "label": "www_barbequenation_com_ubq_delivery",
+      "url": "https://www.barbequenation.com/ubq-delivery",
+      "referenceUrl": "https://www.barbequenation.com/ubq-delivery",
+      "readySelector": "body",
+      "delay": 2000,
+      "hideSelectors": [],
+      "removeSelectors": [],
+      "selectors": [
+        "viewport"
+      ],
+      "selectorExpansion": true,
+      "expect": 0,
+      "misMatchThreshold": 0.1
+    },
+    {
+      "label": "www_barbequenation_com_vouchers_happiness_gift_car",
+      "url": "https://www.barbequenation.com/vouchers/happiness-gift-card",
+      "referenceUrl": "https://www.barbequenation.com/vouchers/happiness-gift-card",
+      "readySelector": "body",
+      "delay": 2000,
+      "hideSelectors": [],
+      "removeSelectors": [],
+      "selectors": [
+        "viewport"
+      ],
+      "selectorExpansion": true,
+      "expect": 0,
+      "misMatchThreshold": 0.1
+    },
+    {
+      "label": "www_barbequenation_com_vouchers_happiness_gift_car",
+      "url": "https://www.barbequenation.com/vouchers/happiness-gift-card-0",
+      "referenceUrl": "https://www.barbequenation.com/vouchers/happiness-gift-card-0",
+      "readySelector": "body",
+      "delay": 2000,
+      "hideSelectors": [],
+      "removeSelectors": [],
+      "selectors": [
+        "viewport"
+      ],
+      "selectorExpansion": true,
+      "expect": 0,
+      "misMatchThreshold": 0.1
+    },
+    {
+      "label": "www_barbequenation_com_vouchers_happiness_gift_car",
+      "url": "https://www.barbequenation.com/vouchers/happiness-gift-card-1",
+      "referenceUrl": "https://www.barbequenation.com/vouchers/happiness-gift-card-1",
+      "readySelector": "body",
+      "delay": 2000,
+      "hideSelectors": [],
+      "removeSelectors": [],
+      "selectors": [
+        "viewport"
+      ],
+      "selectorExpansion": true,
+      "expect": 0,
+      "misMatchThreshold": 0.1
+    },
+    {
+      "label": "www_barbequenation_com_vouchers_happiness_gift_car",
+      "url": "https://www.barbequenation.com/vouchers/happiness-gift-card-2",
+      "referenceUrl": "https://www.barbequenation.com/vouchers/happiness-gift-card-2",
+      "readySelector": "body",
+      "delay": 2000,
+      "hideSelectors": [],
+      "removeSelectors": [],
+      "selectors": [
+        "viewport"
+      ],
+      "selectorExpansion": true,
+      "expect": 0,
+      "misMatchThreshold": 0.1
+    },
+    {
+      "label": "www_barbequenation_com_news_listings",
+      "url": "https://www.barbequenation.com/news-listings",
+      "referenceUrl": "https://www.barbequenation.com/news-listings",
+      "readySelector": "body",
+      "delay": 2000,
+      "hideSelectors": [],
+      "removeSelectors": [],
+      "selectors": [
+        "viewport"
+      ],
+      "selectorExpansion": true,
+      "expect": 0,
+      "misMatchThreshold": 0.1
+    },
+    {
+      "label": "www_barbequenation_com_profile_reservations",
+      "url": "https://www.barbequenation.com/profile#reservations",
+      "referenceUrl": "https://www.barbequenation.com/profile",
+      "readySelector": "body",
+      "delay": 2000,
+      "hideSelectors": [],
+      "removeSelectors": [],
+      "selectors": [
+        "viewport"
+      ],
+      "selectorExpansion": true,
+      "expect": 0,
+      "misMatchThreshold": 0.1
+    },
+    {
+      "label": "www_barbequenation_com_profile_myProfile",
+      "url": "https://www.barbequenation.com/profile#myProfile",
+      "referenceUrl": "https://www.barbequenation.com/profile",
+      "readySelector": "body",
+      "delay": 2000,
+      "hideSelectors": [],
+      "removeSelectors": [],
+      "selectors": [
+        "viewport"
+      ],
+      "selectorExpansion": true,
+      "expect": 0,
+      "misMatchThreshold": 0.1
+    },
+    {
+      "label": "www_barbequenation_com_profile_smiles",
+      "url": "https://www.barbequenation.com/profile#smiles",
+      "referenceUrl": "https://www.barbequenation.com/profile",
+      "readySelector": "body",
+      "delay": 2000,
+      "hideSelectors": [],
+      "removeSelectors": [],
+      "selectors": [
+        "viewport"
+      ],
+      "selectorExpansion": true,
+      "expect": 0,
+      "misMatchThreshold": 0.1
+    },
+    {
+      "label": "www_barbequenation_com_profile_vouchers",
+      "url": "https://www.barbequenation.com/profile#vouchers",
+      "referenceUrl": "https://www.barbequenation.com/profile",
+      "readySelector": "body",
+      "delay": 2000,
+      "hideSelectors": [],
+      "removeSelectors": [],
+      "selectors": [
+        "viewport"
+      ],
+      "selectorExpansion": true,
+      "expect": 0,
+      "misMatchThreshold": 0.1
+    },
+    {
+      "label": "www_barbequenation_com_profile_delivery",
+      "url": "https://www.barbequenation.com/profile#delivery",
+      "referenceUrl": "https://www.barbequenation.com/profile",
+      "readySelector": "body",
+      "delay": 2000,
+      "hideSelectors": [],
+      "removeSelectors": [],
+      "selectors": [
+        "viewport"
+      ],
+      "selectorExpansion": true,
+      "expect": 0,
+      "misMatchThreshold": 0.1
+    },
+    {
+      "label": "www_barbequenation_com_about_us",
+      "url": "https://www.barbequenation.com/about-us",
+      "referenceUrl": "https://www.barbequenation.com/about-us",
+      "readySelector": "body",
+      "delay": 2000,
+      "hideSelectors": [],
+      "removeSelectors": [],
+      "selectors": [
+        "viewport"
+      ],
+      "selectorExpansion": true,
+      "expect": 0,
+      "misMatchThreshold": 0.1
+    },
+    {
+      "label": "www_barbequenation_com_blogs",
+      "url": "https://www.barbequenation.com/blogs",
+      "referenceUrl": "https://www.barbequenation.com/blogs",
+      "readySelector": "body",
+      "delay": 2000,
+      "hideSelectors": [],
+      "removeSelectors": [],
+      "selectors": [
+        "viewport"
+      ],
+      "selectorExpansion": true,
+      "expect": 0,
+      "misMatchThreshold": 0.1
+    },
+    {
+      "label": "www_barbequenation_com_smiles",
+      "url": "https://www.barbequenation.com/smiles",
+      "referenceUrl": "https://www.barbequenation.com/smiles",
+      "readySelector": "body",
+      "delay": 2000,
+      "hideSelectors": [],
+      "removeSelectors": [],
+      "selectors": [
+        "viewport"
+      ],
+      "selectorExpansion": true,
+      "expect": 0,
+      "misMatchThreshold": 0.1
+    },
+    {
+      "label": "www_barbequenation_com_contact_us",
+      "url": "https://www.barbequenation.com/contact-us",
+      "referenceUrl": "https://www.barbequenation.com/contact-us",
+      "readySelector": "body",
+      "delay": 2000,
+      "hideSelectors": [],
+      "removeSelectors": [],
+      "selectors": [
+        "viewport"
+      ],
+      "selectorExpansion": true,
+      "expect": 0,
+      "misMatchThreshold": 0.1
+    },
+    {
+      "label": "www_barbequenation_com_faq",
+      "url": "https://www.barbequenation.com/faq",
+      "referenceUrl": "https://www.barbequenation.com/faq",
+      "readySelector": "body",
+      "delay": 2000,
+      "hideSelectors": [],
+      "removeSelectors": [],
+      "selectors": [
+        "viewport"
+      ],
+      "selectorExpansion": true,
+      "expect": 0,
+      "misMatchThreshold": 0.1
+    },
+    {
+      "label": "www_barbequenation_com_corporate_enquiry",
+      "url": "https://www.barbequenation.com/corporate-enquiry",
+      "referenceUrl": "https://www.barbequenation.com/corporate-enquiry",
+      "readySelector": "body",
+      "delay": 2000,
+      "hideSelectors": [],
+      "removeSelectors": [],
+      "selectors": [
+        "viewport"
+      ],
+      "selectorExpansion": true,
+      "expect": 0,
+      "misMatchThreshold": 0.1
+    },
+    {
+      "label": "www_barbequenation_com_investors",
+      "url": "https://www.barbequenation.com/investors",
+      "referenceUrl": "https://www.barbequenation.com/investors",
+      "readySelector": "body",
+      "delay": 2000,
+      "hideSelectors": [],
+      "removeSelectors": [],
+      "selectors": [
+        "viewport"
+      ],
+      "selectorExpansion": true,
+      "expect": 0,
+      "misMatchThreshold": 0.1
+    },
+    {
+      "label": "www_barbequenation_com_webform_barbeque_nation_par",
+      "url": "https://www.barbequenation.com/webform/barbeque-nation-partnership",
+      "referenceUrl": "https://www.barbequenation.com/webform/barbeque-nation-partnership",
+      "readySelector": "body",
+      "delay": 2000,
+      "hideSelectors": [],
+      "removeSelectors": [],
+      "selectors": [
+        "viewport"
+      ],
+      "selectorExpansion": true,
+      "expect": 0,
+      "misMatchThreshold": 0.1
+    },
+    {
+      "label": "www_barbequenation_com_careers",
+      "url": "https://www.barbequenation.com/careers",
+      "referenceUrl": "https://www.barbequenation.com/careers",
+      "readySelector": "body",
+      "delay": 2000,
+      "hideSelectors": [],
+      "removeSelectors": [],
+      "selectors": [
+        "viewport"
+      ],
+      "selectorExpansion": true,
+      "expect": 0,
+      "misMatchThreshold": 0.1
+    },
+    {
+      "label": "www_barbequenation_com_privacy_policy",
+      "url": "https://www.barbequenation.com/privacy-policy",
+      "referenceUrl": "https://www.barbequenation.com/privacy-policy",
+      "readySelector": "body",
+      "delay": 2000,
+      "hideSelectors": [],
+      "removeSelectors": [],
+      "selectors": [
+        "viewport"
+      ],
+      "selectorExpansion": true,
+      "expect": 0,
+      "misMatchThreshold": 0.1
+    },
+    {
+      "label": "www_barbequenation_com_terms_conditions",
+      "url": "https://www.barbequenation.com/terms-conditions",
+      "referenceUrl": "https://www.barbequenation.com/terms-conditions",
+      "readySelector": "body",
+      "delay": 2000,
+      "hideSelectors": [],
+      "removeSelectors": [],
+      "selectors": [
+        "viewport"
+      ],
+      "selectorExpansion": true,
+      "expect": 0,
+      "misMatchThreshold": 0.1
+    }
+  ],
+  "paths": {
+    "bitmaps_reference": "backstop_data/bitmaps_reference",
+    "bitmaps_test": "backstop_data/bitmaps_test",
+    "engine_scripts": "backstop_data/engine_scripts",
+    "html_report": "backstop_data/html_report",
+    "ci_report": "backstop_data/ci_report"
+  },
+  "engine": "puppeteer",
+  "report": [
+    "browser"
+  ],
+  "debug": false
+}
