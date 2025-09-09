@@ -27,15 +27,11 @@ import {
 import {
   Build as BuildIcon,
   Link as LinkIcon,
-  Analytics as AnalyticsIcon,
   CleaningServices as CleanIcon,
   Download as DownloadIcon,
   Upload as UploadIcon,
-  Compare as CompareIcon,
   ExpandMore as ExpandMoreIcon,
-  CheckCircle as CheckCircleIcon,
-  Error as ErrorIcon,
-  Warning as WarningIcon
+  CheckCircle as CheckCircleIcon
 } from '@mui/icons-material';
 import axios from 'axios';
 
@@ -44,13 +40,9 @@ const API_BASE = 'http://localhost:5000/api';
 const Tools = ({ project }) => {
   const [loading, setLoading] = useState(false);
   const [urlCloneDialog, setUrlCloneDialog] = useState(false);
-  const [linkCompareDialog, setLinkCompareDialog] = useState(false);
   const [cloneResults, setCloneResults] = useState(null);
-  const [compareResults, setCompareResults] = useState(null);
   const [targetUrl, setTargetUrl] = useState('');
   const [referenceUrl, setReferenceUrl] = useState('');
-  const [stageUrl, setStageUrl] = useState('');
-  const [qaUrl, setQaUrl] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
@@ -77,30 +69,6 @@ const Tools = ({ project }) => {
       setReferenceUrl('');
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to clone URLs from website');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Link Comparison Tool
-  const handleLinkComparison = async () => {
-    setLoading(true);
-    setError('');
-    setCompareResults(null);
-    
-    try {
-      const response = await axios.post(`${API_BASE}/compare-links`, {
-        stageUrl,
-        qaUrl
-      });
-      
-      setCompareResults(response.data);
-      setSuccess(`Link comparison completed: ${response.data.stats.total} paths analyzed`);
-      setLinkCompareDialog(false);
-      setStageUrl('');
-      setQaUrl('');
-    } catch (err) {
-      setError(err.response?.data?.message || 'Failed to compare links between environments');
     } finally {
       setLoading(false);
     }
@@ -213,22 +181,6 @@ const Tools = ({ project }) => {
       icon: <LinkIcon />,
       color: 'primary',
       action: () => setUrlCloneDialog(true)
-    },
-    {
-      id: 'link-compare',
-      title: 'Link Comparison',
-      description: 'Compare links between STAGE and QA environments with detailed analysis',
-      icon: <CompareIcon />,
-      color: 'secondary',
-      action: () => setLinkCompareDialog(true)
-    },
-    {
-      id: 'analytics',
-      title: 'Test Analytics',
-      description: 'Analyze test results and generate detailed reports',
-      icon: <AnalyticsIcon />,
-      color: 'info',
-      action: () => console.log('Analytics tool')
     },
     {
       id: 'clean',
@@ -360,18 +312,25 @@ const Tools = ({ project }) => {
                 
                 <Box sx={{ mb: 2 }}>
                   <Chip 
-                    label={`${cloneResults.urlCount} URLs found`} 
+                    label={`${cloneResults.urlCount} target URLs`} 
                     color="primary" 
                     sx={{ mr: 1 }}
                   />
+                  {cloneResults.referenceUrlCount > 0 && (
+                    <Chip 
+                      label={`${cloneResults.referenceUrlCount} reference URLs`} 
+                      color="secondary" 
+                      sx={{ mr: 1 }}
+                    />
+                  )}
                   <Chip 
-                    label={`${cloneResults.scenarios} scenarios created`} 
+                    label={`${cloneResults.scenarios} BackstopJS scenarios`} 
                     color="success" 
                     sx={{ mr: 1 }}
                   />
                   {cloneResults.csvGenerated && (
                     <Chip 
-                      label="CSV generated" 
+                      label={`${cloneResults.totalScenariosInCsv} scenarios in CSV`} 
                       color="info" 
                       sx={{ mr: 1 }}
                     />
@@ -379,7 +338,7 @@ const Tools = ({ project }) => {
                   {cloneResults.referenceUrl && (
                     <Chip 
                       label="Target vs Reference comparison" 
-                      color="info" 
+                      color="warning" 
                       sx={{ mr: 1 }}
                     />
                   )}
@@ -513,20 +472,49 @@ const Tools = ({ project }) => {
               
               {/* Download CSV Button */}
               {cloneResults.csvGenerated && (
-                <Box sx={{ mt: 2, display: 'flex', justifyContent: 'flex-end' }}>
-                  <Button
-                    variant="contained"
-                    startIcon={<DownloadIcon />}
-                    onClick={handleDownloadCloneResultsCsv}
-                    disabled={loading}
-                    size="small"
-                    sx={{ 
-                      bgcolor: 'success.main',
-                      '&:hover': { bgcolor: 'success.dark' }
-                    }}
-                  >
-                    {loading ? 'Downloading...' : 'Download Scenarios CSV'}
-                  </Button>
+                <Box sx={{ mt: 2 }}>
+                  {/* CSV Information */}
+                  <Paper sx={{ p: 2, mb: 2, bgcolor: 'info.light', color: 'info.contrastText' }}>
+                    <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>
+                      📄 Comprehensive CSV Export Ready
+                    </Typography>
+                    <Typography variant="body2" sx={{ mb: 1 }}>
+                      {cloneResults.totalScenariosInCsv} scenarios ready for manual verification and upload
+                    </Typography>
+                    {cloneResults.csvInfo && (
+                      <Box>
+                        {cloneResults.referenceUrl ? (
+                          <Typography variant="body2">
+                            • {cloneResults.csvInfo.categories.common} common paths (both environments)
+                            <br />
+                            • {cloneResults.csvInfo.categories.targetOnly} target-only paths
+                            <br />
+                            • {cloneResults.csvInfo.categories.referenceOnly} reference-only paths
+                          </Typography>
+                        ) : (
+                          <Typography variant="body2">
+                            • {cloneResults.csvInfo.categories.baseline} baseline scenarios for target environment
+                          </Typography>
+                        )}
+                      </Box>
+                    )}
+                  </Paper>
+                  
+                  <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
+                    <Button
+                      variant="contained"
+                      startIcon={<DownloadIcon />}
+                      onClick={handleDownloadCloneResultsCsv}
+                      disabled={loading}
+                      size="small"
+                      sx={{ 
+                        bgcolor: 'success.main',
+                        '&:hover': { bgcolor: 'success.dark' }
+                      }}
+                    >
+                      {loading ? 'Downloading...' : 'Download Comprehensive CSV'}
+                    </Button>
+                  </Box>
                 </Box>
               )}
             </AccordionDetails>
@@ -546,7 +534,8 @@ const Tools = ({ project }) => {
         </DialogTitle>
         <DialogContent>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-            Enter website URLs to automatically extract all links and create test scenarios for visual regression testing.
+            Extract URLs from websites and generate comprehensive CSV exports for visual regression testing. 
+            Perfect for creating test scenarios that can be manually verified before execution.
           </Typography>
           
           <Box sx={{ mb: 3 }}>
@@ -573,13 +562,16 @@ const Tools = ({ project }) => {
           
           <Alert severity="info" sx={{ fontSize: '0.875rem' }}>
             <Typography variant="body2" sx={{ fontWeight: 600, mb: 1 }}>
-              How it works:
+              Enhanced CSV Export Features:
             </Typography>
             <Box component="ul" sx={{ m: 0, pl: 2 }}>
-              <li>Scans the target URL and discovers all linked pages</li>
-              <li>Creates test scenarios for each discovered page</li>
-              <li>If reference URL is provided, scenarios will compare target vs reference</li>
-              <li>If no reference URL is provided, screenshots will be taken for baseline creation</li>
+              <li>Discovers all navigation links from both target and reference pages</li>
+              <li>Creates comprehensive URL mapping with status indicators</li>
+              <li>Exports CSV with categories: common, target-only, reference-only paths</li>
+              <li>When comparing environments, only creates scenarios for URLs that exist in both</li>
+              <li>Skips target-only URLs to ensure proper reference comparison</li>
+              <li>Ready for manual verification and selective testing</li>
+              <li>Includes all necessary BackstopJS configuration fields</li>
             </Box>
           </Alert>
         </DialogContent>
@@ -597,155 +589,6 @@ const Tools = ({ project }) => {
           </Button>
         </DialogActions>
       </Dialog>
-
-      {/* Link Comparison Dialog */}
-      <Dialog 
-        open={linkCompareDialog} 
-        onClose={() => setLinkCompareDialog(false)}
-        maxWidth="md"
-        fullWidth
-      >
-        <DialogTitle>
-          Compare Links Between Environments
-        </DialogTitle>
-        <DialogContent>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-            Compare all internal links between STAGE and QA environments to identify differences in navigation structure.
-          </Typography>
-          
-          <Box sx={{ mb: 3 }}>
-            <TextField
-              fullWidth
-              required
-              label="STAGE URL"
-              placeholder="https://staging.example.com"
-              value={stageUrl}
-              onChange={(e) => setStageUrl(e.target.value)}
-              sx={{ mb: 2 }}
-              helperText="The staging environment URL"
-            />
-            
-            <TextField
-              fullWidth
-              required
-              label="QA URL"
-              placeholder="https://qa.example.com"
-              value={qaUrl}
-              onChange={(e) => setQaUrl(e.target.value)}
-              helperText="The QA environment URL"
-            />
-          </Box>
-          
-          <Alert severity="info" sx={{ fontSize: '0.875rem' }}>
-            <Typography variant="body2" sx={{ fontWeight: 600, mb: 1 }}>
-              Analysis includes:
-            </Typography>
-            <Box component="ul" sx={{ m: 0, pl: 2 }}>
-              <li>Extracts all internal navigation links from both environments</li>
-              <li>Compares link paths to identify missing or extra links</li>
-              <li>Provides a detailed comparison table with ✅/❌ status</li>
-              <li>Filters out static assets and focuses on navigation paths</li>
-            </Box>
-          </Alert>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setLinkCompareDialog(false)}>
-            Cancel
-          </Button>
-          <Button 
-            onClick={handleLinkComparison} 
-            variant="contained"
-            disabled={loading || !stageUrl || !qaUrl}
-            startIcon={loading ? <CircularProgress size={16} /> : <CompareIcon />}
-          >
-            {loading ? 'Comparing...' : 'Compare Links'}
-          </Button>
-        </DialogActions>
-      </Dialog>
-
-      {/* Link Comparison Results */}
-      {compareResults && (
-        <Paper sx={{ p: 3, mt: 3 }}>
-          <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <CompareIcon color="primary" />
-            Link Comparison Results
-          </Typography>
-          
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            Comparison between {compareResults.stageUrl} and {compareResults.qaUrl}
-          </Typography>
-
-          {/* Statistics */}
-          <Grid container spacing={2} sx={{ mb: 3 }}>
-            <Grid item xs={6} sm={3}>
-              <Paper sx={{ p: 2, textAlign: 'center', bgcolor: 'success.light', color: 'success.contrastText' }}>
-                <Typography variant="h4">{compareResults.stats.onBoth}</Typography>
-                <Typography variant="body2">On Both</Typography>
-              </Paper>
-            </Grid>
-            <Grid item xs={6} sm={3}>
-              <Paper sx={{ p: 2, textAlign: 'center', bgcolor: 'warning.light', color: 'warning.contrastText' }}>
-                <Typography variant="h4">{compareResults.stats.stageOnly}</Typography>
-                <Typography variant="body2">STAGE Only</Typography>
-              </Paper>
-            </Grid>
-            <Grid item xs={6} sm={3}>
-              <Paper sx={{ p: 2, textAlign: 'center', bgcolor: 'error.light', color: 'error.contrastText' }}>
-                <Typography variant="h4">{compareResults.stats.qaOnly}</Typography>
-                <Typography variant="body2">QA Only</Typography>
-              </Paper>
-            </Grid>
-            <Grid item xs={6} sm={3}>
-              <Paper sx={{ p: 2, textAlign: 'center', bgcolor: 'info.light', color: 'info.contrastText' }}>
-                <Typography variant="h4">{compareResults.stats.total}</Typography>
-                <Typography variant="body2">Total Paths</Typography>
-              </Paper>
-            </Grid>
-          </Grid>
-
-          {/* Detailed Comparison Table */}
-          <Accordion>
-            <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-              <Typography variant="subtitle1">Detailed Path Comparison ({compareResults.comparison.length} paths)</Typography>
-            </AccordionSummary>
-            <AccordionDetails>
-              <List>
-                {compareResults.comparison.map((item, index) => (
-                  <React.Fragment key={index}>
-                    <ListItem>
-                      <ListItemIcon>
-                        {item.status === 'both' && <CheckCircleIcon color="success" />}
-                        {item.status === 'stage-only' && <WarningIcon color="warning" />}
-                        {item.status === 'qa-only' && <ErrorIcon color="error" />}
-                      </ListItemIcon>
-                      <ListItemText 
-                        primary={item.path}
-                        secondary={
-                          <Box sx={{ display: 'flex', gap: 1, mt: 1 }}>
-                            <Chip 
-                              label={item.onStage ? '✅ STAGE' : '❌ STAGE'} 
-                              size="small" 
-                              color={item.onStage ? 'success' : 'default'}
-                              variant={item.onStage ? 'filled' : 'outlined'}
-                            />
-                            <Chip 
-                              label={item.onQA ? '✅ QA' : '❌ QA'} 
-                              size="small" 
-                              color={item.onQA ? 'success' : 'default'}
-                              variant={item.onQA ? 'filled' : 'outlined'}
-                            />
-                          </Box>
-                        }
-                      />
-                    </ListItem>
-                    {index < compareResults.comparison.length - 1 && <Divider />}
-                  </React.Fragment>
-                ))}
-              </List>
-            </AccordionDetails>
-          </Accordion>
-        </Paper>
-      )}
     </Box>
   );
 };

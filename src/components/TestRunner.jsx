@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import {
   Box,
   Button,
+  ButtonGroup,
   Card,
   CardContent,
   Grid,
@@ -226,6 +227,20 @@ function TestRunner({ project, config, scenarios: initialScenarios = [] }) {
 
   const selectAllScenarios = () => {
     setSelectedScenarios(scenarios.map(s => s.label))
+  }
+
+  const unselectAllScenarios = () => {
+    setSelectedScenarios([])
+  }
+
+  const toggleAllScenarios = () => {
+    if (selectedScenarios.length === scenarios.length) {
+      // All are selected, so unselect all
+      unselectAllScenarios()
+    } else {
+      // Not all are selected, so select all
+      selectAllScenarios()
+    }
   }
 
   // Filter scenarios
@@ -567,14 +582,36 @@ function TestRunner({ project, config, scenarios: initialScenarios = [] }) {
               >
                 {showSelectedOnly ? 'All' : 'Selected'}
               </Button>
-              <Button
-                variant="outlined"
+              <ButtonGroup size="small" sx={{ '& .MuiButton-root': { borderRadius: '6px', textTransform: 'none', fontSize: '0.875rem' } }}>
+                <Button
+                  variant="outlined"
+                  onClick={selectAllScenarios}
+                  disabled={selectedScenarios.length === scenarios.length}
+                  startIcon={<CheckCircleRounded fontSize="small" />}
+                >
+                  Select All ({scenarios.length})
+                </Button>
+                <Button
+                  variant="outlined"
+                  onClick={unselectAllScenarios}
+                  color="secondary"
+                  disabled={selectedScenarios.length === 0}
+                  startIcon={<Clear fontSize="small" />}
+                >
+                  Clear All
+                </Button>
+              </ButtonGroup>
+              
+              <Chip 
+                label={`${selectedScenarios.length}/${scenarios.length} selected`}
                 size="small"
-                onClick={selectAllScenarios}
-                sx={{ borderRadius: '6px', textTransform: 'none', fontSize: '0.875rem' }}
-              >
-                Select All
-              </Button>
+                color={selectedScenarios.length === 0 ? 'default' : 'primary'}
+                sx={{ 
+                  borderRadius: '6px',
+                  fontWeight: 500,
+                  fontSize: '0.8rem'
+                }}
+              />
             </Box>
           </Box>
 

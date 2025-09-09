@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import axios from 'axios'
 import { alpha, darken } from '@mui/material/styles'
 import {
@@ -30,7 +30,10 @@ import {
   ListItem,
   ListItemIcon,
   ListItemText,
-  Divider
+  Divider,
+  Pagination,
+  Paper,
+  InputAdornment
 } from '@mui/material'
 import { 
   Add, 
@@ -48,7 +51,8 @@ import {
   FileCopy,
   AccessTime,
   CompareArrows,
-  ExpandMore
+  ExpandMore,
+  Search
 } from '@mui/icons-material'
 
 const API_BASE = 'http://localhost:5000/api'
@@ -66,18 +70,42 @@ function ScenarioManager({ project, config: projectConfig, onConfigUpdate }) {
   const [previewScenarioData, setPreviewScenarioData] = useState(null)
   const [previewImage, setPreviewImage] = useState(null)
   const [loadingPreview, setLoadingPreview] = useState(false)
+  const [csvImportDialogOpen, setCsvImportDialogOpen] = useState(false)
+  const [csvImportLoading, setCsvImportLoading] = useState(false)
+  
+  // Pagination and search states for performance optimization
+  const [currentPage, setCurrentPage] = useState(1)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [scenariosPerPage] = useState(20) // Show 20 scenarios per page for performance
+
+  // Memoized filtered and paginated scenarios for performance
+  const filteredScenarios = useMemo(() => {
+    if (!searchQuery) return scenarios
+    
+    return scenarios.filter(scenario => 
+      scenario.label?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      scenario.url?.toLowerCase().includes(searchQuery.toLowerCase())
+    )
+  }, [scenarios, searchQuery])
+
+  const paginatedScenarios = useMemo(() => {
+    const startIndex = (currentPage - 1) * scenariosPerPage
+    const endIndex = startIndex + scenariosPerPage
+    return filteredScenarios.slice(startIndex, endIndex)
+  }, [filteredScenarios, currentPage, scenariosPerPage])
+
+  const totalPages = Math.ceil(filteredScenarios.length / scenariosPerPage)
+
+  // Reset to first page when search changes
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [searchQuery])
 
   useEffect(() => {
     setConfig(projectConfig)
   }, [projectConfig])
 
-  useEffect(() => {
-    if (project) {
-      loadData()
-    }
-  }, [project])
-
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     try {
       const scenariosResponse = await axios.get(`${API_BASE}/projects/${project.id}/scenarios`)
       // Defensive: ensure scenariosData is always an array
@@ -91,23 +119,35 @@ function ScenarioManager({ project, config: projectConfig, onConfigUpdate }) {
       } else {
         scenariosData = [scenariosData];
       }
-      // Filter out scenarios that have a referenceUrl
-      const filteredScenarios = scenariosData.filter(scenario => !scenario.referenceUrl);
-      const scenariosWithIds = filteredScenarios.map((scenario, index) => ({
+      // Show all scenarios (including those with referenceUrl for comparison testing)
+      const scenariosWithIds = scenariosData.map((scenario, index) => ({
         ...scenario,
-        id: scenario.id || `existing-${index}-${Date.now()}`
+        id: scenario.id || `existing-${index}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
       }))
+      
+      console.log('ScenarioManager: Loaded scenarios', {
+        total: scenariosData.length,
+        withIds: scenariosWithIds.length,
+        sample: scenariosWithIds.slice(0, 3)
+      });
+      
       setScenarios(scenariosWithIds)
       setLoading(false)
     } catch (error) {
       setMessage(`Error loading data: ${error.message}`)
       setLoading(false)
     }
-  }
+  }, [project])
+
+  useEffect(() => {
+    if (project) {
+      loadData()
+    }
+  }, [project, loadData])
 
   const addScenario = () => {
       const newScenario = {
-      id: Date.now(), // Add unique ID for stable React keys
+      id: `new-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`, // More unique ID generation
       label: 'New Scenario',
       url: 'https://example.com',
       referenceUrl: '', // URL for reference screenshot (if different from test URL)
@@ -150,7 +190,7 @@ function ScenarioManager({ project, config: projectConfig, onConfigUpdate }) {
           ...config,
           scenarios: newScenarios
         }
-        await axios.post(`${API_BASE}/config`, updatedConfig)
+        await axios.post(`${API_BASE}/projects/${project.id}/config`, updatedConfig)
         setMessage('Scenario deleted successfully!')
         
         // Clear success message after 3 seconds
@@ -160,9 +200,21 @@ function ScenarioManager({ project, config: projectConfig, onConfigUpdate }) {
         console.error('Error deleting scenario:', error)
         // Revert the deletion on error - reload from server
         try {
-          const response = await axios.get(`${API_BASE}/scenarios`)
-          const scenariosData = response.data.scenarios || response.data || []
-          const scenariosWithIds = scenariosData.map((scenario, idx) => ({
+          const response = await axios.get(`${API_BASE}/projects/${project.id}/scenarios`)
+          // Defensive: ensure scenariosData is always an array
+          let scenariosData = response.data;
+          if (Array.isArray(scenariosData)) {
+            // already an array
+          } else if (scenariosData && Array.isArray(scenariosData.scenarios)) {
+            scenariosData = scenariosData.scenarios;
+          } else if (scenariosData == null) {
+            scenariosData = [];
+          } else {
+            scenariosData = [scenariosData];
+          }
+          // Filter out scenarios that have a referenceUrl
+          const filteredScenarios = scenariosData.filter(scenario => !scenario.referenceUrl);
+          const scenariosWithIds = filteredScenarios.map((scenario, idx) => ({
             ...scenario,
             id: scenario.id || `existing-${idx}-${Date.now()}`
           }))
@@ -174,7 +226,7 @@ function ScenarioManager({ project, config: projectConfig, onConfigUpdate }) {
         setSaving(false)
       }
     }
-  }, [scenarios, config])
+  }, [scenarios, config, project.id])
 
   const saveScenarios = async () => {
     if (!config) return
@@ -237,7 +289,7 @@ function ScenarioManager({ project, config: projectConfig, onConfigUpdate }) {
     // Validate URL before proceeding
     try {
       new URL(scenario.url);
-    } catch (e) {
+    } catch {
       setMessage(`Invalid URL format: ${scenario.url}`);
       setTimeout(() => setMessage(''), 3000);
       return;
@@ -311,6 +363,26 @@ function ScenarioManager({ project, config: projectConfig, onConfigUpdate }) {
             </Typography>
           </Box>
           <Stack direction="row" spacing={2}>
+            <Button
+              variant="outlined"
+              startIcon={<FileCopy />}
+              onClick={() => setCsvImportDialogOpen(true)}
+              sx={{
+                borderRadius: 2,
+                px: 3,
+                py: 1.5,
+                borderColor: 'secondary.main',
+                color: 'secondary.main',
+                '&:hover': {
+                  borderColor: 'secondary.dark',
+                  color: 'secondary.dark',
+                  transform: 'translateY(-1px)',
+                  boxShadow: '0 4px 12px rgba(156, 39, 176, 0.3)'
+                }
+              }}
+            >
+              Import from CSV
+            </Button>
             <Button
               variant="contained"
               startIcon={<Add />}
@@ -456,24 +528,77 @@ function ScenarioManager({ project, config: projectConfig, onConfigUpdate }) {
             </Alert>
           </Fade>
         )}
-
-        {/* CSV Import Section */}
-        <CSVScenarioUploader 
-          onScenariosCreated={(newScenarios) => {
-            setScenarios([...scenarios, ...newScenarios]);
-            setHasUnsavedChanges(true);
-            setMessage(`Successfully imported ${newScenarios.length} scenarios from CSV`);
-            setTimeout(() => setMessage(''), 3000);
-          }} 
-        />
       </Box>
+
+      {/* Search and Pagination Controls */}
+      {scenarios.length > 10 && (
+        <Paper sx={{ p: 3, mb: 3, borderRadius: 3, background: 'linear-gradient(135deg, #f8f9ff 0%, #eef2ff 100%)' }}>
+          <Grid container spacing={2} alignItems="center">
+            <Grid item xs={12} md={6}>
+              <TextField
+                fullWidth
+                placeholder="Search scenarios by label or URL..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <Search sx={{ color: 'primary.main' }} />
+                    </InputAdornment>
+                  ),
+                }}
+                sx={{
+                  '& .MuiOutlinedInput-root': {
+                    borderRadius: 2,
+                    backgroundColor: 'white',
+                    '&:hover': {
+                      boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                    },
+                  },
+                }}
+              />
+            </Grid>
+            <Grid item xs={12} md={6}>
+              <Stack direction="row" spacing={2} alignItems="center" justifyContent={{ xs: 'flex-start', md: 'flex-end' }}>
+                <Typography variant="body2" color="text.secondary">
+                  Showing {paginatedScenarios.length} of {filteredScenarios.length} scenarios
+                  {searchQuery && ` (filtered from ${scenarios.length} total)`}
+                </Typography>
+                {totalPages > 1 && (
+                  <Pagination
+                    count={totalPages}
+                    page={currentPage}
+                    onChange={(event, value) => setCurrentPage(value)}
+                    color="primary"
+                    size="small"
+                    showFirstButton
+                    showLastButton
+                  />
+                )}
+              </Stack>
+            </Grid>
+          </Grid>
+        </Paper>
+      )}
+
+      {/* Debug Info */}
+      {scenarios.length > 0 && (
+        <Alert severity="info" sx={{ mb: 2 }}>
+          📊 Debug: Total scenarios: {scenarios.length}, Filtered: {filteredScenarios.length}, 
+          Paginated: {paginatedScenarios.length}, Current page: {currentPage}/{totalPages}
+          {searchQuery && ` | Search: "${searchQuery}"`}
+        </Alert>
+      )}
 
       {/* Scenarios Accordion List */}
       <Stack spacing={2}>
-        {scenarios.map((scenario, index) => (
+        {paginatedScenarios.map((scenario, index) => {
+          // Calculate the actual index in the full scenarios array for operations
+          const actualIndex = scenarios.findIndex(s => s.id === scenario.id);
+          return (
           <Accordion 
             key={scenario.id || `scenario-${index}`}
-            defaultExpanded={scenarios.length === 1}
+            defaultExpanded={paginatedScenarios.length === 1}
             sx={{ 
               borderRadius: 4,
               backdropFilter: 'blur(8px)',
@@ -539,7 +664,7 @@ function ScenarioManager({ project, config: projectConfig, onConfigUpdate }) {
                   <WebIcon sx={{ fontSize: 28 }} />
                   <Box>
                     <Typography variant="h6" sx={{ fontWeight: 600, lineHeight: 1.2 }}>
-                      {scenario.label || `Scenario ${index + 1}`}
+                      {scenario.label || `Scenario ${actualIndex + 1}`}
                     </Typography>
                     <Typography variant="body2" sx={{ opacity: 0.9, fontSize: '0.875rem' }}>
                       {scenario.url || 'No URL configured'}
@@ -630,58 +755,76 @@ function ScenarioManager({ project, config: projectConfig, onConfigUpdate }) {
                       />
                     )}
                   </Stack>
-                  
-                  {/* Action Buttons */}
-                  <Tooltip title="Preview Scenario">
-                    <IconButton 
-                      size="small" 
-                      sx={{ color: 'rgba(255,255,255,0.8)', '&:hover': { color: 'white', bgcolor: 'rgba(255,255,255,0.1)' } }}
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        previewScenario(scenario)
-                      }}
-                    >
-                      <Visibility fontSize="small" />
-                    </IconButton>
-                  </Tooltip>
-                  <Tooltip title="Duplicate Scenario">
-                    <IconButton 
-                      size="small" 
-                      sx={{ color: 'rgba(255,255,255,0.8)', '&:hover': { color: 'white', bgcolor: 'rgba(255,255,255,0.1)' } }}
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        const duplicateScenario = { ...scenario, id: Date.now(), label: `${scenario.label} (Copy)` }
-                        setScenarios([...scenarios, duplicateScenario])
-                        setHasUnsavedChanges(true)
-                      }}
-                    >
-                      <FileCopy fontSize="small" />
-                    </IconButton>
-                  </Tooltip>
-                  <Tooltip title="Delete Scenario">
-                    <IconButton
-                      size="small"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        removeScenario(index)
-                      }}
-                      disabled={saving}
-                      sx={{ 
-                        color: 'rgba(255,255,255,0.8)',
-                        '&:hover': { 
-                          color: 'white',
-                          bgcolor: 'rgba(255,0,0,0.2)'
-                        }
-                      }}
-                    >
-                      <Delete fontSize="small" />
-                    </IconButton>
-                  </Tooltip>
                 </Stack>
               </Stack>
             </AccordionSummary>
 
             <AccordionDetails sx={{ p: 3, bgcolor: 'grey.50' }}>
+              {/* Action Buttons Row - Moved outside AccordionSummary */}
+              <Box sx={{ mb: 3, display: 'flex', justifyContent: 'flex-end', gap: 1 }}>
+                <Tooltip title="Preview Scenario">
+                  <Button
+                    variant="outlined"
+                    size="small"
+                    startIcon={<Visibility />}
+                    onClick={() => previewScenario(scenario)}
+                    sx={{
+                      borderColor: 'primary.main',
+                      color: 'primary.main',
+                      '&:hover': {
+                        backgroundColor: 'primary.main',
+                        color: 'white'
+                      }
+                    }}
+                  >
+                    Preview
+                  </Button>
+                </Tooltip>
+                <Tooltip title="Duplicate Scenario">
+                  <Button
+                    variant="outlined"
+                    size="small"
+                    startIcon={<FileCopy />}
+                    onClick={() => {
+                      const duplicateScenario = { 
+                        ...scenario, 
+                        id: `duplicate-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`, 
+                        label: `${scenario.label} (Copy)` 
+                      }
+                      setScenarios([...scenarios, duplicateScenario])
+                      setHasUnsavedChanges(true)
+                    }}
+                    sx={{
+                      borderColor: 'secondary.main',
+                      color: 'secondary.main',
+                      '&:hover': {
+                        backgroundColor: 'secondary.main',
+                        color: 'white'
+                      }
+                    }}
+                  >
+                    Duplicate
+                  </Button>
+                </Tooltip>
+                <Tooltip title="Delete Scenario">
+                  <Button
+                    variant="outlined"
+                    size="small"
+                    color="error"
+                    startIcon={<Delete />}
+                    onClick={() => removeScenario(actualIndex)}
+                    disabled={saving}
+                    sx={{
+                      '&:hover': {
+                        backgroundColor: 'error.main',
+                        color: 'white'
+                      }
+                    }}
+                  >
+                    Delete
+                  </Button>
+                </Tooltip>
+              </Box>
               <Grid container spacing={3}>
                 {/* Basic Configuration */}
                 <Grid item xs={12} md={6}>
@@ -695,7 +838,7 @@ function ScenarioManager({ project, config: projectConfig, onConfigUpdate }) {
                       <TextField
                         label="Scenario Label"
                         value={scenario.label || ''}
-                        onChange={(e) => updateScenario(index, 'label', e.target.value)}
+                        onChange={(e) => updateScenario(actualIndex, 'label', e.target.value)}
                         fullWidth
                         size="small"
                         variant="outlined"
@@ -704,7 +847,7 @@ function ScenarioManager({ project, config: projectConfig, onConfigUpdate }) {
                       <TextField
                         label="Target URL"
                         value={scenario.url || ''}
-                        onChange={(e) => updateScenario(index, 'url', e.target.value)}
+                        onChange={(e) => updateScenario(actualIndex, 'url', e.target.value)}
                         fullWidth
                         size="small"
                         variant="outlined"
@@ -713,7 +856,7 @@ function ScenarioManager({ project, config: projectConfig, onConfigUpdate }) {
                       <TextField
                         label="Reference URL (Optional)"
                         value={scenario.referenceUrl || ''}
-                        onChange={(e) => updateScenario(index, 'referenceUrl', e.target.value)}
+                        onChange={(e) => updateScenario(actualIndex, 'referenceUrl', e.target.value)}
                         fullWidth
                         size="small"
                         variant="outlined"
@@ -723,7 +866,7 @@ function ScenarioManager({ project, config: projectConfig, onConfigUpdate }) {
                       <TextField
                         label="CSS Selectors"
                         value={Array.isArray(scenario.selectors) ? scenario.selectors.join(', ') : scenario.selectors || ''}
-                        onChange={(e) => updateScenario(index, 'selectors', e.target.value.split(', ').filter(s => s.trim()))}
+                        onChange={(e) => updateScenario(actualIndex, 'selectors', e.target.value.split(', ').filter(s => s.trim()))}
                         fullWidth
                         size="small"
                         variant="outlined"
@@ -735,7 +878,7 @@ function ScenarioManager({ project, config: projectConfig, onConfigUpdate }) {
                           label="Delay (ms)"
                           type="number"
                           value={scenario.delay || 0}
-                          onChange={(e) => updateScenario(index, 'delay', parseInt(e.target.value) || 0)}
+                          onChange={(e) => updateScenario(actualIndex, 'delay', parseInt(e.target.value) || 0)}
                           size="small"
                           variant="outlined"
                           sx={{ width: '50%' }}
@@ -744,7 +887,7 @@ function ScenarioManager({ project, config: projectConfig, onConfigUpdate }) {
                           label="Mismatch %"
                           type="number"
                           value={(scenario.misMatchThreshold || 0.1) * 100}
-                          onChange={(e) => updateScenario(index, 'misMatchThreshold', (parseFloat(e.target.value) || 10) / 100)}
+                          onChange={(e) => updateScenario(actualIndex, 'misMatchThreshold', (parseFloat(e.target.value) || 10) / 100)}
                           size="small"
                           variant="outlined"
                           sx={{ width: '50%' }}
@@ -755,7 +898,7 @@ function ScenarioManager({ project, config: projectConfig, onConfigUpdate }) {
                         control={
                           <Switch
                             checked={scenario.requireSameDimensions || false}
-                            onChange={(e) => updateScenario(index, 'requireSameDimensions', e.target.checked)}
+                            onChange={(e) => updateScenario(actualIndex, 'requireSameDimensions', e.target.checked)}
                             size="small"
                           />
                         }
@@ -797,7 +940,7 @@ function ScenarioManager({ project, config: projectConfig, onConfigUpdate }) {
                       <TextField
                         label="Hide Selectors"
                         value={Array.isArray(scenario.hideSelectors) ? scenario.hideSelectors.join(', ') : scenario.hideSelectors || ''}
-                        onChange={(e) => updateScenario(index, 'hideSelectors', e.target.value.split(', ').filter(s => s.trim()))}
+                        onChange={(e) => updateScenario(actualIndex, 'hideSelectors', e.target.value.split(', ').filter(s => s.trim()))}
                         fullWidth
                         size="small"
                         variant="outlined"
@@ -807,7 +950,7 @@ function ScenarioManager({ project, config: projectConfig, onConfigUpdate }) {
                       <TextField
                         label="Remove Selectors"
                         value={Array.isArray(scenario.removeSelectors) ? scenario.removeSelectors.join(', ') : scenario.removeSelectors || ''}
-                        onChange={(e) => updateScenario(index, 'removeSelectors', e.target.value.split(', ').filter(s => s.trim()))}
+                        onChange={(e) => updateScenario(actualIndex, 'removeSelectors', e.target.value.split(', ').filter(s => s.trim()))}
                         fullWidth
                         size="small"
                         variant="outlined"
@@ -817,7 +960,7 @@ function ScenarioManager({ project, config: projectConfig, onConfigUpdate }) {
                       <TextField
                         label="Click Selector"
                         value={scenario.clickSelector || ''}
-                        onChange={(e) => updateScenario(index, 'clickSelector', e.target.value)}
+                        onChange={(e) => updateScenario(actualIndex, 'clickSelector', e.target.value)}
                         fullWidth
                         size="small"
                         variant="outlined"
@@ -827,7 +970,7 @@ function ScenarioManager({ project, config: projectConfig, onConfigUpdate }) {
                       <TextField
                         label="Hover Selector"
                         value={scenario.hoverSelector || ''}
-                        onChange={(e) => updateScenario(index, 'hoverSelector', e.target.value)}
+                        onChange={(e) => updateScenario(actualIndex, 'hoverSelector', e.target.value)}
                         fullWidth
                         size="small"
                         variant="outlined"
@@ -838,7 +981,7 @@ function ScenarioManager({ project, config: projectConfig, onConfigUpdate }) {
                         control={
                           <Switch
                             checked={scenario.selectorExpansion !== false}
-                            onChange={(e) => updateScenario(index, 'selectorExpansion', e.target.checked)}
+                            onChange={(e) => updateScenario(actualIndex, 'selectorExpansion', e.target.checked)}
                             size="small"
                           />
                         }
@@ -869,7 +1012,7 @@ function ScenarioManager({ project, config: projectConfig, onConfigUpdate }) {
                         <TextField
                           label="Ready Script (onReady)"
                           value={scenario.customScript || ''}
-                          onChange={(e) => updateScenario(index, 'customScript', e.target.value)}
+                          onChange={(e) => updateScenario(actualIndex, 'customScript', e.target.value)}
                           fullWidth
                           multiline
                           rows={4}
@@ -889,7 +1032,7 @@ function ScenarioManager({ project, config: projectConfig, onConfigUpdate }) {
                         <TextField
                           label="Before Script (onBefore)"
                           value={scenario.customBeforeScript || ''}
-                          onChange={(e) => updateScenario(index, 'customBeforeScript', e.target.value)}
+                          onChange={(e) => updateScenario(actualIndex, 'customBeforeScript', e.target.value)}
                           fullWidth
                           multiline
                           rows={4}
@@ -910,8 +1053,35 @@ function ScenarioManager({ project, config: projectConfig, onConfigUpdate }) {
               </Grid>
             </AccordionDetails>
           </Accordion>
-        ))}
+        )})}
       </Stack>
+      
+      {/* Pagination Controls at Bottom */}
+      {scenarios.length > scenariosPerPage && totalPages > 1 && (
+        <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}>
+          <Pagination
+            count={totalPages}
+            page={currentPage}
+            onChange={(event, value) => setCurrentPage(value)}
+            color="primary"
+            size="large"
+            showFirstButton
+            showLastButton
+            sx={{
+              '& .MuiPaginationItem-root': {
+                borderRadius: 2,
+                '&.Mui-selected': {
+                  background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                  color: 'white',
+                  '&:hover': {
+                    background: 'linear-gradient(135deg, #5a6fd8 0%, #6a4190 100%)',
+                  },
+                },
+              },
+            }}
+          />
+        </Box>
+      )}
 
       {/* Empty State */}
       {scenarios.length === 0 && (
@@ -1423,6 +1593,179 @@ function ScenarioManager({ project, config: projectConfig, onConfigUpdate }) {
               </Button>
             )}
           </Stack>
+        </DialogActions>
+      </Dialog>
+
+      {/* CSV Import Dialog */}
+      <Dialog
+        open={csvImportDialogOpen}
+        onClose={() => setCsvImportDialogOpen(false)}
+        maxWidth="md"
+        fullWidth
+        PaperProps={{
+          sx: {
+            borderRadius: 3,
+            boxShadow: (theme) => `0 24px 48px ${alpha(theme.palette.common.black, 0.2)}`,
+            background: (theme) => `linear-gradient(to bottom right, ${alpha(theme.palette.background.paper, 0.9)}, ${alpha(theme.palette.background.paper, 0.95)})`,
+            backdropFilter: 'blur(10px)',
+            border: '1px solid',
+            borderColor: 'divider'
+          }
+        }}
+        TransitionComponent={Fade}
+        TransitionProps={{ timeout: 300 }}
+      >
+        <DialogTitle sx={{ p: { xs: 2, sm: 3 } }}>
+          <Stack 
+            direction="row" 
+            alignItems="center" 
+            spacing={2}
+            sx={{
+              position: 'relative',
+              '&::after': {
+                content: '""',
+                position: 'absolute',
+                bottom: -16,
+                left: 0,
+                right: 0,
+                height: 1,
+                background: (theme) => `linear-gradient(to right, ${theme.palette.secondary.main}, transparent)`,
+                opacity: 0.3
+              }
+            }}
+          >
+            <Avatar 
+              sx={{ 
+                bgcolor: 'secondary.main',
+                background: (theme) => `linear-gradient(135deg, ${theme.palette.secondary.main} 0%, ${theme.palette.secondary.dark} 100%)`,
+                boxShadow: (theme) => `0 8px 16px ${alpha(theme.palette.secondary.main, 0.25)}`,
+                width: { xs: 48, sm: 56 },
+                height: { xs: 48, sm: 56 }
+              }}
+            >
+              <FileCopy />
+            </Avatar>
+            <Box sx={{ flex: 1 }}>
+              <Typography 
+                variant="h5" 
+                sx={{ 
+                  fontWeight: 700,
+                  background: (theme) => `linear-gradient(135deg, ${theme.palette.text.primary} 0%, ${alpha(theme.palette.text.primary, 0.8)} 100%)`,
+                  WebkitBackgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent'
+                }}
+              >
+                Import Scenarios from CSV
+              </Typography>
+              <Typography 
+                variant="body2" 
+                sx={{ 
+                  color: 'text.secondary',
+                  opacity: 0.8,
+                  fontWeight: 500
+                }}
+              >
+                Upload a CSV file to create multiple scenarios at once
+              </Typography>
+            </Box>
+            <IconButton 
+              onClick={() => setCsvImportDialogOpen(false)}
+              sx={{
+                position: 'absolute',
+                right: -8,
+                top: -8,
+                bgcolor: 'background.paper',
+                boxShadow: (theme) => `0 4px 12px ${alpha(theme.palette.common.black, 0.1)}`,
+                border: '1px solid',
+                borderColor: 'divider',
+                '&:hover': {
+                  bgcolor: 'background.paper',
+                  transform: 'scale(1.1)'
+                },
+                transition: 'all 0.2s ease'
+              }}
+            >
+              <Close fontSize="small" />
+            </IconButton>
+          </Stack>
+        </DialogTitle>
+        
+        <DialogContent>
+          <CSVScenarioUploader 
+            onScenariosCreated={async (newScenarios) => {
+              console.log(`CSV Import: Starting batch import of ${newScenarios.length} scenarios`);
+              
+              // Immediately close the dialog to prevent hanging
+              setCsvImportDialogOpen(false);
+              setCsvImportLoading(false);
+              
+              // For very large imports, use batch processing
+              if (newScenarios.length > 100) {
+                setMessage(`Processing ${newScenarios.length} scenarios in batches...`);
+                
+                const batchSize = 25; // Small batches to prevent hanging
+                let processedCount = 0;
+                const allProcessedScenarios = [];
+                
+                // Process in batches with delays
+                for (let i = 0; i < newScenarios.length; i += batchSize) {
+                  const batch = newScenarios.slice(i, i + batchSize);
+                  
+                  // Process this batch
+                  const batchWithIds = batch.map((scenario, index) => ({
+                    ...scenario,
+                    id: `csv-batch-${Date.now()}-${i + index}-${Math.random().toString(36).substr(2, 4)}`
+                  }));
+                  
+                  allProcessedScenarios.push(...batchWithIds);
+                  processedCount += batch.length;
+                  
+                  // Update progress
+                  setMessage(`Processed ${processedCount}/${newScenarios.length} scenarios...`);
+                  
+                  // Add scenarios to state incrementally
+                  setScenarios(prev => [...prev, ...batchWithIds]);
+                  
+                  console.log(`CSV Import: Processed batch ${Math.floor(i/batchSize) + 1}, total: ${processedCount}`);
+                  
+                  // Small delay to let UI update
+                  await new Promise(resolve => setTimeout(resolve, 50));
+                }
+                
+                // Final update
+                setHasUnsavedChanges(true);
+                setMessage(`✅ Successfully imported ${processedCount} scenarios! Click "Save All Changes" to persist.`);
+                console.log('CSV Import: Batch processing completed');
+                
+              } else {
+                // Small imports - process normally
+                setMessage(`Importing ${newScenarios.length} scenarios...`);
+                
+                const timestamp = Date.now();
+                const scenariosWithUniqueIds = newScenarios.map((scenario, index) => ({
+                  ...scenario,
+                  id: `csv-${timestamp}-${index}-${Math.random().toString(36).substr(2, 5)}`
+                }));
+                
+                setScenarios(prev => [...prev, ...scenariosWithUniqueIds]);
+                setHasUnsavedChanges(true);
+                setMessage(`✅ Successfully imported ${scenariosWithUniqueIds.length} scenarios!`);
+                console.log('CSV Import: Normal processing completed');
+              }
+              
+            }} 
+            loading={csvImportLoading}
+          />
+        </DialogContent>
+        
+        <DialogActions sx={{ p: 3 }}>
+          <Button
+            onClick={() => setCsvImportDialogOpen(false)}
+            variant="outlined"
+            sx={{ borderRadius: 2 }}
+          >
+            Close
+          </Button>
         </DialogActions>
       </Dialog>
     </Box>

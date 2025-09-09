@@ -99,7 +99,20 @@ function ConfigEditor({ project, onConfigUpdate }) {
         loadedConfig.viewports = []
       }
       
-      setConfig(loadedConfig)
+      // Apply defaults for missing fields only
+      const configWithDefaults = {
+        id: loadedConfig.id || '',
+        engine: loadedConfig.engine || 'puppeteer',
+        debug: loadedConfig.debug || false,
+        viewports: loadedConfig.viewports || [],
+        similarityThreshold: loadedConfig.similarityThreshold !== undefined ? loadedConfig.similarityThreshold : 0.1,
+        delay: loadedConfig.delay !== undefined ? loadedConfig.delay : 500,
+        asyncCaptureLimit: loadedConfig.asyncCaptureLimit !== undefined && loadedConfig.asyncCaptureLimit !== 1 ? loadedConfig.asyncCaptureLimit : 5,
+        asyncCompareLimit: loadedConfig.asyncCompareLimit !== undefined ? loadedConfig.asyncCompareLimit : 50,
+        ...loadedConfig  // Include any other fields that might exist
+      }
+      
+      setConfig(configWithDefaults)
       setLoading(false)
     } catch (error) {
       setMessage(`Error loading config: ${error.message}`)
@@ -217,6 +230,8 @@ function ConfigEditor({ project, onConfigUpdate }) {
     viewports: [],
     similarityThreshold: 0.1,
     delay: 500,
+    asyncCaptureLimit: 5,
+    asyncCompareLimit: 50,
     ...config
   }
 

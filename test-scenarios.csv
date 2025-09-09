@@ -1,0 +1,4 @@
+label,url,selectors,delay,misMatchThreshold
+Home Page,https://example.com,document,0,0.1
+About Page,https://example.com/about,document,500,0.15
+Contact Page,https://example.com/contact,.main-content,1000,0.2

@@ -1,0 +1,4 @@
+label,url,selectors,delay,misMatchThreshold
+Test 1,https://example.com,document,0,0.1
+Test 2,https://example.com/about,document,500,0.15
+Test 3,https://example.com/contact,.main-content,1000,0.2

@@ -31,7 +31,17 @@ app.use(cors({
   origin: ["http://localhost:3000", "http://localhost:5173"],
   credentials: true
 }));
-app.use(express.json());
+
+// Increase payload size limits for large scenario datasets
+app.use(express.json({ 
+  limit: '50mb',
+  parameterLimit: 50000
+}));
+app.use(express.urlencoded({ 
+  limit: '50mb',
+  extended: true,
+  parameterLimit: 50000
+}));
 
 // Ensure data directory exists
 async function ensureDataDir() {
@@ -6135,10 +6145,15 @@ app.post('/api/clone-urls', async (req, res) => {
       // First try with Cheerio (faster for static content)
       const cheerioResult = await extractLinksWithCheerio(url);
       
-      // If we found links with Cheerio, use them
-      if (cheerioResult.urls.length > 0) {
+      // Check if AEM site to force more comprehensive extraction
+      const isAemSite = url.includes('.aem.') || url.includes('--');
+      
+      // If we found links with Cheerio, use them (unless it's an AEM site with few links)
+      if (cheerioResult.urls.length > 0 && (!isAemSite || cheerioResult.urls.length > 10)) {
         console.log(`✅ Found ${cheerioResult.urls.length} links using Cheerio`);
         return cheerioResult;
+      } else if (cheerioResult.urls.length > 0 && isAemSite) {
+        console.log(`⚠️ AEM site with only ${cheerioResult.urls.length} links from Cheerio, trying comprehensive extraction...`);
       }
       
       // If no links found with Cheerio, try with Puppeteer (for JavaScript-heavy sites)
@@ -6147,10 +6162,60 @@ app.post('/api/clone-urls', async (req, res) => {
       
       if (puppeteerResult.urls.length > 0) {
         console.log(`✅ Found ${puppeteerResult.urls.length} links using Puppeteer`);
+        
+        // For AEM sites, always check sitemap for additional URLs
+        const isAemSite = url.includes('.aem.') || url.includes('--');
+        if (isAemSite) {
+          console.log(`🗺️ AEM site detected, checking sitemap for additional URLs...`);
+          const sitemapResult = await extractUrlsFromSitemap(url);
+          
+          if (sitemapResult.success && sitemapResult.urls.length > 0) {
+            console.log(`📋 Sitemap found ${sitemapResult.urls.length} URLs vs ${puppeteerResult.urls.length} from navigation`);
+            
+            if (sitemapResult.urls.length > puppeteerResult.urls.length) {
+              console.log(`📋 Using sitemap as it has more URLs (${sitemapResult.urls.length} vs ${puppeteerResult.urls.length})`);
+              return sitemapResult;
+            } else {
+              // Merge navigation and sitemap results
+              const mergedUrls = [...puppeteerResult.urls];
+              const existingUrls = new Set(puppeteerResult.normalized);
+              
+              for (const sitemapUrl of sitemapResult.urls) {
+                if (!existingUrls.has(sitemapUrl.normalizedUrl)) {
+                  mergedUrls.push(sitemapUrl);
+                }
+              }
+              
+              console.log(`🔗 Merged ${puppeteerResult.urls.length} navigation + ${sitemapResult.urls.length - puppeteerResult.urls.length} sitemap = ${mergedUrls.length} total URLs`);
+              
+              return {
+                success: true,
+                urls: mergedUrls,
+                normalized: mergedUrls.map(u => u.normalizedUrl),
+                mapping: Object.fromEntries(
+                  mergedUrls.map(link => [
+                    link.normalizedUrl,
+                    link.originalUrls
+                  ])
+                )
+              };
+            }
+          }
+        }
+        
         return puppeteerResult;
       }
       
-      console.log(`⚠️ No navigation links found on ${url}`);
+      // If no links found with navigation scraping, try sitemap as last resort
+      console.log(`🗺️ No navigation links found, trying sitemap as fallback...`);
+      const sitemapResult = await extractUrlsFromSitemap(url);
+      
+      if (sitemapResult.success && sitemapResult.urls.length > 0) {
+        console.log(`📋 Found ${sitemapResult.urls.length} URLs in sitemap`);
+        return sitemapResult;
+      }
+      
+      console.log(`⚠️ No links found using any method for ${url}`);
       return {
         success: true,
         urls: [],
@@ -6306,11 +6371,168 @@ app.post('/api/clone-urls', async (req, res) => {
         // Navigate to the page and wait for network idle
         await page.goto(url, { 
           waitUntil: 'networkidle2',
-          timeout: 30000 
+          timeout: 60000 
         });
 
-        // Wait a bit more for any lazy-loaded content
-        await page.waitForTimeout(2000);
+        // Enhanced waiting for AEM sites
+        const isAemSite = url.includes('.aem.') || url.includes('--');
+        
+        if (isAemSite) {
+          console.log('🏗️ Detected AEM site, using enhanced discovery...');
+          
+          // Set up request interception to monitor API calls
+          let pendingRequests = 0;
+          let requestsSettled = false;
+          
+          page.on('request', (request) => {
+            if (request.url().includes('/api/') || request.url().includes('.json') || request.url().includes('fragment')) {
+              pendingRequests++;
+              console.log(`📡 API request detected: ${request.url()}`);
+            }
+          });
+          
+          page.on('response', (response) => {
+            if (response.url().includes('/api/') || response.url().includes('.json') || response.url().includes('fragment')) {
+              pendingRequests--;
+              console.log(`📥 API response received: ${response.url()}`);
+              if (pendingRequests <= 0) {
+                requestsSettled = true;
+              }
+            }
+          });
+          
+          // Wait for common AEM elements to load
+          try {
+            await page.waitForSelector('nav, .navigation, .menu, header, [role="navigation"], main', { timeout: 15000 });
+          } catch {
+            console.log('⚠️ Navigation elements not found immediately, continuing...');
+          }
+          
+          // Wait for AEM-specific components and lazy-loaded content
+          try {
+            await page.waitForSelector('.block, .section, [class*="block"], [class*="component"]', { timeout: 10000 });
+          } catch {
+            console.log('⚠️ AEM components not found immediately, continuing...');
+          }
+          
+          // Wait for network activity to settle (API calls for header/footer)
+          console.log('⏳ Waiting for lazy-loaded header/footer API calls...');
+          
+          // Wait for network to be idle (no requests for 2 seconds)
+          await page.waitForLoadState ? 
+            page.waitForLoadState('networkidle', { timeout: 30000 }) :
+            page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 30000 }).catch(() => {
+              console.log('⚠️ Network idle wait failed, continuing...');
+            });
+          
+          // Additional wait for DOM updates after API responses
+          await page.waitForTimeout(3000);
+          
+          // Wait for API requests to settle
+          const maxWaitTime = 15000; // 15 seconds max
+          const startTime = Date.now();
+          
+          while (!requestsSettled && (Date.now() - startTime) < maxWaitTime) {
+            await page.waitForTimeout(1000);
+            console.log(`⌛ Waiting for ${pendingRequests} pending API requests...`);
+          }
+          
+          if (requestsSettled) {
+            console.log('✅ All API requests completed');
+          } else {
+            console.log('⚠️ API requests timeout, continuing...');
+          }
+          
+          // Look for newly loaded navigation in header/footer
+          try {
+            await page.waitForFunction(() => {
+              const headers = document.querySelectorAll('header, .header, nav, .nav, .navigation');
+              const footers = document.querySelectorAll('footer, .footer');
+              return headers.length > 0 || footers.length > 0;
+            }, { timeout: 10000 });
+            console.log('✅ Header/footer elements detected');
+          } catch {
+            console.log('⚠️ Header/footer elements still not detected, continuing...');
+          }
+          
+          // Progressive scrolling to trigger any remaining lazy loading
+          await page.evaluate(() => {
+            const scrollSteps = 5;
+            const scrollHeight = document.body.scrollHeight;
+            const stepSize = scrollHeight / scrollSteps;
+            
+            for (let i = 1; i <= scrollSteps; i++) {
+              setTimeout(() => {
+                window.scrollTo(0, stepSize * i);
+              }, i * 500);
+            }
+          });
+          
+          // Wait for scrolling to complete
+          await page.waitForTimeout(3000);
+          
+          // Look for and interact with navigation elements
+          try {
+            // Try to find and hover over navigation items to reveal dropdowns
+            const navItems = await page.$$('nav a, .navigation a, .menu a, [role="navigation"] a, header a, footer a');
+            console.log(`🔍 Found ${navItems.length} navigation elements to interact with`);
+            
+            for (let i = 0; i < Math.min(navItems.length, 15); i++) {
+              try {
+                await navItems[i].hover();
+                await page.waitForTimeout(500);
+              } catch {
+                // Continue if hover fails
+              }
+            }
+          } catch {
+            // Continue if navigation interaction fails
+          }
+          
+          // Look for and click hamburger menus or dropdowns
+          try {
+            const menuButtons = await page.$$([
+              '[aria-expanded="false"]',
+              '.menu-toggle',
+              '.nav-toggle', 
+              '.hamburger',
+              '[role="button"][aria-label*="menu" i]',
+              'button[aria-controls]',
+              '[data-toggle="menu"]',
+              '.menu-button',
+              '[aria-haspopup="true"]'
+            ].join(', '));
+            
+            console.log(`🍔 Found ${menuButtons.length} menu buttons to interact with`);
+            
+            for (const button of menuButtons) {
+              try {
+                await button.click();
+                await page.waitForTimeout(1500);
+                // Click again to close if it opened
+                await button.click();
+                await page.waitForTimeout(500);
+              } catch {
+                // Continue if click fails
+              }
+            }
+          } catch {
+            // Continue if no menu buttons found
+          }
+          
+          // Final scroll to bottom to ensure all content is loaded
+          await page.evaluate(() => {
+            window.scrollTo(0, document.body.scrollHeight);
+          });
+          
+          // Final wait for any remaining dynamic content
+          await page.waitForTimeout(5000);
+          
+          console.log('🎯 AEM site preparation complete');
+        } else {
+          // Standard wait for non-AEM sites
+          await page.waitForTimeout(2000);
+        }
 
         // Extract links using page.evaluate
         const links = await page.evaluate((baseUrl) => {
@@ -6362,8 +6584,14 @@ app.post('/api/clone-urls', async (req, res) => {
               
               if (isStaticAsset) return;
               
-              // Only include meaningful navigation paths
-              if (path === '/' || path.length < 2) return;
+              // Only include meaningful navigation paths (less restrictive for AEM)
+              if (path === '/') return; // Skip root only
+              
+              // For AEM sites, be more permissive with short paths
+              const isAemDomain = baseUrl.includes('.aem.') || baseUrl.includes('--');
+              const minPathLength = isAemDomain ? 1 : 2;
+              
+              if (path.length < minPathLength) return;
               
               const normalizedUrl = absoluteUrl.href;
               if (!foundLinks.has(normalizedUrl)) {
@@ -6379,8 +6607,9 @@ app.post('/api/clone-urls', async (req, res) => {
             }
           };
 
-          // Look for navigation links with various selectors
+          // Look for navigation links with enhanced selectors (especially for AEM sites)
           const selectors = [
+            // Standard navigation
             'nav a[href]',
             '.menu a[href]', 
             '.navigation a[href]',
@@ -6394,11 +6623,47 @@ app.post('/api/clone-urls', async (req, res) => {
             '[role="navigation"] a[href]',
             '.breadcrumb a[href]',
             'main a[href]',
+            // AEM specific selectors
+            '.cmp-navigation a[href]',
+            '.cmp-teaser a[href]',
+            '.cmp-button a[href]',
+            '.aem-component a[href]',
+            '[data-cmp-is] a[href]',
+            '.navigation__item a[href]',
+            '.nav-item a[href]',
+            '.menu-item a[href]',
+            '.site-navigation a[href]',
+            '.page-navigation a[href]',
+            // Content area links
+            '.content a[href]',
+            '.main-content a[href]',
+            '.page-content a[href]',
+            '.body-content a[href]',
+            'article a[href]',
+            'section a[href]',
+            // Sidebar and widget links
+            '.sidebar a[href]',
+            '.widget a[href]',
+            '.related a[href]',
+            // Button and CTA selectors
+            '.btn[href]',
+            '.button[href]',
+            '.cta[href]',
+            '[role="button"][href]',
             // Next.js specific selectors
             '[data-testid] a[href]',
             '.MuiButton-root[href]',
             'button[href]',
-            // General fallback
+            // Data attribute selectors
+            '[data-nav] a[href]',
+            '[data-menu] a[href]',
+            '[data-link] a[href]',
+            // Wildcard class selectors for dynamic classes
+            '[class*="nav"] a[href]',
+            '[class*="menu"] a[href]',
+            '[class*="link"] a[href]',
+            '[class*="button"] a[href]',
+            // General fallback (last)
             'a[href]'
           ];
 
@@ -6446,6 +6711,61 @@ app.post('/api/clone-urls', async (req, res) => {
         if (browser) {
           await browser.close();
         }
+      }
+    }
+
+    // Enhanced function to extract URLs from sitemap
+    async function extractUrlsFromSitemap(baseUrl) {
+      try {
+        const sitemapUrl = new URL('/sitemap.xml', baseUrl).href;
+        console.log(`🗺️ Checking for sitemap at: ${sitemapUrl}`);
+        
+        const response = await crawlerAxios.get(sitemapUrl);
+        
+        if (response.status === 200 && response.data) {
+          const urls = [];
+          const urlMatches = response.data.match(/<loc>(.*?)<\/loc>/g);
+          
+          if (urlMatches) {
+            for (const match of urlMatches) {
+              const url = match.replace(/<\/?loc>/g, '');
+              try {
+                const urlObj = new URL(url);
+                // Only include URLs from the same domain
+                if (urlObj.hostname === new URL(baseUrl).hostname) {
+                  const path = urlObj.pathname;
+                  // Skip root and very basic paths
+                  if (path !== '/' && path.length > 1) {
+                    urls.push({
+                      normalizedUrl: url,
+                      originalUrls: [`sitemap: ${path}`]
+                    });
+                  }
+                }
+              } catch {
+                // Skip invalid URLs
+              }
+            }
+            
+            console.log(`📋 Found ${urls.length} URLs in sitemap`);
+            return {
+              success: true,
+              urls: urls,
+              normalized: urls.map(u => u.normalizedUrl),
+              mapping: Object.fromEntries(
+                urls.map(link => [
+                  link.normalizedUrl,
+                  link.originalUrls
+                ])
+              )
+            };
+          }
+        }
+        
+        return { success: false, urls: [], normalized: [], mapping: {} };
+      } catch (error) {
+        console.log(`⚠️ Sitemap not available: ${error.message}`);
+        return { success: false, urls: [], normalized: [], mapping: {} };
       }
     }
 
@@ -6529,19 +6849,45 @@ app.post('/api/clone-urls', async (req, res) => {
     await fs.ensureDir(projectDir);
     
     // Create scenarios from the URLs
-    const scenarios = targetUrls.map(targetPageUrl => ({
-      label: targetPageUrl.replace(/https?:\/\//, '').replace(/[^a-z0-9]/gi, '_').slice(0, 50),
-      url: targetPageUrl,
-      referenceUrl: convertToReferenceUrl(targetPageUrl),
-      readySelector: '', // Empty as requested
-      delay: 500, // Changed from 2000 to 500
-      hideSelectors: [],
-      removeSelectors: [],
-      selectors: ['document'], // Changed from 'viewport' to 'document'
-      selectorExpansion: true,
-      expect: 0,
-      misMatchThreshold: 0.1, // Keeping the same as it wasn't specified differently
-    }));
+    let scenarios;
+    
+    if (referenceUrl && referenceResult) {
+      // When doing target vs reference comparison, only create scenarios for common paths
+      const commonPaths = urlMapping.comparison.commonPaths;
+      scenarios = commonPaths.map(path => {
+        const targetPageUrl = targetUrls.find(url => new URL(url).pathname === path);
+        const referencePageUrl = referenceUrls.find(url => new URL(url).pathname === path);
+        
+        return {
+          label: targetPageUrl.replace(/https?:\/\//, '').replace(/[^a-z0-9]/gi, '_').slice(0, 50),
+          url: targetPageUrl,
+          referenceUrl: referencePageUrl || convertToReferenceUrl(targetPageUrl),
+          readySelector: '', // Empty as requested
+          delay: 500, // Changed from 2000 to 500
+          hideSelectors: [],
+          removeSelectors: [],
+          selectors: ['document'], // Changed from 'viewport' to 'document'
+          selectorExpansion: true,
+          expect: 0,
+          misMatchThreshold: 0.1, // Keeping the same as it wasn't specified differently
+        };
+      }).filter(scenario => scenario.url && scenario.referenceUrl); // Only keep scenarios with both URLs
+    } else {
+      // No reference URL - create scenarios for all target URLs (baseline mode)
+      scenarios = targetUrls.map(targetPageUrl => ({
+        label: targetPageUrl.replace(/https?:\/\//, '').replace(/[^a-z0-9]/gi, '_').slice(0, 50),
+        url: targetPageUrl,
+        referenceUrl: convertToReferenceUrl(targetPageUrl),
+        readySelector: '', // Empty as requested
+        delay: 500, // Changed from 2000 to 500
+        hideSelectors: [],
+        removeSelectors: [],
+        selectors: ['document'], // Changed from 'viewport' to 'document'
+        selectorExpansion: true,
+        expect: 0,
+        misMatchThreshold: 0.1, // Keeping the same as it wasn't specified differently
+      }));
+    }
 
     // Save URL mapping for reference
     const mappingData = {
@@ -6560,29 +6906,96 @@ app.post('/api/clone-urls', async (req, res) => {
       { spaces: 2 }
     );
 
-    // Create CSV export of scenarios
+    // Create comprehensive CSV export with all discovered URLs
     const csvHeaders = [
       'label',
-      'url', 
+      'targetUrl', 
       'referenceUrl',
       'selector',
       'readySelector',
       'delay',
       'hideSelectors',
       'removeSelectors',
-      'misMatchThreshold'
+      'misMatchThreshold',
+      'status',
+      'pathType'
     ];
     
-    const csvRows = scenarios.map(scenario => [
+    // Create comprehensive scenarios from all discovered URLs
+    const allScenarios = [];
+    
+    // Helper function to create scenario from URL
+    const createScenario = (url, referenceUrl = '', status = 'target', pathType = 'common') => ({
+      label: url.replace(/https?:\/\//, '').replace(/[^a-z0-9]/gi, '_').slice(0, 50),
+      targetUrl: url,
+      referenceUrl: referenceUrl,
+      selector: 'document',
+      readySelector: '',
+      delay: 500,
+      hideSelectors: [],
+      removeSelectors: [],
+      misMatchThreshold: 0.1,
+      status,
+      pathType
+    });
+    
+    if (referenceUrl && referenceResult) {
+      // Create scenarios based on URL comparison
+      
+      // Common paths - create scenarios with both target and reference URLs
+      urlMapping.comparison.commonPaths.forEach(path => {
+        const targetPageUrl = targetUrls.find(url => new URL(url).pathname === path);
+        const referencePageUrl = referenceUrls.find(url => new URL(url).pathname === path);
+        
+        if (targetPageUrl && referencePageUrl) {
+          // Only create scenarios when both target and reference URLs exist
+          allScenarios.push(createScenario(
+            targetPageUrl, 
+            referencePageUrl,
+            'both',
+            'common'
+          ));
+        }
+      });
+      
+      // Skip target-only paths - these don't have matching reference URLs
+      // This prevents scenarios without proper reference URLs from being created
+      
+      // Reference-only paths (for documentation purposes)
+      urlMapping.comparison.referenceOnlyPaths.forEach(path => {
+        const referencePageUrl = referenceUrls.find(url => new URL(url).pathname === path);
+        if (referencePageUrl) {
+          // Create a target URL by converting reference URL to target domain
+          const targetDomain = new URL(targetUrl);
+          const targetPageUrl = targetDomain.origin + path;
+          
+          allScenarios.push(createScenario(
+            targetPageUrl,
+            referencePageUrl,
+            'reference-only',
+            'reference-only'
+          ));
+        }
+      });
+    } else {
+      // No reference URL - create scenarios for all target URLs
+      targetUrls.forEach(url => {
+        allScenarios.push(createScenario(url, '', 'target', 'baseline'));
+      });
+    }
+    
+    const csvRows = allScenarios.map(scenario => [
       scenario.label,
-      scenario.url,
-      scenario.referenceUrl || '',
-      scenario.selectors.join(';'),
+      scenario.targetUrl,
+      scenario.referenceUrl,
+      scenario.selector,
       scenario.readySelector,
       scenario.delay,
       scenario.hideSelectors.join(';'),
       scenario.removeSelectors.join(';'),
-      scenario.misMatchThreshold
+      scenario.misMatchThreshold,
+      scenario.status,
+      scenario.pathType
     ]);
     
     const csvContent = [
@@ -6596,50 +7009,40 @@ app.post('/api/clone-urls', async (req, res) => {
       'utf8'
     );
 
-    // Load existing config or create new one
-    const configPath = path.join(projectDir, 'backstop.json');
-    let config;
-    
-    try {
-      config = await fs.readJson(configPath);
-    } catch {
-      config = {
-        id: projectId,
-        viewports: [
-          { label: "phone", width: 320, height: 480 },
-          { label: "tablet", width: 768, height: 1024 },
-          { label: "desktop", width: 1920, height: 1080 }
-        ],
-        scenarios: [],
-        paths: {
-          bitmaps_reference: 'backstop_data/bitmaps_reference',
-          bitmaps_test: 'backstop_data/bitmaps_test',
-          engine_scripts: 'backstop_data/engine_scripts',
-          html_report: 'backstop_data/html_report',
-          ci_report: 'backstop_data/ci_report'
-        },
-        engine: 'puppeteer',
-        report: ['browser'],
-        debug: false
-      };
+    // Note: URL Clone Tool now only generates CSV exports
+    // Scenarios are not automatically saved to BackstopJS config
+    // Use the ScenarioManager to import scenarios from CSV if needed
+
+    console.log(`✅ URL cloning completed: ${targetUrls.length} target URLs found`);
+    if (referenceUrls.length > 0) {
+      console.log(`📎 Reference URLs found: ${referenceUrls.length}`);
     }
-
-    // Update config with new scenarios
-    config.scenarios = scenarios;
-    await fs.writeJson(configPath, config, { spaces: 2 });
-
-    console.log(`✅ URL cloning completed: ${targetUrls.length} URLs found`);
-    console.log(`📄 CSV export created with ${scenarios.length} scenarios`);
+    console.log(`📄 Comprehensive CSV export created with ${allScenarios.length} total scenarios`);
+    console.log(`📊 CSV includes: ${urlMapping.comparison ? 
+      `${urlMapping.comparison.commonPaths.length} common, ${urlMapping.comparison.targetOnlyPaths.length} target-only, ${urlMapping.comparison.referenceOnlyPaths.length} reference-only paths` :
+      `${allScenarios.length} baseline scenarios`}`);
 
     res.json({
       message: 'URL processing completed',
       urlCount: targetUrls.length,
-      scenarios: scenarios.length,
+      referenceUrlCount: referenceUrls.length,
+      totalScenariosInCsv: allScenarios.length,
+      scenarios: scenarios.length, // BackstopJS scenarios
       targetUrl,
       referenceUrl: referenceUrl || null,
       projectId, // Include projectId in response
       urlMapping,
       csvGenerated: true,
+      csvInfo: {
+        totalScenarios: allScenarios.length,
+        categories: referenceUrl ? {
+          common: urlMapping.comparison?.commonPaths.length || 0,
+          targetOnly: urlMapping.comparison?.targetOnlyPaths.length || 0,
+          referenceOnly: urlMapping.comparison?.referenceOnlyPaths.length || 0
+        } : {
+          baseline: allScenarios.length
+        }
+      },
       files: {
         config: 'backstop.json',
         urlMapping: 'url_mapping.json',
