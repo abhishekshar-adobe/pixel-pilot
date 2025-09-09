@@ -46,6 +46,16 @@ const Tools = ({ project }) => {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
+  // Helper function to ensure URL has protocol
+  const ensureProtocol = (url) => {
+    if (!url) return url;
+    const trimmedUrl = url.trim();
+    if (trimmedUrl.startsWith('http://') || trimmedUrl.startsWith('https://')) {
+      return trimmedUrl;
+    }
+    return `https://${trimmedUrl}`;
+  };
+
   // URL Clone Tool
   const handleUrlClone = async () => {
     if (!targetUrl) {
@@ -56,14 +66,18 @@ const Tools = ({ project }) => {
     setLoading(true);
     setError('');
     try {
+      // Ensure URLs have proper protocol
+      const normalizedTargetUrl = ensureProtocol(targetUrl);
+      const normalizedReferenceUrl = referenceUrl ? ensureProtocol(referenceUrl) : null;
+
       const response = await axios.post(`${API_BASE}/clone-urls`, {
-        targetUrl: targetUrl,
-        referenceUrl: referenceUrl || null,
+        targetUrl: normalizedTargetUrl,
+        referenceUrl: normalizedReferenceUrl,
         projectId: project.id
       });
 
       setCloneResults(response.data);
-      setSuccess(`Successfully cloned ${response.data.urlCount} URLs from the website`);
+      setSuccess(`Successfully cloned ${response.data.urlCount} URLs from ${normalizedTargetUrl}`);
       setUrlCloneDialog(false);
       setTargetUrl('');
       setReferenceUrl('');
@@ -543,20 +557,28 @@ const Tools = ({ project }) => {
               fullWidth
               required
               label="Target URL"
-              placeholder="https://staging.example.com"
+              placeholder="staging.example.com or https://staging.example.com"
               value={targetUrl}
               onChange={(e) => setTargetUrl(e.target.value)}
               sx={{ mb: 2 }}
-              helperText="The website you want to test (e.g., staging environment)"
+              helperText={
+                targetUrl && !targetUrl.trim().startsWith('http') 
+                  ? `Will use: https://${targetUrl.trim()}` 
+                  : "The website you want to test (e.g., staging environment)"
+              }
             />
             
             <TextField
               fullWidth
               label="Reference URL (Optional)"
-              placeholder="https://production.example.com"
+              placeholder="production.example.com or https://production.example.com"
               value={referenceUrl}
               onChange={(e) => setReferenceUrl(e.target.value)}
-              helperText="The baseline website to compare against (e.g., production environment)"
+              helperText={
+                referenceUrl && !referenceUrl.trim().startsWith('http')
+                  ? `Will use: https://${referenceUrl.trim()}`
+                  : "The baseline website to compare against (e.g., production environment)"
+              }
             />
           </Box>
           

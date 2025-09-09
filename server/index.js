@@ -6848,6 +6848,88 @@ app.post('/api/clone-urls', async (req, res) => {
     const projectDir = path.join(__dirname, 'backstop_data', projectId);
     await fs.ensureDir(projectDir);
     
+    // Enhanced label generation function to ensure uniqueness and readability
+    function createUniqueLabel(url, existingLabels = new Set()) {
+      try {
+        const urlObj = new URL(url);
+        let baseName = '';
+        
+        // Extract meaningful parts from URL
+        const hostname = urlObj.hostname.replace(/^www\./, '').replace(/\./g, '_');
+        const pathParts = urlObj.pathname.split('/').filter(part => part && part.length > 0);
+        
+        // Handle query parameters for better differentiation
+        const searchParams = urlObj.searchParams;
+        const importantParams = [];
+        
+        // Capture important parameters that might differentiate pages
+        ['page', 'id', 'category', 'type', 'section', 'lang', 'locale'].forEach(param => {
+          if (searchParams.has(param)) {
+            importantParams.push(`${param}_${searchParams.get(param)}`);
+          }
+        });
+        
+        // Start with the main path structure
+        if (pathParts.length === 0 && importantParams.length === 0) {
+          baseName = `${hostname}_homepage`;
+        } else {
+          // Use the last 2-3 meaningful path segments
+          const meaningfulParts = pathParts
+            .filter(part => 
+              part !== 'index.html' && 
+              part !== 'index.htm' && 
+              part !== 'index.php' &&
+              part.length > 1
+            )
+            .slice(-3);
+          
+          // Combine path parts with important parameters
+          const allParts = [...meaningfulParts, ...importantParams];
+          
+          if (allParts.length > 0) {
+            baseName = `${hostname}_${allParts.join('_')}`;
+          } else {
+            baseName = `${hostname}_page`;
+          }
+        }
+        
+        // Clean the base name and ensure readability
+        baseName = baseName
+          .toLowerCase()
+          .replace(/[^a-z0-9_]/g, '_')
+          .replace(/_+/g, '_')
+          .replace(/^_|_$/g, '')
+          .slice(0, 100); // Increased length for better readability
+        
+        // Ensure we have a meaningful name
+        if (!baseName || baseName.length < 3) {
+          baseName = `${hostname}_page`;
+        }
+        
+        // Ensure uniqueness by adding suffix if needed
+        let finalLabel = baseName;
+        let counter = 1;
+        
+        while (existingLabels.has(finalLabel)) {
+          finalLabel = `${baseName}_${counter.toString().padStart(2, '0')}`;
+          counter++;
+        }
+        
+        existingLabels.add(finalLabel);
+        return finalLabel;
+        
+      } catch {
+        // Fallback for invalid URLs
+        const timestamp = Date.now().toString(36);
+        const fallbackLabel = `url_${timestamp}`;
+        existingLabels.add(fallbackLabel);
+        return fallbackLabel;
+      }
+    }
+    
+    // Track used labels to ensure uniqueness
+    const existingLabels = new Set();
+    
     // Create scenarios from the URLs
     let scenarios;
     
@@ -6859,7 +6941,7 @@ app.post('/api/clone-urls', async (req, res) => {
         const referencePageUrl = referenceUrls.find(url => new URL(url).pathname === path);
         
         return {
-          label: targetPageUrl.replace(/https?:\/\//, '').replace(/[^a-z0-9]/gi, '_').slice(0, 50),
+          label: createUniqueLabel(targetPageUrl, existingLabels),
           url: targetPageUrl,
           referenceUrl: referencePageUrl || convertToReferenceUrl(targetPageUrl),
           readySelector: '', // Empty as requested
@@ -6875,7 +6957,7 @@ app.post('/api/clone-urls', async (req, res) => {
     } else {
       // No reference URL - create scenarios for all target URLs (baseline mode)
       scenarios = targetUrls.map(targetPageUrl => ({
-        label: targetPageUrl.replace(/https?:\/\//, '').replace(/[^a-z0-9]/gi, '_').slice(0, 50),
+        label: createUniqueLabel(targetPageUrl, existingLabels),
         url: targetPageUrl,
         referenceUrl: convertToReferenceUrl(targetPageUrl),
         readySelector: '', // Empty as requested
@@ -6924,9 +7006,10 @@ app.post('/api/clone-urls', async (req, res) => {
     // Create comprehensive scenarios from all discovered URLs
     const allScenarios = [];
     
-    // Helper function to create scenario from URL
+    // Helper function to create scenario from URL using the enhanced label generation
+    const csvExistingLabels = new Set();
     const createScenario = (url, referenceUrl = '', status = 'target', pathType = 'common') => ({
-      label: url.replace(/https?:\/\//, '').replace(/[^a-z0-9]/gi, '_').slice(0, 50),
+      label: createUniqueLabel(url, csvExistingLabels),
       targetUrl: url,
       referenceUrl: referenceUrl,
       selector: 'document',
