@@ -6088,7 +6088,7 @@ app.get('/api/projects/:projectId/export', async (req, res) => {
 // URL Clone endpoint (enhanced version)
 app.post('/api/clone-urls', async (req, res) => {
   try {
-    const { targetUrl, referenceUrl, projectId } = req.body;
+    const { targetUrl, referenceUrl, projectId, cssSelectors } = req.body;
     
     if (!targetUrl || !projectId) {
       return res.status(400).json({ error: 'Target URL and project ID are required' });
@@ -6097,6 +6097,9 @@ app.post('/api/clone-urls', async (req, res) => {
     console.log(`🔗 Cloning URLs from: ${targetUrl}`);
     if (referenceUrl) {
       console.log(`📎 Reference URL: ${referenceUrl}`);
+    }
+    if (cssSelectors) {
+      console.log(`🎯 Using CSS selectors: ${cssSelectors}`);
     }
 
     // Create axios instance for URL crawling
@@ -6139,11 +6142,14 @@ app.post('/api/clone-urls', async (req, res) => {
     }
 
     // Function to get all links from a page
-    async function getAllLinks(url) {
+    async function getAllLinks(url, customSelectors = null) {
       console.log(`🔍 Extracting links from: ${url}`);
+      if (customSelectors) {
+        console.log(`🎯 Using custom CSS selectors: ${customSelectors}`);
+      }
       
       // First try with Cheerio (faster for static content)
-      const cheerioResult = await extractLinksWithCheerio(url);
+      const cheerioResult = await extractLinksWithCheerio(url, customSelectors);
       
       // Check if AEM site to force more comprehensive extraction
       const isAemSite = url.includes('.aem.') || url.includes('--');
@@ -6158,7 +6164,7 @@ app.post('/api/clone-urls', async (req, res) => {
       
       // If no links found with Cheerio, try with Puppeteer (for JavaScript-heavy sites)
       console.log(`🔄 No links found with Cheerio, trying Puppeteer for dynamic content...`);
-      const puppeteerResult = await extractLinksWithPuppeteer(url);
+      const puppeteerResult = await extractLinksWithPuppeteer(url, customSelectors);
       
       if (puppeteerResult.urls.length > 0) {
         console.log(`✅ Found ${puppeteerResult.urls.length} links using Puppeteer`);
@@ -6225,24 +6231,36 @@ app.post('/api/clone-urls', async (req, res) => {
     }
 
     // Extract links using Cheerio (for static content)
-    async function extractLinksWithCheerio(url) {
-      const selectors = [
-        'nav a[href]:not([href*=".css"]):not([href*=".js"])',
-        '.menu a[href]:not([href*=".css"]):not([href*=".js"])', 
-        '.navigation a[href]:not([href*=".css"]):not([href*=".js"])',
-        '.navbar a[href]:not([href*=".css"]):not([href*=".js"])',
-        '.nav a[href]:not([href*=".css"]):not([href*=".js"])',
-        'header a[href]:not([href*=".css"]):not([href*=".js"])',
-        '.header a[href]:not([href*=".css"]):not([href*=".js"])',
-        '.main-nav a[href]:not([href*=".css"]):not([href*=".js"])',
-        '.primary-nav a[href]:not([href*=".css"]):not([href*=".js"])',
-        '.footer a[href]:not([href*=".css"]):not([href*=".js"]):not([href*="mailto:"]):not([href*="tel:"])',
-        '[role="navigation"] a[href]:not([href*=".css"]):not([href*=".js"])',
-        '.breadcrumb a[href]:not([href*=".css"]):not([href*=".js"])',
-        'main a[href]:not([href*=".css"]):not([href*=".js"]):not([href*="mailto:"]):not([href*="tel:"])',
-        // Fallback for general page links
-        'a[href]:not([href*=".css"]):not([href*=".js"]):not([href*="mailto:"]):not([href*="tel:"]):not([href*="javascript:"])'
-      ];
+    async function extractLinksWithCheerio(url, customSelectors = null) {
+      let selectors;
+      
+      if (customSelectors) {
+        // Use custom CSS selectors provided by user
+        const selectorList = customSelectors.split(',').map(s => s.trim()).filter(s => s);
+        selectors = selectorList.map(selector => 
+          `${selector} a[href]:not([href*=".css"]):not([href*=".js"]):not([href*="mailto:"]):not([href*="tel:"]):not([href*="javascript:"])`
+        );
+        console.log(`🎯 Using custom selectors: ${selectors.join(', ')}`);
+      } else {
+        // Default selectors for comprehensive link extraction
+        selectors = [
+          'nav a[href]:not([href*=".css"]):not([href*=".js"])',
+          '.menu a[href]:not([href*=".css"]):not([href*=".js"])', 
+          '.navigation a[href]:not([href*=".css"]):not([href*=".js"])',
+          '.navbar a[href]:not([href*=".css"]):not([href*=".js"])',
+          '.nav a[href]:not([href*=".css"]):not([href*=".js"])',
+          'header a[href]:not([href*=".css"]):not([href*=".js"])',
+          '.header a[href]:not([href*=".css"]):not([href*=".js"])',
+          '.main-nav a[href]:not([href*=".css"]):not([href*=".js"])',
+          '.primary-nav a[href]:not([href*=".css"]):not([href*=".js"])',
+          '.footer a[href]:not([href*=".css"]):not([href*=".js"]):not([href*="mailto:"]):not([href*="tel:"])',
+          '[role="navigation"] a[href]:not([href*=".css"]):not([href*=".js"])',
+          '.breadcrumb a[href]:not([href*=".css"]):not([href*=".js"])',
+          'main a[href]:not([href*=".css"]):not([href*=".js"]):not([href*="mailto:"]):not([href*="tel:"])',
+          // Fallback for general page links
+          'a[href]:not([href*=".css"]):not([href*=".js"]):not([href*="mailto:"]):not([href*="tel:"]):not([href*="javascript:"])'
+        ];
+      }
 
       try {
         const response = await crawlerAxios.get(url);
@@ -6344,7 +6362,7 @@ app.post('/api/clone-urls', async (req, res) => {
     }
 
     // Extract links using Puppeteer (for dynamic content)
-    async function extractLinksWithPuppeteer(url) {
+    async function extractLinksWithPuppeteer(url, customSelectors = null) {
       const puppeteer = require('puppeteer');
       let browser;
       
@@ -6535,7 +6553,7 @@ app.post('/api/clone-urls', async (req, res) => {
         }
 
         // Extract links using page.evaluate
-        const links = await page.evaluate((baseUrl) => {
+        const links = await page.evaluate((baseUrl, customSelectors) => {
           const foundLinks = new Map();
           const baseHostname = new URL(baseUrl).hostname;
           
@@ -6608,31 +6626,39 @@ app.post('/api/clone-urls', async (req, res) => {
           };
 
           // Look for navigation links with enhanced selectors (especially for AEM sites)
-          const selectors = [
-            // Standard navigation
-            'nav a[href]',
-            '.menu a[href]', 
-            '.navigation a[href]',
-            '.navbar a[href]',
-            '.nav a[href]',
-            'header a[href]',
-            '.header a[href]',
-            '.main-nav a[href]',
-            '.primary-nav a[href]',
-            '.footer a[href]',
-            '[role="navigation"] a[href]',
-            '.breadcrumb a[href]',
-            'main a[href]',
-            // AEM specific selectors
-            '.cmp-navigation a[href]',
-            '.cmp-teaser a[href]',
-            '.cmp-button a[href]',
-            '.aem-component a[href]',
-            '[data-cmp-is] a[href]',
-            '.navigation__item a[href]',
-            '.nav-item a[href]',
-            '.menu-item a[href]',
-            '.site-navigation a[href]',
+          let selectors;
+          
+          if (customSelectors) {
+            // Use custom CSS selectors provided by user
+            const selectorList = customSelectors.split(',').map(s => s.trim()).filter(s => s);
+            selectors = selectorList.map(selector => `${selector} a[href]`);
+            console.log('🎯 Using custom selectors in Puppeteer:', selectors);
+          } else {
+            selectors = [
+              // Standard navigation
+              'nav a[href]',
+              '.menu a[href]', 
+              '.navigation a[href]',
+              '.navbar a[href]',
+              '.nav a[href]',
+              'header a[href]',
+              '.header a[href]',
+              '.main-nav a[href]',
+              '.primary-nav a[href]',
+              '.footer a[href]',
+              '[role="navigation"] a[href]',
+              '.breadcrumb a[href]',
+              'main a[href]',
+              // AEM specific selectors
+              '.cmp-navigation a[href]',
+              '.cmp-teaser a[href]',
+              '.cmp-button a[href]',
+              '.aem-component a[href]',
+              '[data-cmp-is] a[href]',
+              '.navigation__item a[href]',
+              '.nav-item a[href]',
+              '.menu-item a[href]',
+              '.site-navigation a[href]',
             '.page-navigation a[href]',
             // Content area links
             '.content a[href]',
@@ -6666,6 +6692,7 @@ app.post('/api/clone-urls', async (req, res) => {
             // General fallback (last)
             'a[href]'
           ];
+          }
 
           for (const selector of selectors) {
             // eslint-disable-next-line no-undef
@@ -6673,9 +6700,14 @@ app.post('/api/clone-urls', async (req, res) => {
             elements.forEach(element => {
               const href = element.getAttribute('href');
               if (href) {
-                const context = element.closest('[class]')?.className ||
-                              element.closest('[id]')?.id ||
-                              selector;
+                let context = selector;
+                const closestClass = element.closest('[class]');
+                const closestId = element.closest('[id]');
+                if (closestClass && closestClass.className) {
+                  context = closestClass.className;
+                } else if (closestId && closestId.id) {
+                  context = closestId.id;
+                }
                 addUrl(href, context);
               }
             });
@@ -6685,7 +6717,7 @@ app.post('/api/clone-urls', async (req, res) => {
             normalizedUrl,
             originalUrls: Array.from(originalUrls)
           }));
-        }, url);
+        }, url, customSelectors);
 
         return {
           success: true,
@@ -6770,7 +6802,7 @@ app.post('/api/clone-urls', async (req, res) => {
     }
 
     // Get all links from the target page
-    const targetResult = await getAllLinks(targetUrl);
+    const targetResult = await getAllLinks(targetUrl, cssSelectors);
     
     if (!targetResult || !targetResult.urls || !Array.isArray(targetResult.urls)) {
       throw new Error('Failed to extract valid URLs from the target page');
@@ -6792,7 +6824,7 @@ app.post('/api/clone-urls', async (req, res) => {
     if (referenceUrl) {
       console.log(`🔗 Also scanning reference URL: ${referenceUrl}`);
       try {
-        referenceResult = await getAllLinks(referenceUrl);
+        referenceResult = await getAllLinks(referenceUrl, cssSelectors);
         if (referenceResult && referenceResult.normalized) {
           referenceUrls = referenceResult.normalized;
           console.log(`📋 Found ${referenceUrls.length} links on reference page`);

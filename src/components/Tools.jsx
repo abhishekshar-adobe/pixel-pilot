@@ -43,6 +43,7 @@ const Tools = ({ project }) => {
   const [cloneResults, setCloneResults] = useState(null);
   const [targetUrl, setTargetUrl] = useState('');
   const [referenceUrl, setReferenceUrl] = useState('');
+  const [cssSelectors, setCssSelectors] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
@@ -73,6 +74,7 @@ const Tools = ({ project }) => {
       const response = await axios.post(`${API_BASE}/clone-urls`, {
         targetUrl: normalizedTargetUrl,
         referenceUrl: normalizedReferenceUrl,
+        cssSelectors: cssSelectors.trim() || null,
         projectId: project.id
       });
 
@@ -81,6 +83,7 @@ const Tools = ({ project }) => {
       setUrlCloneDialog(false);
       setTargetUrl('');
       setReferenceUrl('');
+      setCssSelectors('');
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to clone URLs from website');
     } finally {
@@ -574,11 +577,21 @@ const Tools = ({ project }) => {
               placeholder="production.example.com or https://production.example.com"
               value={referenceUrl}
               onChange={(e) => setReferenceUrl(e.target.value)}
+              sx={{ mb: 2 }}
               helperText={
                 referenceUrl && !referenceUrl.trim().startsWith('http')
                   ? `Will use: https://${referenceUrl.trim()}`
                   : "The baseline website to compare against (e.g., production environment)"
               }
+            />
+            
+            <TextField
+              fullWidth
+              label="CSS Selectors (Optional)"
+              placeholder="header, footer, nav, .main-content"
+              value={cssSelectors}
+              onChange={(e) => setCssSelectors(e.target.value)}
+              helperText="Extract links only from specific page sections. Leave empty to scan entire page. Use comma-separated CSS selectors."
             />
           </Box>
           
@@ -588,6 +601,7 @@ const Tools = ({ project }) => {
             </Typography>
             <Box component="ul" sx={{ m: 0, pl: 2 }}>
               <li>Discovers all navigation links from both target and reference pages</li>
+              <li>Optional CSS selector targeting for specific page sections (header, footer, nav, etc.)</li>
               <li>Creates comprehensive URL mapping with status indicators</li>
               <li>Exports CSV with categories: common, target-only, reference-only paths</li>
               <li>When comparing environments, only creates scenarios for URLs that exist in both</li>
@@ -598,7 +612,13 @@ const Tools = ({ project }) => {
           </Alert>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setUrlCloneDialog(false)}>
+          <Button onClick={() => {
+            setUrlCloneDialog(false);
+            setTargetUrl('');
+            setReferenceUrl('');
+            setCssSelectors('');
+            setError('');
+          }}>
             Cancel
           </Button>
           <Button 
