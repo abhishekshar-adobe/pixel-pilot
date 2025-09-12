@@ -435,59 +435,64 @@ const Tools = ({ project }) => {
                 Generated Scenarios:
               </Typography>
               
-              <Paper 
-                sx={{ 
-                  maxHeight: 300, 
-                  overflow: 'auto', 
-                  bgcolor: 'grey.50',
-                  border: '1px solid',
-                  borderColor: 'grey.200'
-                }}
-              >
-                <List dense>
-                  {Object.entries(cloneResults.mapping || {}).slice(0, 10).map(([normalized, originals], index) => (
-                    <React.Fragment key={normalized}>
-                      <ListItem>
-                        <ListItemIcon>
-                          <CheckCircleIcon color="success" fontSize="small" />
-                        </ListItemIcon>
-                        <ListItemText
-                          primary={
-                            <Box>
-                              <Typography variant="body2" sx={{ fontWeight: 500 }}>
-                                {normalized}
-                              </Typography>
-                              {cloneResults.referenceUrl && (
-                                <Typography variant="caption" color="text.secondary">
-                                  → {normalized.replace(new URL(cloneResults.targetUrl).origin, new URL(cloneResults.referenceUrl).origin)}
-                                </Typography>
-                              )}
-                            </Box>
-                          }
-                          secondary={`Found in: ${originals.slice(0, 3).join(', ')}${originals.length > 3 ? '...' : ''}`}
-                          primaryTypographyProps={{ component: 'div' }}
-                          secondaryTypographyProps={{ fontSize: '0.75rem' }}
-                        />
-                      </ListItem>
-                      {index < Math.min(Object.entries(cloneResults.mapping).length - 1, 9) && <Divider />}
-                    </React.Fragment>
-                  ))}
-                  {Object.entries(cloneResults.mapping || {}).length > 10 && (
-                    <ListItem>
-                      <ListItemText
-                        primary={`... and ${Object.entries(cloneResults.mapping).length - 10} more URLs`}
-                        primaryTypographyProps={{ 
-                          fontSize: '0.875rem', 
-                          fontStyle: 'italic',
-                          color: 'text.secondary'
-                        }}
-                      />
-                    </ListItem>
-                  )}
-                </List>
-              </Paper>
-              
-              {/* Download CSV Button */}
+                  <Paper 
+                    sx={{ 
+                      maxHeight: 300, 
+                      overflow: 'auto', 
+                      bgcolor: 'grey.50',
+                      border: '1px solid',
+                      borderColor: 'grey.200'
+                    }}
+                  >
+                    <List dense>
+                      {Object.entries(cloneResults.mapping || {}).slice(0, 10).map(([normalized, originals], index) => {
+                        // Show the actual target URL that will be used in CSV
+                        const targetOrigin = new URL(cloneResults.targetUrl).origin;
+                        const targetPath = new URL(normalized).pathname;
+                        const csvTargetUrl = targetOrigin + targetPath;
+                        
+                        return (
+                          <React.Fragment key={normalized}>
+                            <ListItem>
+                              <ListItemIcon>
+                                <CheckCircleIcon color="success" fontSize="small" />
+                              </ListItemIcon>
+                              <ListItemText
+                                primary={
+                                  <Box>
+                                    <Typography variant="body2" sx={{ fontWeight: 500, color: 'primary.main' }}>
+                                      CSV URL: {csvTargetUrl}
+                                    </Typography>
+                                    {cloneResults.referenceUrl && (
+                                      <Typography variant="caption" color="text.secondary">
+                                        → Reference: {normalized.replace(new URL(cloneResults.targetUrl).origin, new URL(cloneResults.referenceUrl).origin)}
+                                      </Typography>
+                                    )}
+                                  </Box>
+                                }
+                                secondary={`Discovered from: ${originals.slice(0, 3).join(', ')}${originals.length > 3 ? '...' : ''}`}
+                                primaryTypographyProps={{ component: 'div' }}
+                                secondaryTypographyProps={{ fontSize: '0.75rem' }}
+                              />
+                            </ListItem>
+                            {index < Math.min(Object.entries(cloneResults.mapping).length - 1, 9) && <Divider />}
+                          </React.Fragment>
+                        );
+                      })}
+                      {Object.entries(cloneResults.mapping || {}).length > 10 && (
+                        <ListItem>
+                          <ListItemText
+                            primary={`... and ${Object.entries(cloneResults.mapping).length - 10} more URLs for ${new URL(cloneResults.targetUrl).origin}`}
+                            primaryTypographyProps={{ 
+                              fontSize: '0.875rem', 
+                              fontStyle: 'italic',
+                              color: 'text.secondary'
+                            }}
+                          />
+                        </ListItem>
+                      )}
+                    </List>
+                  </Paper>              {/* Download CSV Button */}
               {cloneResults.csvGenerated && (
                 <Box sx={{ mt: 2 }}>
                   {/* CSV Information */}

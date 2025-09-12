@@ -9,6 +9,7 @@ const axios = require('axios');
 const cheerio = require('cheerio');
 const archiver = require('archiver');
 const { v4: uuidv4 } = require('uuid');
+const { spawn } = require('child_process');
 const { DesignComparisonEngine } = require('./design-comparison-engine');
 const { getLatestTestResults } = require('./utils/test-results');
 const { validateProject, PROJECTS_FILE } = require('./utils/project-utils');
@@ -867,7 +868,7 @@ async function getEnhancedTestResults(projectId) {
   }
 }
 
-// Run BackstopJS test for project
+// Run BackstopJS test for project with enhanced batch processing
 app.post('/api/projects/:projectId/test', async (req, res) => {
   let tempConfigPath = null; // For cleanup
   let configToUse = null;
@@ -875,10 +876,12 @@ app.post('/api/projects/:projectId/test', async (req, res) => {
   let invalidScenarios = []; // Move outside try block for catch block access
   let config = null; // Move outside try block for catch block access
   const { projectId } = req.params; // Move projectId outside try block
+  const { filter, batchSize = 50, maxConcurrent = 5 } = req.body; // Enhanced batch configuration
   
-  console.log(`\n🚀 === TEST REQUEST RECEIVED ===`);
+  console.log(`\n🚀 === ENHANCED BATCH TEST REQUEST ===`);
   console.log(`📝 Project ID: ${projectId}`);
-  console.log(`🔍 Filter: ${req.body.filter || 'none'}`);
+  console.log(`🔍 Filter: ${filter || 'none'}`);
+  console.log(`📊 Batch Configuration: ${batchSize} scenarios per batch, ${maxConcurrent} concurrent`);
   console.log(`📋 Request body:`, req.body);
   
   try {
@@ -1210,13 +1213,36 @@ app.post('/api/projects/:projectId/test', async (req, res) => {
       }
     }
 
-    const result = await backstop('test', {
-      config: configToUse,
-      // Remove filter parameter since we're using filtered config file
-    });
+    let result;
+    
+    // Determine if we should use batch processing
+    const totalScenarios = validScenarios.length;
+    const shouldUseBatchProcessing = totalScenarios > (batchSize || 50);
+    
+    if (shouldUseBatchProcessing) {
+      console.log(`🚀 Large test suite detected (${totalScenarios} scenarios). Using batch processing...`);
+      
+      // Use batch processing for large test suites
+      const batchProcessor = new BatchTestProcessor(projectId, config, validScenarios, {
+        batchSize: batchSize || 50,
+        maxConcurrent: maxConcurrent || 3,
+        delay: 2000
+      });
+      
+      result = await batchProcessor.run();
+      
+    } else {
+      console.log(`📊 Standard test execution (${totalScenarios} scenarios)...`);
+      
+      // Use standard BackstopJS execution for smaller test suites
+      result = await backstop('test', {
+        config: configToUse,
+        // Remove filter parameter since we're using filtered config file
+      });
+    }
 
-    console.log('✅ BackstopJS test completed successfully');
-    console.log(`📊 BackstopJS result summary: ${result?.tests?.length || 0} tests executed`);
+    console.log('✅ Test execution completed');
+    console.log(`📊 Test result summary: ${result?.tests?.length || totalScenarios} scenarios processed`);
     console.log(`📋 Invalid scenarios count from validation phase: ${invalidScenarios.length}`);
     
     if (invalidScenarios.length > 0) {
@@ -1784,10 +1810,362 @@ app.get('/api/projects/:projectId/screenshots', async (req, res) => {
 });
 
 // Serve project reports
-app.use('/api/projects/:projectId/report', (req, res, next) => {
+app.use('/api/projects/:projectId/report', async (req, res, next) => {
   const { projectId } = req.params;
-  const reportDir = path.join(__dirname, 'backstop_data', projectId, 'html_report');
-  express.static(reportDir)(req, res, next);
+  const { batch, summary } = req.query; // Allow batch selection and summary view via query parameters
+  const baseReportDir = path.join(__dirname, 'backstop_data', projectId, 'html_report');
+  
+  // If requesting summary view
+  if (summary === 'true') {
+    console.log(`📊 Generating summary view for project ${projectId}`);
+    const reportJsonPath = path.join(baseReportDir, 'report.json');
+    if (await fs.pathExists(reportJsonPath)) {
+      const reportData = await fs.readJson(reportJsonPath);
+      const summaryHtml = generateBatchSummaryHtml(reportData, projectId);
+      return res.send(summaryHtml);
+    } else {
+      return res.status(404).json({ 
+        error: 'No batch summary found',
+        message: 'No batch test results available for summary',
+        projectId 
+      });
+    }
+  }
+  
+  // If requesting a specific batch
+  if (batch !== undefined) {
+    const batchDir = path.join(baseReportDir, `batch_${batch}`);
+    if (await fs.pathExists(batchDir)) {
+      console.log(`📊 Serving batch ${batch} report from ${batchDir}`);
+      return express.static(batchDir)(req, res, next);
+    } else {
+      return res.status(404).json({ 
+        error: `Batch ${batch} not found`,
+        message: `No report found for batch ${batch}`,
+        projectId 
+      });
+    }
+  }
+  
+  // If requesting a specific file, first check the main report directory
+  if (req.path && req.path !== '/') {
+    const mainReportFile = path.join(baseReportDir, req.path);
+    if (await fs.pathExists(mainReportFile)) {
+      return express.static(baseReportDir)(req, res, next);
+    }
+  }
+  
+  // For index.html or base directory requests, check for reports intelligently
+  if (req.path === '/index.html' || req.path === '/' || req.path === '') {
+    console.log(`🔍 Looking for report in project ${projectId}...`);
+    
+    // First, check if there's a main HTML report
+    const mainReportIndex = path.join(baseReportDir, 'index.html');
+    if (await fs.pathExists(mainReportIndex)) {
+      console.log(`✅ Found main HTML report at ${mainReportIndex}`);
+      return express.static(baseReportDir)(req, res, next);
+    }
+    
+    // If no main report, look for batch reports and show selection interface
+    try {
+      const reportDirContents = await fs.readdir(baseReportDir);
+      const batchDirs = reportDirContents
+        .filter(name => name.startsWith('batch_'))
+        .sort((a, b) => {
+          const aBatch = parseInt(a.split('_')[1]);
+          const bBatch = parseInt(b.split('_')[1]);
+          return aBatch - bBatch; // Sort in batch order
+        });
+      
+      if (batchDirs.length > 0) {
+        // Check for batch results JSON to enhance the selection interface
+        const reportJsonPath = path.join(baseReportDir, 'report.json');
+        let batchInfo = null;
+        if (await fs.pathExists(reportJsonPath)) {
+          const reportData = await fs.readJson(reportJsonPath);
+          batchInfo = reportData.batchInfo;
+        }
+        
+        console.log(`📋 Found ${batchDirs.length} batch reports, showing selection interface`);
+        const selectionHtml = generateBatchSelectionHtml(batchDirs, projectId, batchInfo);
+        return res.send(selectionHtml);
+      }
+      
+      // If we have batch results but no HTML reports, generate a simple report page
+      const reportJsonPath = path.join(baseReportDir, 'report.json');
+      if (await fs.pathExists(reportJsonPath)) {
+        console.log(`📊 Found batch results JSON, generating summary page...`);
+        const reportData = await fs.readJson(reportJsonPath);
+        const summaryHtml = generateBatchSummaryHtml(reportData, projectId);
+        return res.send(summaryHtml);
+      }
+      
+    } catch (error) {
+      console.error('Error checking for batch reports:', error);
+    }
+    
+    // No reports found
+    console.log(`❌ No HTML reports found for project ${projectId}`);
+    return res.status(404).json({ 
+      error: 'No test report found', 
+      message: 'Run visual tests first to generate a report',
+      projectId 
+    });
+  }
+  
+  // Default static serving for other files
+  express.static(baseReportDir)(req, res, next);
+});
+
+// Helper function to generate batch selection interface
+function generateBatchSelectionHtml(batchDirs, projectId, batchInfo) {
+  const batchOptions = batchDirs.map(dir => {
+    const batchNumber = dir.replace('batch_', '');
+    return { number: batchNumber, directory: dir };
+  });
+
+  return `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Select Batch Report - ${projectId}</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; padding: 20px; background: #f5f5f5; }
+        .container { max-width: 800px; margin: 0 auto; }
+        .header { background: white; padding: 20px; border-radius: 8px; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .batch-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; margin-bottom: 30px; }
+        .batch-card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); transition: transform 0.2s, box-shadow 0.2s; cursor: pointer; border: 2px solid transparent; }
+        .batch-card:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.15); border-color: #2196f3; }
+        .batch-card h3 { margin: 0 0 10px 0; color: #1976d2; font-size: 1.5em; }
+        .batch-card p { margin: 5px 0; color: #666; }
+        .batch-info { background: #e3f2fd; padding: 15px; border-radius: 8px; margin: 20px 0; }
+        .batch-info h4 { margin: 0 0 10px 0; color: #1976d2; }
+        .summary-button { background: #4caf50; color: white; padding: 15px 30px; border: none; border-radius: 8px; font-size: 1.1em; font-weight: 500; cursor: pointer; margin: 10px; transition: background-color 0.2s; }
+        .summary-button:hover { background: #45a049; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Select Batch Report</h1>
+            <p>Project: <strong>${projectId}</strong></p>
+            <p>Choose a specific batch report to view, or see the complete summary of all batches.</p>
+        </div>
+        
+        ${batchInfo ? `
+        <div class="batch-info">
+            <h4>Batch Test Session Information</h4>
+            <p><strong>Total Scenarios Processed:</strong> ${batchInfo.totalScenarios}</p>
+            <p><strong>Batch Size:</strong> ${batchInfo.batchSize} scenarios per batch</p>
+            <p><strong>Total Batches:</strong> ${batchInfo.totalBatches}</p>
+            <p><strong>Session ID:</strong> ${batchInfo.sessionId}</p>
+        </div>
+        ` : ''}
+        
+        <div style="text-align: center; margin: 20px 0;">
+            <button class="summary-button" onclick="window.location.href='?summary=true'">
+                📊 View Complete Summary
+            </button>
+        </div>
+        
+        <div class="batch-grid">
+            ${batchOptions.map(batch => `
+                <div class="batch-card" onclick="window.location.href='?batch=${batch.number}'">
+                    <h3>Batch ${parseInt(batch.number) + 1}</h3>
+                    <p><strong>Batch Index:</strong> ${batch.number}</p>
+                    <p><strong>Directory:</strong> ${batch.directory}</p>
+                    <p style="margin-top: 15px; color: #2196f3; font-weight: 500;">
+                        Click to view detailed BackstopJS report →
+                    </p>
+                </div>
+            `).join('')}
+        </div>
+        
+        <div style="margin-top: 30px; padding: 20px; background: white; border-radius: 8px; text-align: center; color: #666;">
+            <p><strong>How to use:</strong></p>
+            <p>• Click on any batch card to view the detailed BackstopJS report for that specific batch</p>
+            <p>• Click "View Complete Summary" to see an overview of all test results across all batches</p>
+            <p>• Each batch contains up to ${batchInfo ? batchInfo.batchSize : 'N/A'} scenarios with full diff images and detailed comparisons</p>
+        </div>
+    </div>
+    
+    <script>
+        // Handle summary parameter
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('summary') === 'true') {
+            // Redirect to summary view (this will trigger the batch summary generation)
+            window.location.href = window.location.pathname;
+        }
+    </script>
+</body>
+</html>`;
+}
+
+// Helper function to generate HTML summary for batch test results
+function generateBatchSummaryHtml(reportData, projectId) {
+  const { summary, tests, batchInfo } = reportData;
+  const passedTests = tests.filter(t => t.status === 'pass');
+  const failedTests = tests.filter(t => t.status === 'fail');
+  
+  return `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Batch Test Results - ${projectId}</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; padding: 20px; background: #f5f5f5; }
+        .container { max-width: 1200px; margin: 0 auto; }
+        .header { background: white; padding: 20px; border-radius: 8px; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-bottom: 30px; }
+        .summary-card { background: white; padding: 20px; border-radius: 8px; text-align: center; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .summary-card h3 { margin: 0 0 10px 0; font-size: 2em; }
+        .summary-card p { margin: 0; color: #666; }
+        .passed { color: #4caf50; }
+        .failed { color: #f44336; }
+        .test-results { background: white; border-radius: 8px; padding: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .test-item { padding: 15px; border-bottom: 1px solid #eee; display: flex; justify-content: between; align-items: center; }
+        .test-item:last-child { border-bottom: none; }
+        .test-label { font-weight: 500; flex-grow: 1; }
+        .test-status { padding: 4px 12px; border-radius: 20px; font-size: 0.9em; font-weight: 500; }
+        .status-pass { background: #e8f5e8; color: #2e7d32; }
+        .status-fail { background: #ffebee; color: #c62828; }
+        .batch-info { background: #e3f2fd; padding: 15px; border-radius: 8px; margin: 20px 0; }
+        .batch-info h4 { margin: 0 0 10px 0; color: #1976d2; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Batch Test Results</h1>
+            <p>Project: <strong>${projectId}</strong> | Generated: ${new Date().toLocaleString()}</p>
+        </div>
+        
+        <div class="summary">
+            <div class="summary-card">
+                <h3 class="passed">${summary.passed}</h3>
+                <p>Passed Tests</p>
+            </div>
+            <div class="summary-card">
+                <h3 class="failed">${summary.failed}</h3>
+                <p>Failed Tests</p>
+            </div>
+            <div class="summary-card">
+                <h3>${summary.total}</h3>
+                <p>Total Tests</p>
+            </div>
+            <div class="summary-card">
+                <h3>${batchInfo ? batchInfo.totalBatches : 'N/A'}</h3>
+                <p>Batches Processed</p>
+            </div>
+        </div>
+        
+        ${batchInfo ? `
+        <div class="batch-info">
+            <h4>Batch Processing Details</h4>
+            <p><strong>Session ID:</strong> ${batchInfo.sessionId}</p>
+            <p><strong>Batch Size:</strong> ${batchInfo.batchSize} scenarios per batch</p>
+            <p><strong>Total Scenarios:</strong> ${batchInfo.totalScenarios}</p>
+            <p><strong>Processing Date:</strong> ${new Date(reportData.date).toLocaleString()}</p>
+        </div>
+        ` : ''}
+        
+        <div class="test-results">
+            <h2>Test Results (${tests.length} scenarios)</h2>
+            ${tests.map(test => `
+                <div class="test-item">
+                    <div class="test-label">
+                        ${test.pair ? test.pair.label : 'Unknown Test'}
+                        ${test.batchIndex !== undefined ? ` (Batch ${test.batchIndex})` : ''}
+                    </div>
+                    <div class="test-status status-${test.status}">
+                        ${test.status.toUpperCase()}
+                    </div>
+                </div>
+            `).join('')}
+        </div>
+        
+        <div style="margin-top: 30px; padding: 20px; background: white; border-radius: 8px; text-align: center; color: #666;">
+            <p>This is a batch test summary. For detailed diff images and full BackstopJS reports, individual batch reports may be available.</p>
+            <p><strong>Note:</strong> Large test suites are processed in batches to ensure system stability and performance.</p>
+        </div>
+    </div>
+</body>
+</html>`;
+}
+
+// Get available batch reports for a project
+app.get('/api/projects/:projectId/batches', async (req, res) => {
+  try {
+    const { projectId } = req.params;
+    const baseReportDir = path.join(__dirname, 'backstop_data', projectId, 'html_report');
+    
+    if (!await fs.pathExists(baseReportDir)) {
+      return res.json({ batches: [], hasSummary: false });
+    }
+    
+    const reportDirContents = await fs.readdir(baseReportDir);
+    const batchDirs = reportDirContents
+      .filter(name => name.startsWith('batch_'))
+      .sort((a, b) => {
+        const aBatch = parseInt(a.split('_')[1]);
+        const bBatch = parseInt(b.split('_')[1]);
+        return aBatch - bBatch; // Sort in batch order
+      });
+    
+    const batches = [];
+    for (const dir of batchDirs) {
+      const batchNumber = parseInt(dir.replace('batch_', ''));
+      const batchDir = path.join(baseReportDir, dir);
+      const hasHtmlReport = await fs.pathExists(path.join(batchDir, 'index.html'));
+      
+      batches.push({
+        number: batchNumber,
+        directory: dir,
+        hasHtmlReport,
+        url: `/api/projects/${projectId}/report/index.html?batch=${batchNumber}`
+      });
+    }
+    
+    // Check for batch summary
+    const reportJsonPath = path.join(baseReportDir, 'report.json');
+    const hasSummary = await fs.pathExists(reportJsonPath);
+    let summaryInfo = null;
+    
+    if (hasSummary) {
+      try {
+        const reportData = await fs.readJson(reportJsonPath);
+        summaryInfo = {
+          totalScenarios: reportData.batchInfo?.totalScenarios || reportData.tests?.length || 0,
+          totalBatches: reportData.batchInfo?.totalBatches || batches.length,
+          batchSize: reportData.batchInfo?.batchSize || null,
+          sessionId: reportData.batchInfo?.sessionId || null,
+          passed: reportData.summary?.passed || 0,
+          failed: reportData.summary?.failed || 0,
+          total: reportData.summary?.total || 0,
+          url: `/api/projects/${projectId}/report/index.html?summary=true`
+        };
+      } catch (error) {
+        console.error('Error reading batch summary:', error);
+      }
+    }
+    
+    res.json({
+      projectId,
+      batches,
+      batchCount: batches.length,
+      hasSummary,
+      summaryInfo,
+      selectionUrl: `/api/projects/${projectId}/report/index.html`
+    });
+    
+  } catch (error) {
+    console.error('Error getting batch information:', error);
+    res.status(500).json({ error: 'Failed to get batch information' });
+  }
 });
 
 // Serve project bitmap reference images
@@ -7023,7 +7401,7 @@ app.post('/api/clone-urls', async (req, res) => {
     // Create comprehensive CSV export with all discovered URLs
     const csvHeaders = [
       'label',
-      'targetUrl', 
+      'url', 
       'referenceUrl',
       'selector',
       'readySelector',
@@ -7040,19 +7418,41 @@ app.post('/api/clone-urls', async (req, res) => {
     
     // Helper function to create scenario from URL using the enhanced label generation
     const csvExistingLabels = new Set();
-    const createScenario = (url, referenceUrl = '', status = 'target', pathType = 'common') => ({
-      label: createUniqueLabel(url, csvExistingLabels),
-      targetUrl: url,
-      referenceUrl: referenceUrl,
-      selector: 'document',
-      readySelector: '',
-      delay: 500,
-      hideSelectors: [],
-      removeSelectors: [],
-      misMatchThreshold: 0.1,
-      status,
-      pathType
-    });
+    const createScenario = (url, referenceUrl = '', status = 'target', pathType = 'common') => {
+      // Ensure URL is properly constructed with target domain
+      let finalUrl = url;
+      try {
+        const urlObj = new URL(url);
+        const targetObj = new URL(targetUrl);
+        
+        // If the URL doesn't have the target domain, construct it properly
+        if (urlObj.origin !== targetObj.origin) {
+          finalUrl = targetObj.origin + urlObj.pathname + urlObj.search + urlObj.hash;
+        }
+      } catch (error) {
+        // If URL parsing fails, try to construct a proper URL
+        if (!url.startsWith('http')) {
+          const targetObj = new URL(targetUrl);
+          finalUrl = targetObj.origin + (url.startsWith('/') ? url : '/' + url);
+        }
+      }
+      
+      console.log(`📝 Creating CSV scenario: ${finalUrl}`);
+      
+      return {
+        label: createUniqueLabel(finalUrl, csvExistingLabels),
+        targetUrl: finalUrl, // Ensure this is always the correct target URL
+        referenceUrl: referenceUrl,
+        selector: 'document',
+        readySelector: '',
+        delay: 500,
+        hideSelectors: [],
+        removeSelectors: [],
+        misMatchThreshold: 0.1,
+        status,
+        pathType
+      };
+    };
     
     if (referenceUrl && referenceResult) {
       // Create scenarios based on URL comparison
@@ -7084,6 +7484,8 @@ app.post('/api/clone-urls', async (req, res) => {
           const targetDomain = new URL(targetUrl);
           const targetPageUrl = targetDomain.origin + path;
           
+          console.log(`📋 Reference-only scenario: ${targetPageUrl} (ref: ${referencePageUrl})`);
+          
           allScenarios.push(createScenario(
             targetPageUrl,
             referencePageUrl,
@@ -7094,14 +7496,16 @@ app.post('/api/clone-urls', async (req, res) => {
       });
     } else {
       // No reference URL - create scenarios for all target URLs
+      console.log(`📋 Creating baseline scenarios for ${targetUrls.length} target URLs`);
       targetUrls.forEach(url => {
+        console.log(`📝 Baseline scenario: ${url}`);
         allScenarios.push(createScenario(url, '', 'target', 'baseline'));
       });
     }
     
     const csvRows = allScenarios.map(scenario => [
       scenario.label,
-      scenario.targetUrl,
+      scenario.targetUrl, // This becomes the 'url' column in CSV
       scenario.referenceUrl,
       scenario.selector,
       scenario.readySelector,
@@ -7118,11 +7522,11 @@ app.post('/api/clone-urls', async (req, res) => {
       ...csvRows.map(row => row.map(cell => `"${cell}"`).join(','))
     ].join('\n');
     
-    await fs.writeFile(
-      path.join(projectDir, 'scenarios.csv'),
-      csvContent,
-      'utf8'
-    );
+    const csvFilePath = path.join(projectDir, 'scenarios.csv');
+    await fs.writeFile(csvFilePath, csvContent, 'utf8');
+    
+    console.log(`📄 CSV file written to: ${csvFilePath}`);
+    console.log(`📊 CSV contains ${allScenarios.length} scenarios with target URLs pointing to: ${new URL(targetUrl).origin}`);
 
     // Note: URL Clone Tool now only generates CSV exports
     // Scenarios are not automatically saved to BackstopJS config
@@ -7376,12 +7780,365 @@ app.use((req, res) => {
   }
 });
 
-// Socket.IO connection handling
+// Track active test sessions for better load management
+const activeTestSessions = new Map();
+
+// Helper function to get project path
+const getProjectPath = (projectId) => path.join(__dirname, 'backstop_data', projectId);
+
+// Enhanced batch processing for large test suites
+class BatchTestProcessor {
+  constructor(projectId, config, scenarios, options = {}) {
+    this.projectId = projectId;
+    this.config = config;
+    this.scenarios = scenarios;
+    this.batchSize = options.batchSize || 50;
+    this.maxConcurrent = options.maxConcurrent || 3;
+    this.delay = options.delay || 2000; // Delay between batches in ms
+    this.results = [];
+    this.errors = [];
+    this.processedCount = 0;
+    this.totalCount = scenarios.length;
+    this.startTime = Date.now();
+    this.sessionId = `test_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  }
+
+  async processBatch(batchScenarios, batchIndex) {
+    console.log(`🔄 Processing batch ${batchIndex + 1} with ${batchScenarios.length} scenarios`);
+    
+    // Create a temporary config for this batch
+    const batchConfig = {
+      ...this.config,
+      scenarios: batchScenarios,
+      paths: {
+        ...this.config.paths,
+        bitmaps_test: path.join(this.config.paths.bitmaps_test, `batch_${batchIndex}`),
+        html_report: path.join(this.config.paths.html_report, `batch_${batchIndex}`)
+      }
+    };
+
+    // Ensure batch directories exist
+    await Promise.all([
+      fs.ensureDir(batchConfig.paths.bitmaps_test),
+      fs.ensureDir(batchConfig.paths.html_report)
+    ]);
+
+    const batchConfigPath = path.join(getProjectPath(this.projectId), `batch_${batchIndex}_backstop.json`);
+    await fs.writeJson(batchConfigPath, batchConfig, { spaces: 2 });
+
+    return new Promise((resolve) => {
+      const backstop = spawn('backstop', ['test', '--config=' + batchConfigPath], {
+        cwd: getProjectPath(this.projectId),
+        stdio: ['pipe', 'pipe', 'pipe']
+      });
+
+      let output = '';
+      let errorOutput = '';
+
+      backstop.stdout.on('data', (data) => {
+        const text = data.toString();
+        output += text;
+        
+        // Parse progress from BackstopJS output
+        if (text.includes('Testing') || text.includes('scenario')) {
+          const scenarioMatch = text.match(/(\d+)\s*(?:of|\/)\s*(\d+)/);
+          if (scenarioMatch) {
+            const [, current, total] = scenarioMatch;
+            const batchProgress = (parseInt(current) / parseInt(total)) * 100;
+            const overallProgress = ((this.processedCount + parseInt(current)) / this.totalCount) * 100;
+            
+            io.emit('test-progress', {
+              sessionId: this.sessionId,
+              projectId: this.projectId,
+              status: 'running',
+              batchIndex,
+              batchProgress: Math.round(batchProgress),
+              overallProgress: Math.round(overallProgress),
+              processedCount: this.processedCount + parseInt(current),
+              totalCount: this.totalCount,
+              currentScenario: batchScenarios[parseInt(current) - 1]?.label || 'Processing...',
+              message: `Batch ${batchIndex + 1}: Testing scenario ${current}/${total}`,
+              eta: this.calculateETA(),
+              timestamp: new Date().toISOString()
+            });
+          }
+        }
+      });
+
+      backstop.stderr.on('data', (data) => {
+        errorOutput += data.toString();
+      });
+
+      backstop.on('close', async (code) => {
+        this.processedCount += batchScenarios.length;
+        
+        try {
+          // Read batch results if available
+          const batchReportPath = path.join(batchConfig.paths.html_report, 'report.json');
+          let batchResults = null;
+          
+          if (await fs.pathExists(batchReportPath)) {
+            batchResults = await fs.readJson(batchReportPath);
+          }
+
+          const result = {
+            batchIndex,
+            code,
+            scenarios: batchScenarios,
+            results: batchResults,
+            output,
+            errorOutput,
+            configPath: batchConfigPath
+          };
+
+          resolve(result);
+
+          // Emit batch completion
+          io.emit('test-progress', {
+            sessionId: this.sessionId,
+            projectId: this.projectId,
+            status: 'batch-complete',
+            batchIndex,
+            batchResults,
+            overallProgress: Math.round((this.processedCount / this.totalCount) * 100),
+            processedCount: this.processedCount,
+            totalCount: this.totalCount,
+            message: `Batch ${batchIndex + 1} completed (${batchScenarios.length} scenarios)`,
+            timestamp: new Date().toISOString()
+          });
+
+        } catch (error) {
+          console.error(`Error processing batch ${batchIndex} results:`, error);
+          resolve({
+            batchIndex,
+            code,
+            scenarios: batchScenarios,
+            error: error.message,
+            configPath: batchConfigPath
+          });
+        }
+      });
+    });
+  }
+
+  calculateETA() {
+    if (this.processedCount === 0) return null;
+    
+    const elapsed = Date.now() - this.startTime;
+    const rate = this.processedCount / elapsed; // scenarios per millisecond
+    const remaining = this.totalCount - this.processedCount;
+    const eta = remaining / rate;
+    
+    return {
+      milliseconds: Math.round(eta),
+      minutes: Math.round(eta / (1000 * 60)),
+      formatted: this.formatDuration(eta)
+    };
+  }
+
+  formatDuration(milliseconds) {
+    const minutes = Math.floor(milliseconds / (1000 * 60));
+    const seconds = Math.floor((milliseconds % (1000 * 60)) / 1000);
+    
+    if (minutes > 0) {
+      return `${minutes}m ${seconds}s`;
+    } else {
+      return `${seconds}s`;
+    }
+  }
+
+  async run() {
+    console.log(`🚀 Starting batch test processing: ${this.totalCount} scenarios in batches of ${this.batchSize}`);
+    
+    // Register active session
+    activeTestSessions.set(this.sessionId, {
+      projectId: this.projectId,
+      startTime: this.startTime,
+      totalScenarios: this.totalCount,
+      processor: this
+    });
+
+    // Emit test start
+    io.emit('test-progress', {
+      sessionId: this.sessionId,
+      projectId: this.projectId,
+      status: 'started',
+      totalCount: this.totalCount,
+      batchSize: this.batchSize,
+      maxConcurrent: this.maxConcurrent,
+      message: `Starting batch test: ${this.totalCount} scenarios`,
+      timestamp: new Date().toISOString()
+    });
+
+    const batches = [];
+    for (let i = 0; i < this.scenarios.length; i += this.batchSize) {
+      batches.push(this.scenarios.slice(i, i + this.batchSize));
+    }
+
+    console.log(`📊 Created ${batches.length} batches`);
+
+    const batchResults = [];
+    let batchIndex = 0;
+
+    // Process batches with controlled concurrency
+    while (batchIndex < batches.length) {
+      const currentBatches = [];
+      const maxBatchesToProcess = Math.min(this.maxConcurrent, batches.length - batchIndex);
+      
+      // Start concurrent batches
+      for (let i = 0; i < maxBatchesToProcess; i++) {
+        const batch = batches[batchIndex + i];
+        const promise = this.processBatch(batch, batchIndex + i);
+        currentBatches.push(promise);
+      }
+
+      // Wait for current batch group to complete
+      const results = await Promise.all(currentBatches);
+      batchResults.push(...results);
+      
+      batchIndex += maxBatchesToProcess;
+
+      // Delay between batch groups to prevent resource overload
+      if (batchIndex < batches.length && this.delay > 0) {
+        console.log(`⏸️ Waiting ${this.delay}ms before next batch group...`);
+        await new Promise(resolve => setTimeout(resolve, this.delay));
+      }
+    }
+
+    console.log(`✅ All batches completed. Processing final results...`);
+
+    // Merge all batch results
+    const mergedResults = await this.mergeBatchResults(batchResults);
+    
+    // Cleanup batch files
+    await this.cleanup(batchResults);
+    
+    // Remove from active sessions
+    activeTestSessions.delete(this.sessionId);
+
+    // Emit completion
+    io.emit('test-complete', {
+      sessionId: this.sessionId,
+      projectId: this.projectId,
+      results: mergedResults,
+      duration: Date.now() - this.startTime,
+      batchCount: batches.length,
+      totalScenarios: this.totalCount,
+      timestamp: new Date().toISOString()
+    });
+
+    return mergedResults;
+  }
+
+  async mergeBatchResults(batchResults) {
+    console.log('🔄 Merging batch results...');
+    
+    const mergedReport = {
+      testSuite: `BatchTest_${this.projectId}_${new Date().toISOString()}`,
+      tests: [],
+      date: new Date().toISOString(),
+      batchInfo: {
+        totalBatches: batchResults.length,
+        batchSize: this.batchSize,
+        totalScenarios: this.totalCount,
+        sessionId: this.sessionId
+      }
+    };
+
+    let passCount = 0;
+    let failCount = 0;
+
+    for (const batchResult of batchResults) {
+      if (batchResult.results && batchResult.results.tests) {
+        for (const test of batchResult.results.tests) {
+          mergedReport.tests.push({
+            ...test,
+            batchIndex: batchResult.batchIndex
+          });
+          
+          if (test.status === 'pass') passCount++;
+          else failCount++;
+        }
+      } else if (batchResult.error) {
+        // Handle batch-level errors
+        for (const scenario of batchResult.scenarios) {
+          mergedReport.tests.push({
+            pair: {
+              label: scenario.label,
+              diff: { isSameDimensions: null, dimensionDifference: {} },
+              networkError: batchResult.error,
+              cliError: batchResult.error
+            },
+            status: 'fail',
+            batchIndex: batchResult.batchIndex,
+            error: batchResult.error
+          });
+          failCount++;
+        }
+      }
+    }
+
+    mergedReport.summary = {
+      passed: passCount,
+      failed: failCount,
+      total: passCount + failCount
+    };
+
+    // Write merged report
+    const finalReportPath = path.join(this.config.paths.html_report, 'report.json');
+    await fs.writeJson(finalReportPath, mergedReport, { spaces: 2 });
+
+    console.log(`✅ Merged results: ${passCount} passed, ${failCount} failed`);
+    
+    return mergedReport;
+  }
+
+  async cleanup(batchResults) {
+    console.log('🧹 Cleaning up batch files...');
+    
+    for (const batchResult of batchResults) {
+      try {
+        if (batchResult.configPath && await fs.pathExists(batchResult.configPath)) {
+          await fs.remove(batchResult.configPath);
+        }
+      } catch (error) {
+        console.error(`Error cleaning up batch ${batchResult.batchIndex}:`, error);
+      }
+    }
+  }
+}
+
+// Socket.IO connection handling with enhanced session management
 io.on('connection', (socket) => {
   console.log('🔌 Client connected:', socket.id);
   
+  // Send current active sessions to newly connected client
+  socket.emit('active-sessions', Array.from(activeTestSessions.entries()).map(([sessionId, session]) => ({
+    sessionId,
+    projectId: session.projectId,
+    startTime: session.startTime,
+    totalScenarios: session.totalScenarios,
+    currentProgress: session.processor ? Math.round((session.processor.processedCount / session.totalScenarios) * 100) : 0
+  })));
+  
   socket.on('disconnect', () => {
     console.log('🔌 Client disconnected:', socket.id);
+  });
+  
+  // Allow clients to request session status
+  socket.on('get-session-status', (sessionId) => {
+    const session = activeTestSessions.get(sessionId);
+    if (session) {
+      socket.emit('session-status', {
+        sessionId,
+        projectId: session.projectId,
+        startTime: session.startTime,
+        totalScenarios: session.totalScenarios,
+        processedCount: session.processor.processedCount,
+        progress: Math.round((session.processor.processedCount / session.totalScenarios) * 100),
+        eta: session.processor.calculateETA()
+      });
+    }
   });
 });
 

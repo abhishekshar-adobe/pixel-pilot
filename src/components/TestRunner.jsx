@@ -78,12 +78,25 @@ function TestRunner({ project, config, scenarios: initialScenarios = [] }) {
   const [showSelectedOnly, setShowSelectedOnly] = useState(false)
   const [socketConnected, setSocketConnected] = useState(false)
 
+  // Fetch batch information
+  const fetchBatchInfo = async () => {
+    try {
+      const response = await axios.get(`${API_BASE}/projects/${project.id}/batches`)
+      setBatchInfo(response.data)
+    } catch (error) {
+      console.error('Error fetching batch info:', error)
+      setBatchInfo(null)
+    }
+  }
+
   // Define loadBackstopReport function first
   const loadBackstopReport = React.useCallback(async () => {
     try {
       const response = await axios.get(`${API_BASE}/projects/${project.id}/test-results`)
       if (response.data && !response.data.error) {
         setBackstopReport(response.data)
+        // Also fetch batch info when loading report
+        fetchBatchInfo()
         if (response.data?.tests) {
           const results = {}
           response.data.tests.forEach(test => {
@@ -120,7 +133,16 @@ function TestRunner({ project, config, scenarios: initialScenarios = [] }) {
     }
   }, [project.id])
 
-  // Socket connection
+  // Enhanced state for batch processing
+  const [batchProgress, setBatchProgress] = useState(null)
+  const [sessionId, setSessionId] = useState(null)
+  const [estimatedTime, setEstimatedTime] = useState(null)
+  const [processedCount, setProcessedCount] = useState(0)
+  const [currentBatch, setCurrentBatch] = useState(null)
+  const [batchInfo, setBatchInfo] = useState(null)
+  const [showBatchSelector, setShowBatchSelector] = useState(false)
+
+  // Socket connection with enhanced batch processing support
   useEffect(() => {
     const socket = io('http://localhost:5000')
     
@@ -132,20 +154,90 @@ function TestRunner({ project, config, scenarios: initialScenarios = [] }) {
       setSocketConnected(false)
     })
 
+    // Enhanced progress tracking for batch processing
     socket.on('test-progress', (data) => {
-      setLiveScenarioResults(prev => ({
-        ...prev,
-        [data.scenario]: {
-          status: data.status,
-          mismatchPercentage: data.mismatchPercentage,
-          timestamp: new Date().toISOString()
+      if (data.sessionId && data.sessionId !== sessionId) {
+        setSessionId(data.sessionId)
+      }
+
+      // Handle different types of progress updates
+      if (data.status === 'started') {
+        setMessage(`🚀 Starting batch test: ${data.totalCount} scenarios`)
+        setBatchProgress({
+          totalBatches: Math.ceil(data.totalCount / data.batchSize),
+          batchSize: data.batchSize,
+          maxConcurrent: data.maxConcurrent,
+          totalCount: data.totalCount
+        })
+      } else if (data.status === 'running') {
+        setProcessedCount(data.processedCount || 0)
+        setCurrentBatch(data.batchIndex + 1)
+        
+        if (data.eta) {
+          setEstimatedTime(data.eta)
         }
-      }))
+        
+        setMessage(data.message || `Processing batch ${data.batchIndex + 1}...`)
+        
+        // Update individual scenario status
+        if (data.currentScenario) {
+          setLiveScenarioResults(prev => ({
+            ...prev,
+            [data.currentScenario]: {
+              status: 'running',
+              mismatchPercentage: data.mismatchPercentage,
+              timestamp: data.timestamp,
+              batchIndex: data.batchIndex,
+              progress: data.batchProgress
+            }
+          }))
+        }
+      } else if (data.status === 'batch-complete') {
+        setMessage(`✅ Batch ${data.batchIndex + 1} completed`)
+        
+        // Update all scenarios in the completed batch
+        if (data.batchResults && data.batchResults.tests) {
+          const batchUpdates = {}
+          data.batchResults.tests.forEach(test => {
+            batchUpdates[test.pair.label] = {
+              status: test.status === 'pass' ? 'passed' : 'failed',
+              mismatchPercentage: test.misMatchPercentage || 0,
+              timestamp: data.timestamp,
+              batchIndex: data.batchIndex
+            }
+          })
+          setLiveScenarioResults(prev => ({ ...prev, ...batchUpdates }))
+        }
+      } else if (data.status === 'validating') {
+        setMessage(data.message || 'Validating URLs...')
+      } else if (data.scenario) {
+        // Individual scenario update (legacy support)
+        setLiveScenarioResults(prev => ({
+          ...prev,
+          [data.scenario]: {
+            status: data.status,
+            mismatchPercentage: data.mismatchPercentage,
+            timestamp: new Date().toISOString()
+          }
+        }))
+      }
     })
 
-    socket.on('test-complete', () => {
+    socket.on('test-complete', (data) => {
       setTestRunning(false)
       setLiveScenarioResults({})
+      setBatchProgress(null)
+      setSessionId(null)
+      setEstimatedTime(null)
+      setProcessedCount(0)
+      setCurrentBatch(null)
+      
+      if (data.sessionId) {
+        setMessage(`✅ Test completed: ${data.totalScenarios} scenarios in ${data.batchCount || 1} batches`)
+      } else {
+        setMessage('✅ Test completed successfully')
+      }
+      
       loadBackstopReport()
     })
 
@@ -164,7 +256,7 @@ function TestRunner({ project, config, scenarios: initialScenarios = [] }) {
     })
 
     return () => socket.disconnect()
-  }, [loadBackstopReport])
+  }, [loadBackstopReport, sessionId])
 
   // Load scenarios on mount
   useEffect(() => {
@@ -183,10 +275,27 @@ function TestRunner({ project, config, scenarios: initialScenarios = [] }) {
     setTestRunning(true)
     setMessage("")
     setLiveScenarioResults({})
+    setBatchProgress(null)
+    setProcessedCount(0)
+    setCurrentBatch(null)
+    setEstimatedTime(null)
 
     try {
       const filter = selectedScenarios.join("|")
-      await axios.post(`${API_BASE}/projects/${project.id}/test`, { filter })
+      
+      // Determine batch configuration based on scenario count
+      const scenarioCount = selectedScenarios.length
+      const batchConfig = {
+        filter,
+        batchSize: scenarioCount > 1000 ? 25 : scenarioCount > 500 ? 50 : scenarioCount > 100 ? 100 : scenarioCount,
+        maxConcurrent: scenarioCount > 1000 ? 2 : scenarioCount > 500 ? 3 : scenarioCount > 100 ? 5 : 10
+      }
+      
+      if (scenarioCount > 50) {
+        setMessage(`🚀 Starting batch test: ${scenarioCount} scenarios (${batchConfig.batchSize} per batch, ${batchConfig.maxConcurrent} concurrent)`)
+      }
+
+      await axios.post(`${API_BASE}/projects/${project.id}/test`, batchConfig)
       await loadBackstopReport()
     } catch (error) {
       const errorData = error.response?.data
@@ -198,6 +307,10 @@ function TestRunner({ project, config, scenarios: initialScenarios = [] }) {
       }
     } finally {
       setTestRunning(false)
+      setBatchProgress(null)
+      setProcessedCount(0)
+      setCurrentBatch(null)
+      setEstimatedTime(null)
     }
   }
 
@@ -322,7 +435,15 @@ function TestRunner({ project, config, scenarios: initialScenarios = [] }) {
                     py: 1
                   }}
                 >
-                  {testRunning ? 'Running...' : 'Run Test'}
+                  {testRunning ? (
+                    selectedScenarios.length > 50 ? 
+                    `Batch Processing (${processedCount}/${selectedScenarios.length})` : 
+                    'Running...'
+                  ) : (
+                    selectedScenarios.length > 50 ? 
+                    `Batch Run (${selectedScenarios.length})` : 
+                    'Run Test'
+                  )}
                 </Button>
                 
                 <Button
@@ -359,6 +480,18 @@ function TestRunner({ project, config, scenarios: initialScenarios = [] }) {
                   </Button>
                 )}
                 
+                {batchInfo && batchInfo.batchCount > 0 && (
+                  <Button
+                    variant="outlined"
+                    size="medium"
+                    startIcon={<List />}
+                    onClick={() => setShowBatchSelector(!showBatchSelector)}
+                    sx={{ borderRadius: '8px', textTransform: 'none', fontWeight: 600, px: 2, py: 1 }}
+                  >
+                    Batch Reports ({batchInfo.batchCount})
+                  </Button>
+                )}
+                
                 <Button
                   variant="outlined"
                   size="medium"
@@ -370,6 +503,90 @@ function TestRunner({ project, config, scenarios: initialScenarios = [] }) {
                 </Button>
               </Box>
             </Grid>
+
+            {/* Batch Report Selector */}
+            {showBatchSelector && batchInfo && batchInfo.batchCount > 0 && (
+              <Grid item xs={12}>
+                <Card elevation={0} sx={{ mt: 2, borderRadius: '8px', border: '1px solid', borderColor: 'divider', bgcolor: 'grey.50' }}>
+                  <CardContent sx={{ p: 2 }}>
+                    <Typography variant="subtitle2" sx={{ mb: 2, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <List sx={{ color: 'primary.main', fontSize: 18 }} />
+                      Batch Report Selection
+                      <Chip size="small" label={`${batchInfo.batchCount} batches`} sx={{ ml: 1 }} />
+                    </Typography>
+                    
+                    {batchInfo.summaryInfo && (
+                      <Box sx={{ mb: 2, p: 2, bgcolor: 'info.lighter', borderRadius: '6px' }}>
+                        <Typography variant="body2" sx={{ mb: 1, fontWeight: 600, color: 'info.dark' }}>
+                          Complete Test Summary
+                        </Typography>
+                        <Typography variant="caption" sx={{ display: 'block', color: 'info.dark' }}>
+                          {batchInfo.summaryInfo.totalScenarios} scenarios • {batchInfo.summaryInfo.passed} passed • {batchInfo.summaryInfo.failed} failed
+                        </Typography>
+                        <Button
+                          size="small"
+                          variant="contained"
+                          onClick={() => window.open(batchInfo.summaryInfo.url, '_blank')}
+                          sx={{ mt: 1, textTransform: 'none', fontSize: '0.75rem' }}
+                        >
+                          View Complete Summary
+                        </Button>
+                      </Box>
+                    )}
+                    
+                    <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 2 }}>
+                      {batchInfo.batches.map((batch) => (
+                        <Paper
+                          key={batch.number}
+                          elevation={1}
+                          sx={{
+                            p: 2,
+                            cursor: batch.hasHtmlReport ? 'pointer' : 'default',
+                            transition: 'all 0.2s',
+                            border: '1px solid',
+                            borderColor: batch.hasHtmlReport ? 'primary.light' : 'grey.300',
+                            bgcolor: batch.hasHtmlReport ? 'white' : 'grey.100',
+                            '&:hover': batch.hasHtmlReport ? {
+                              transform: 'translateY(-2px)',
+                              boxShadow: 3,
+                              borderColor: 'primary.main'
+                            } : {}
+                          }}
+                          onClick={() => batch.hasHtmlReport && window.open(batch.url, '_blank')}
+                        >
+                          <Typography variant="subtitle2" sx={{ fontWeight: 600, color: batch.hasHtmlReport ? 'primary.main' : 'text.secondary' }}>
+                            Batch {batch.number + 1}
+                          </Typography>
+                          <Typography variant="caption" sx={{ display: 'block', color: 'text.secondary', mb: 1 }}>
+                            Index: {batch.number} • Directory: {batch.directory}
+                          </Typography>
+                          {batch.hasHtmlReport ? (
+                            <Chip 
+                              size="small" 
+                              label="View Report" 
+                              color="primary" 
+                              sx={{ fontSize: '0.7rem' }} 
+                            />
+                          ) : (
+                            <Chip 
+                              size="small" 
+                              label="No HTML Report" 
+                              sx={{ fontSize: '0.7rem', bgcolor: 'grey.200', color: 'text.secondary' }} 
+                            />
+                          )}
+                        </Paper>
+                      ))}
+                    </Box>
+                    
+                    <Box sx={{ mt: 2, p: 1, bgcolor: 'grey.100', borderRadius: '4px' }}>
+                      <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+                        <strong>Tip:</strong> Click on any batch card to view its detailed BackstopJS report with diff images and comparison details.
+                      </Typography>
+                    </Box>
+                  </CardContent>
+                </Card>
+              </Grid>
+            )}
 
             {/* Selection Info */}
             <Grid item xs={12} lg={3}>
@@ -386,15 +603,15 @@ function TestRunner({ project, config, scenarios: initialScenarios = [] }) {
         </CardContent>
       </Card>
 
-      {/* Compact Stats Dashboard */}
+      {/* Enhanced Stats Dashboard with Real-time Progress */}
       <Grid container spacing={2} sx={{ mb: 2 }}>
         <Grid item xs={6} sm={3}>
           <Card elevation={0} sx={{ textAlign: 'center', p: 1.5, borderRadius: '8px', bgcolor: 'primary.lighter' }}>
             <Typography variant="h5" sx={{ fontWeight: 700, color: 'primary.main' }}>
-              {selectedScenarios.length}
+              {testRunning ? processedCount : selectedScenarios.length}
             </Typography>
             <Typography variant="caption" sx={{ color: 'primary.dark', fontWeight: 500 }}>
-              Selected
+              {testRunning ? 'Processed' : 'Selected'}
             </Typography>
           </Card>
         </Grid>
@@ -421,14 +638,66 @@ function TestRunner({ project, config, scenarios: initialScenarios = [] }) {
         <Grid item xs={6} sm={3}>
           <Card elevation={0} sx={{ textAlign: 'center', p: 1.5, borderRadius: '8px', bgcolor: 'warning.lighter' }}>
             <Typography variant="h5" sx={{ fontWeight: 700, color: 'warning.main' }}>
-              {Object.values(scenarioResults).filter(r => r.status === 'network_error').length + Object.values(liveScenarioResults).filter(r => r.status === 'running').length}
+              {testRunning && estimatedTime ? estimatedTime.formatted : Object.values(liveScenarioResults).filter(r => r.status === 'running').length}
             </Typography>
             <Typography variant="caption" sx={{ color: 'warning.dark', fontWeight: 500 }}>
-              Network/Running
+              {testRunning && estimatedTime ? 'ETA' : 'Running'}
             </Typography>
           </Card>
         </Grid>
       </Grid>
+
+      {/* Batch Progress Indicator */}
+      {testRunning && batchProgress && (
+        <Card elevation={0} sx={{ mb: 2, borderRadius: '12px', border: '1px solid', borderColor: 'primary.main', bgcolor: 'primary.lighter' }}>
+          <CardContent sx={{ p: 2 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+              <Typography variant="subtitle1" sx={{ fontWeight: 600, color: 'primary.dark' }}>
+                Batch Processing Progress
+              </Typography>
+              <Chip 
+                size="small" 
+                label={`Batch ${currentBatch || 1}/${batchProgress.totalBatches}`}
+                sx={{ bgcolor: 'primary.main', color: 'white', fontWeight: 500 }}
+              />
+            </Box>
+            
+            <Grid container spacing={2} alignItems="center">
+              <Grid item xs={12} md={8}>
+                <Box sx={{ mb: 1 }}>
+                  <Typography variant="body2" sx={{ color: 'primary.dark', mb: 0.5 }}>
+                    Overall Progress: {processedCount}/{batchProgress.totalCount} scenarios
+                  </Typography>
+                  <Box sx={{ 
+                    width: '100%', 
+                    height: 8, 
+                    bgcolor: 'rgba(255,255,255,0.3)', 
+                    borderRadius: 1,
+                    overflow: 'hidden'
+                  }}>
+                    <Box sx={{ 
+                      width: `${Math.round((processedCount / batchProgress.totalCount) * 100)}%`, 
+                      height: '100%', 
+                      bgcolor: 'primary.main',
+                      transition: 'width 0.3s ease'
+                    }} />
+                  </Box>
+                </Box>
+              </Grid>
+              <Grid item xs={12} md={4} sx={{ textAlign: { xs: 'left', md: 'right' } }}>
+                <Typography variant="body2" sx={{ color: 'primary.dark' }}>
+                  <strong>Batch Size:</strong> {batchProgress.batchSize} | <strong>Parallel:</strong> {batchProgress.maxConcurrent}
+                </Typography>
+                {estimatedTime && (
+                  <Typography variant="body2" sx={{ color: 'primary.dark' }}>
+                    <strong>ETA:</strong> {estimatedTime.formatted}
+                  </Typography>
+                )}
+              </Grid>
+            </Grid>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Test Results Summary - Compact */}
       {Object.keys(scenarioResults).length > 0 && (
