@@ -1,0 +1,20 @@
+Feature,Status,Notes
+Visual Regression Dashboard,✅ Complete,Web-based UI for BackstopJS
+Scenario Management,✅ Complete,Add/Edit/Delete/Search/Pagination/CSV Import-Export
+Batch Processing,🟡 Partial Complete,All runs (even single) use batch folders with timestamp
+Isolated Test History,🟡 Partial Complete,No backup needed; every run preserved
+Reference Image Management,✅ Complete,Static folder; can update/copy from batch
+Scenario Filtering,✅ Complete,Run selected scenarios only; fast pre-validation
+Comprehensive Reporting,✅ Complete,HTML/JSON reports per batch; API/UI for browsing
+Screenshot Upload,✅ Complete,Manual upload for comparison/reference
+URL Clone Tool,🟡 Partial Complete,Extract/clone URLs; CSS selector support; unique labels
+Config Editor,✅ Complete,Edit BackstopJS config via UI
+Socket.IO Real-Time Updates,✅ Complete,Live progress/warnings/completion
+Error Handling & Validation,✅ Complete,Pre-validation; network error reporting
+Modern React UI,✅ Complete,Responsive Material UI
+API-Driven Architecture,✅ Complete,Node.js/Express RESTful endpoints
+Batch Metadata & History API,✅ Complete,Metadata JSON per batch; API for batch listing
+Restore Reference from Batch,🟡 Planned,Button to copy images from batch to reference
+Advanced Permissions,🟡 Planned,Role-based access for teams
+Custom Report Export,🟡 Planned,Export batch results to custom formats
+Integration with CI/CD,🟡 Planned,Trigger tests from CI/CD pipelines

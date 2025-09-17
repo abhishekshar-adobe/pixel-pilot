@@ -282,18 +282,15 @@ function TestRunner({ project, config, scenarios: initialScenarios = [] }) {
 
     try {
       const filter = selectedScenarios.join("|")
-      
-      // Determine batch configuration based on scenario count
       const scenarioCount = selectedScenarios.length
       const batchConfig = {
         filter,
         batchSize: scenarioCount > 1000 ? 25 : scenarioCount > 500 ? 50 : scenarioCount > 100 ? 100 : scenarioCount,
         maxConcurrent: scenarioCount > 1000 ? 2 : scenarioCount > 500 ? 3 : scenarioCount > 100 ? 5 : 10
       }
-      
-      if (scenarioCount > 50) {
-        setMessage(`🚀 Starting batch test: ${scenarioCount} scenarios (${batchConfig.batchSize} per batch, ${batchConfig.maxConcurrent} concurrent)`)
-      }
+
+      // Always show batch message, even for small runs
+      setMessage(`🚀 Starting batch test: ${scenarioCount} scenarios (${batchConfig.batchSize} per batch, ${batchConfig.maxConcurrent} concurrent)`)
 
       await axios.post(`${API_BASE}/projects/${project.id}/test`, batchConfig)
       await loadBackstopReport()

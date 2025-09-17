@@ -912,23 +912,27 @@ app.post('/api/projects/:projectId/test', async (req, res) => {
       fs.ensureDir(config.paths.html_report)
     ]);
 
-    // ENHANCED PRE-VALIDATION: Check all URLs and separate valid/invalid scenarios
-    console.log('🔍 Enhanced pre-validation: Checking all URLs to prevent BackstopJS interruption...');
+    // Apply scenario filtering if requested - filter first, then validate only filtered scenarios
+    let scenariosToValidate = config.scenarios || [];
+    if (req.body.filter) {
+      console.log(`\n🔍 Applying filter to ${scenariosToValidate.length} scenarios: "${req.body.filter}"`);
+      const filterScenarios = req.body.filter.split('|');
+      scenariosToValidate = scenariosToValidate.filter(scenario => filterScenarios.includes(scenario.label));
+      console.log(`Scenarios after filter: ${scenariosToValidate.length}`);
+    }
+
+    // ENHANCED PRE-VALIDATION: Check only filtered scenarios
+    console.log('🔍 Enhanced pre-validation: Checking filtered scenarios only...');
     io.emit('test-progress', {
       status: 'validating',
       percent: 5,
-      message: 'Pre-validating all URLs to ensure stable test execution...'
+      message: 'Pre-validating filtered scenarios to ensure stable test execution...'
     });
 
-    // validScenarios and invalidScenarios already declared outside try block
     const validationResults = [];
-    
-    const scenariosToValidate = config.scenarios || [];
-    
     for (let i = 0; i < scenariosToValidate.length; i++) {
       const scenario = scenariosToValidate[i];
       const progressPercent = 5 + ((i / scenariosToValidate.length) * 15); // 5% to 20%
-      
       if (!scenario.url) {
         console.warn(`⚠️ Skipping scenario "${scenario.label}" - no URL provided`);
         invalidScenarios.push({
@@ -938,17 +942,14 @@ app.post('/api/projects/:projectId/test', async (req, res) => {
         });
         continue;
       }
-      
       console.log(`🌐 Validating (${i + 1}/${scenariosToValidate.length}): ${scenario.url}`);
       io.emit('test-progress', {
         status: 'validating',
         percent: progressPercent,
         message: `Validating URLs... (${i + 1}/${scenariosToValidate.length}) ${scenario.label}`
       });
-      
       const validation = await validateUrl(scenario.url);
       validationResults.push({ scenario, validation });
-      
       console.log(`🔍 Validation result for "${scenario.label}":`, {
         url: scenario.url,
         valid: validation.valid,
@@ -956,7 +957,6 @@ app.post('/api/projects/:projectId/test', async (req, res) => {
         message: validation.message,
         severity: validation.severity
       });
-      
       if (validation.valid) {
         validScenarios.push(scenario);
         console.log(`✅ Valid: ${scenario.label} - Added to BackstopJS execution`);
@@ -968,13 +968,11 @@ app.post('/api/projects/:projectId/test', async (req, res) => {
           message: validation.message,
           validation
         });
-        
         console.log(`🚫 Added to invalid scenarios list:`, {
           label: scenario.label,
           reason: validation.type,
           message: validation.message
         });
-        
         // Emit warning but don't stop the test
         io.emit('test-warning', {
           scenario: scenario.label,
@@ -7807,27 +7805,33 @@ class BatchTestProcessor {
     console.log(`🔄 Processing batch ${batchIndex + 1} with ${batchScenarios.length} scenarios`);
     
     // Create a temporary config for this batch
-    const batchConfig = {
-      ...this.config,
-      scenarios: batchScenarios,
-      paths: {
-        ...this.config.paths,
-        bitmaps_test: path.join(this.config.paths.bitmaps_test, `batch_${batchIndex}`),
-        html_report: path.join(this.config.paths.html_report, `batch_${batchIndex}`)
-      }
-    };
+        // Timestamp for batch folder
+        // Always create a batch folder with timestamp, even for single scenario runs
+        const timestamp = new Date().toISOString().replace(/[-:T]/g, '').slice(0, 15);
+        const batchFolderName = `batch_${batchIndex}/${timestamp}`;
+        const batchBitmapsTest = path.join(this.config.paths.bitmaps_test, batchFolderName);
+        const batchHtmlReport = path.join(this.config.paths.html_report, batchFolderName);
 
-    // Ensure batch directories exist
-    await Promise.all([
-      fs.ensureDir(batchConfig.paths.bitmaps_test),
-      fs.ensureDir(batchConfig.paths.html_report)
-    ]);
+        const batchConfig = {
+          ...this.config,
+          scenarios: batchScenarios,
+          paths: {
+            ...this.config.paths,
+            bitmaps_test: batchBitmapsTest,
+            html_report: batchHtmlReport
+          }
+        };
 
-    const batchConfigPath = path.join(getProjectPath(this.projectId), `batch_${batchIndex}_backstop.json`);
-    await fs.writeJson(batchConfigPath, batchConfig, { spaces: 2 });
+        await Promise.all([
+          fs.ensureDir(batchBitmapsTest),
+          fs.ensureDir(batchHtmlReport)
+        ]);
+
+        const batchConfigPath = path.join(getProjectPath(this.projectId), `${batchFolderName.replace('/', '_')}_backstop.json`);
+        await fs.writeJson(batchConfigPath, batchConfig, { spaces: 2 });
 
     return new Promise((resolve) => {
-      const backstop = spawn('backstop', ['test', '--config=' + batchConfigPath], {
+      const backstop = spawn('backstop', ['test', '--config=' + batchConfigPath, '--no-openReport'], {
         cwd: getProjectPath(this.projectId),
         stdio: ['pipe', 'pipe', 'pipe']
       });
@@ -8085,8 +8089,25 @@ class BatchTestProcessor {
     };
 
     // Write merged report
-    const finalReportPath = path.join(this.config.paths.html_report, 'report.json');
-    await fs.writeJson(finalReportPath, mergedReport, { spaces: 2 });
+        const finalReportPath = path.join(this.config.paths.html_report, 'report.json');
+        await fs.writeJson(finalReportPath, mergedReport, { spaces: 2 });
+
+        // Save batch metadata for each batch
+        for (const batchResult of batchResults) {
+          if (batchResult.batchIndex !== undefined && batchResult.batchIndex !== null && batchResult.timestamp) {
+            const batchFolder = path.join(this.config.paths.html_report, `batch_${batchResult.batchIndex}`, batchResult.timestamp);
+            if (await fs.pathExists(batchFolder)) {
+              const batchMeta = {
+                batchIndex: batchResult.batchIndex,
+                timestamp: batchResult.timestamp,
+                scenarioCount: batchResult.scenarios ? batchResult.scenarios.length : 0,
+                status: batchResult.error ? 'error' : 'complete',
+                error: batchResult.error || null
+              };
+              await fs.writeJson(path.join(batchFolder, 'batch-meta.json'), batchMeta, { spaces: 2 });
+            }
+          }
+        }
 
     console.log(`✅ Merged results: ${passCount} passed, ${failCount} failed`);
     
