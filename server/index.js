@@ -2568,6 +2568,89 @@ app.use('/api/projects/:projectId/runs/:runId/report/batch_runs', (req, res, nex
 // Serve uploaded screenshots
 app.use('/uploads', express.static(uploadsDir));
 
+// Export latest test results as CSV
+app.get('/api/projects/:projectId/export-results', async (req, res) => {
+  try {
+    const { projectId } = req.params;
+    const { projectDir } = await validateProject(projectId);
+    const batchRunsDir = path.join(projectDir, 'batch_runs');
+    
+    if (!await fs.pathExists(batchRunsDir)) {
+      return res.status(404).json({ error: 'No test results found' });
+    }
+    
+    // Get all run directories
+    const entries = await fs.readdir(batchRunsDir);
+    const runDirs = entries.filter(entry => entry.startsWith('run_'));
+    
+    if (runDirs.length === 0) {
+      return res.status(404).json({ error: 'No test runs found' });
+    }
+    
+    // Sort by timestamp and get the latest
+    runDirs.sort((a, b) => {
+      const timestampA = parseInt(a.split('_')[1]);
+      const timestampB = parseInt(b.split('_')[1]);
+      return timestampB - timestampA;
+    });
+    
+    const latestRunId = runDirs[0];
+    
+    // Generate combined report if it doesn't exist
+    const tempConfig = {
+      paths: {
+        html_report: path.join(__dirname, 'backstop_data', projectId, 'html_report'),
+        bitmaps_reference: path.join(__dirname, 'backstop_data', projectId, 'bitmaps_reference')
+      }
+    };
+    
+    const processor = new BatchTestProcessor(projectId, tempConfig, [], { batchSize: 4, maxConcurrent: 10 });
+    processor.runId = latestRunId;
+    const combinedReport = await processor.generateFinalCombinedReport();
+    
+    // Convert to CSV format
+    const csvHeaders = [
+      'Test Name',
+      'URL',
+      'Viewport',
+      'Status',
+      'Mismatch Percentage',
+      'Run ID',
+      'Batch Index',
+      'Timestamp'
+    ];
+    
+    const csvRows = combinedReport.tests.map(test => [
+      test.pair.label || '',
+      test.pair.url || '',
+      test.pair.viewportLabel || '',
+      test.status || '',
+      test.pair.diff?.misMatchPercentage || '0.00',
+      test.runId || '',
+      test.batchIndex || '',
+      test.batchTimestamp || ''
+    ]);
+    
+    // Create CSV content
+    const csvContent = [
+      csvHeaders.join(','),
+      ...csvRows.map(row => row.map(field => `"${field}"`).join(','))
+    ].join('\n');
+    
+    // Set headers for CSV download
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', `attachment; filename="test-results-${projectId}-${latestRunId}.csv"`);
+    
+    res.send(csvContent);
+  } catch (err) {
+    console.error('Error exporting test results:', err);
+    res.status(500).json({ 
+      error: 'Failed to export test results',
+      details: err.message
+    });
+  }
+});
+
 // Default viewports configuration
 const DEFAULT_VIEWPORTS = [
   {

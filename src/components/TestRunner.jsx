@@ -79,7 +79,7 @@ function TestRunner({ project, config, scenarios: initialScenarios = [] }) {
   const [socketConnected, setSocketConnected] = useState(false)
 
   // Fetch batch information
-  const fetchBatchInfo = async () => {
+  const fetchBatchInfo = React.useCallback(async () => {
     try {
       const response = await axios.get(`${API_BASE}/projects/${project.id}/batches`)
       setBatchInfo(response.data)
@@ -87,7 +87,7 @@ function TestRunner({ project, config, scenarios: initialScenarios = [] }) {
       console.error('Error fetching batch info:', error)
       setBatchInfo(null)
     }
-  }
+  }, [project.id])
 
   // Open latest combined report
   const openLatestReport = async () => {
@@ -149,7 +149,7 @@ function TestRunner({ project, config, scenarios: initialScenarios = [] }) {
       setBackstopReport(null)
       setMessage('No test results found. Click "Run Visual Test" to generate your first results.')
     }
-  }, [project.id])
+  }, [project.id, fetchBatchInfo])
 
   // Enhanced state for batch processing
   const [batchProgress, setBatchProgress] = useState(null)
@@ -339,9 +339,38 @@ function TestRunner({ project, config, scenarios: initialScenarios = [] }) {
     }
   }
 
-  const downloadResults = () => {
+  const downloadResults = async () => {
     if (backstopReport) {
-      window.open(`${API_BASE}/projects/${project.id}/report/index.html`, '_blank')
+      try {
+        const response = await axios.get(`${API_BASE}/projects/${project.id}/export-results`, {
+          responseType: 'blob'
+        })
+        
+        // Create blob URL and download
+        const blob = new Blob([response.data], { type: 'text/csv' })
+        const url = window.URL.createObjectURL(blob)
+        const link = document.createElement('a')
+        link.href = url
+        
+        // Extract filename from response headers or create default
+        const contentDisposition = response.headers['content-disposition']
+        let filename = `test-results-${project.id}.csv`
+        if (contentDisposition) {
+          const filenameMatch = contentDisposition.match(/filename="(.+)"/)
+          if (filenameMatch) {
+            filename = filenameMatch[1]
+          }
+        }
+        
+        link.download = filename
+        document.body.appendChild(link)
+        link.click()
+        document.body.removeChild(link)
+        window.URL.revokeObjectURL(url)
+      } catch (error) {
+        console.error('Error downloading CSV:', error)
+        setMessage('Failed to export test results')
+      }
     }
   }
 
@@ -359,16 +388,6 @@ function TestRunner({ project, config, scenarios: initialScenarios = [] }) {
 
   const unselectAllScenarios = () => {
     setSelectedScenarios([])
-  }
-
-  const toggleAllScenarios = () => {
-    if (selectedScenarios.length === scenarios.length) {
-      // All are selected, so unselect all
-      unselectAllScenarios()
-    } else {
-      // Not all are selected, so select all
-      selectAllScenarios()
-    }
   }
 
   // Filter scenarios
@@ -480,7 +499,7 @@ function TestRunner({ project, config, scenarios: initialScenarios = [] }) {
                   disabled={!backstopReport}
                   sx={{ borderRadius: '8px', textTransform: 'none', fontWeight: 600, px: 2, py: 1 }}
                 >
-                  Export
+                  Export CSV
                 </Button>
                 
                 {backstopReport && (
