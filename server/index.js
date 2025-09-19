@@ -2145,7 +2145,7 @@ app.get('/api/projects/:projectId/batches', async (req, res) => {
                 passed: reportData.summary?.passed || 0,
                 failed: reportData.summary?.failed || 0,
                 total: reportData.summary?.total || 0,
-                url: `/api/projects/${projectId}/report/combined.html?run=${runDir}`
+                url: `http://localhost:5000/api/projects/${projectId}/runs/${runDir}/report/index.html`
               };
             } catch (error) {
               console.error('Error reading combined report:', error);
@@ -2166,7 +2166,12 @@ app.get('/api/projects/:projectId/batches', async (req, res) => {
     }
     
     // Sort runs by timestamp (newest first)
-    runs.sort((a, b) => new Date(b.meta?.timestamp || 0) - new Date(a.meta?.timestamp || 0));
+    runs.sort((a, b) => {
+      // Parse timestamps as numbers (format: YYYYMMDDHHMMSS)
+      const aTime = a.meta?.timestamp ? parseInt(a.meta.timestamp.replace('.', '')) : 0;
+      const bTime = b.meta?.timestamp ? parseInt(b.meta.timestamp.replace('.', '')) : 0;
+      return bTime - aTime;
+    });
     
     // Legacy support: Check for old-style batch reports
     const legacyBatches = [];
@@ -2338,7 +2343,7 @@ app.get('/api/projects/:projectId/runs/:runId', async (req, res) => {
           passed: reportData.summary?.passed || 0,
           failed: reportData.summary?.failed || 0,
           total: reportData.summary?.total || 0,
-          url: `/api/projects/${projectId}/report/combined.html?run=${runId}`
+          url: `http://localhost:5000/api/projects/${projectId}/runs/${runId}/report`
         };
       } catch (error) {
         console.error('Error reading combined report:', error);
@@ -2356,6 +2361,102 @@ app.get('/api/projects/:projectId/runs/:runId', async (req, res) => {
   } catch (error) {
     console.error('Error getting run details:', error);
     res.status(500).json({ error: 'Failed to get run details' });
+  }
+});
+
+// Delete a specific batch run
+app.delete('/api/projects/:projectId/batches/:runId', async (req, res) => {
+  try {
+    const { projectId, runId } = req.params;
+    console.log(`Deleting batch run: ${runId} for project: ${projectId}`);
+    
+    const batchRunDir = path.join(__dirname, 'backstop_data', projectId, 'batch_runs', runId);
+    const htmlReportDir = path.join(__dirname, 'backstop_data', projectId, 'html_report', runId);
+    
+    console.log(`Batch run directory: ${batchRunDir}`);
+    console.log(`HTML report directory: ${htmlReportDir}`);
+    
+    // Delete batch run directory
+    if (await fs.pathExists(batchRunDir)) {
+      console.log(`Deleting batch run directory: ${batchRunDir}`);
+      await fs.remove(batchRunDir);
+    } else {
+      console.log(`Batch run directory does not exist: ${batchRunDir}`);
+    }
+    
+    // Delete HTML report directory
+    if (await fs.pathExists(htmlReportDir)) {
+      console.log(`Deleting HTML report directory: ${htmlReportDir}`);
+      await fs.remove(htmlReportDir);
+    } else {
+      console.log(`HTML report directory does not exist: ${htmlReportDir}`);
+    }
+    
+    // Delete individual batch config files if they exist
+    const projectDir = path.join(__dirname, 'backstop_data', projectId);
+    const configFiles = await fs.readdir(projectDir);
+    const runConfigFiles = configFiles.filter(file => file.includes(runId) && file.endsWith('.json'));
+    
+    console.log(`Found ${runConfigFiles.length} config files to delete:`, runConfigFiles);
+    
+    for (const configFile of runConfigFiles) {
+      const configPath = path.join(projectDir, configFile);
+      if (await fs.pathExists(configPath)) {
+        console.log(`Deleting config file: ${configPath}`);
+        await fs.remove(configPath);
+      }
+    }
+    
+    console.log(`Batch run ${runId} deleted successfully`);
+    res.json({ message: 'Batch run deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting batch run:', error);
+    res.status(500).json({ error: 'Failed to delete batch run' });
+  }
+});
+
+// Download CSV data for a specific batch run
+app.get('/api/projects/:projectId/batches/:runId/csv', async (req, res) => {
+  try {
+    const { projectId, runId } = req.params;
+    const combinedReportPath = path.join(__dirname, 'backstop_data', projectId, 'html_report', runId, 'combined_report.json');
+    
+    if (!await fs.pathExists(combinedReportPath)) {
+      return res.status(404).json({ error: 'Combined report not found for this batch run' });
+    }
+    
+    const reportData = await fs.readJson(combinedReportPath);
+    const tests = reportData.tests || [];
+    
+    // Prepare CSV data
+    const csvData = tests.map(test => ({
+      Label: test.pair?.label || 'Unknown',
+      Status: test.status || 'unknown',
+      'Mismatch Percentage': test.misMatchPercentage || 0,
+      'Viewport': test.pair?.viewportLabel || 'default',
+      'Test Date': reportData.testSuite?.date || new Date().toISOString().split('T')[0],
+      'Run ID': runId,
+      'Batch Info': reportData.batchInfo ? `Batch ${reportData.batchInfo.batchIndex || 0}` : 'N/A'
+    }));
+    
+    // Convert to CSV
+    const csvContent = [
+      // Headers
+      Object.keys(csvData[0] || {}).join(','),
+      // Data rows
+      ...csvData.map(row => 
+        Object.values(row).map(value => 
+          typeof value === 'string' && value.includes(',') ? `"${value}"` : value
+        ).join(',')
+      )
+    ].join('\n');
+    
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', `attachment; filename="batch-run-${runId}-${new Date().toISOString().split('T')[0]}.csv"`);
+    res.send(csvContent);
+  } catch (error) {
+    console.error('Error generating batch CSV:', error);
+    res.status(500).json({ error: 'Failed to generate CSV' });
   }
 });
 
