@@ -1213,31 +1213,18 @@ app.post('/api/projects/:projectId/test', async (req, res) => {
 
     let result;
     
-    // Determine if we should use batch processing
+    // Always use batch processing for consistent folder structure
     const totalScenarios = validScenarios.length;
-    const shouldUseBatchProcessing = totalScenarios > (batchSize || 50);
+    console.log(`🚀 Using batch processing for ${totalScenarios} scenarios (consistent structure)...`);
     
-    if (shouldUseBatchProcessing) {
-      console.log(`🚀 Large test suite detected (${totalScenarios} scenarios). Using batch processing...`);
-      
-      // Use batch processing for large test suites
-      const batchProcessor = new BatchTestProcessor(projectId, config, validScenarios, {
-        batchSize: batchSize || 50,
-        maxConcurrent: maxConcurrent || 3,
-        delay: 2000
-      });
-      
-      result = await batchProcessor.run();
-      
-    } else {
-      console.log(`📊 Standard test execution (${totalScenarios} scenarios)...`);
-      
-      // Use standard BackstopJS execution for smaller test suites
-      result = await backstop('test', {
-        config: configToUse,
-        // Remove filter parameter since we're using filtered config file
-      });
-    }
+    // Use batch processing for ALL test suites to ensure consistent folder structure
+    const batchProcessor = new BatchTestProcessor(projectId, config, validScenarios, {
+      batchSize: batchSize || totalScenarios, // Use totalScenarios as batchSize for small runs
+      maxConcurrent: maxConcurrent || 10,
+      delay: totalScenarios > 100 ? 2000 : 500 // Shorter delay for small tests
+    });
+    
+    result = await batchProcessor.run();
 
     console.log('✅ Test execution completed');
     console.log(`📊 Test result summary: ${result?.tests?.length || totalScenarios} scenarios processed`);
@@ -2099,36 +2086,115 @@ function generateBatchSummaryHtml(reportData, projectId) {
 app.get('/api/projects/:projectId/batches', async (req, res) => {
   try {
     const { projectId } = req.params;
+    const batchRunsDir = path.join(__dirname, 'backstop_data', projectId, 'batch_runs');
     const baseReportDir = path.join(__dirname, 'backstop_data', projectId, 'html_report');
     
-    if (!await fs.pathExists(baseReportDir)) {
-      return res.json({ batches: [], hasSummary: false });
+    if (!await fs.pathExists(batchRunsDir)) {
+      return res.json({ runs: [], batches: [], hasSummary: false });
     }
     
-    const reportDirContents = await fs.readdir(baseReportDir);
-    const batchDirs = reportDirContents
-      .filter(name => name.startsWith('batch_'))
-      .sort((a, b) => {
-        const aBatch = parseInt(a.split('_')[1]);
-        const bBatch = parseInt(b.split('_')[1]);
-        return aBatch - bBatch; // Sort in batch order
-      });
+    const runDirs = await fs.readdir(batchRunsDir);
+    const runs = [];
     
-    const batches = [];
-    for (const dir of batchDirs) {
-      const batchNumber = parseInt(dir.replace('batch_', ''));
-      const batchDir = path.join(baseReportDir, dir);
-      const hasHtmlReport = await fs.pathExists(path.join(batchDir, 'index.html'));
+    for (const runDir of runDirs) {
+      const runPath = path.join(batchRunsDir, runDir);
+      const runMetaPath = path.join(runPath, 'run-meta.json');
       
-      batches.push({
-        number: batchNumber,
-        directory: dir,
-        hasHtmlReport,
-        url: `/api/projects/${projectId}/report/index.html?batch=${batchNumber}`
-      });
+      if (await fs.pathExists(runMetaPath)) {
+        try {
+          const runMeta = await fs.readJson(runMetaPath);
+          const runBatches = [];
+          
+          // Find all batch folders in this run
+          const batchDirs = await fs.readdir(runPath);
+          for (const batchDir of batchDirs.filter(d => d.startsWith('batch_'))) {
+            const batchNumber = parseInt(batchDir.replace('batch_', ''));
+            const batchPath = path.join(runPath, batchDir);
+            const batchTimestamps = await fs.readdir(batchPath);
+            
+            for (const timestamp of batchTimestamps) {
+              const timestampPath = path.join(batchPath, timestamp);
+              const batchMetaPath = path.join(timestampPath, 'batch-meta.json');
+              const reportPath = path.join(baseReportDir, runDir, batchDir, timestamp, 'index.html');
+              
+              let batchMeta = null;
+              if (await fs.pathExists(batchMetaPath)) {
+                batchMeta = await fs.readJson(batchMetaPath);
+              }
+              
+              runBatches.push({
+                batchIndex: batchNumber,
+                timestamp,
+                hasHtmlReport: await fs.pathExists(reportPath),
+                url: `/api/projects/${projectId}/report/index.html?run=${runDir}&batch=${batchNumber}&timestamp=${timestamp}`,
+                meta: batchMeta
+              });
+            }
+          }
+          
+          // Check for combined report
+          const combinedReportPath = path.join(baseReportDir, runDir, 'combined_report.json');
+          const hasCombinedReport = await fs.pathExists(combinedReportPath);
+          let combinedReportInfo = null;
+          
+          if (hasCombinedReport) {
+            try {
+              const reportData = await fs.readJson(combinedReportPath);
+              combinedReportInfo = {
+                totalScenarios: reportData.batchInfo?.totalScenarios || reportData.tests?.length || 0,
+                passed: reportData.summary?.passed || 0,
+                failed: reportData.summary?.failed || 0,
+                total: reportData.summary?.total || 0,
+                url: `/api/projects/${projectId}/report/combined.html?run=${runDir}`
+              };
+            } catch (error) {
+              console.error('Error reading combined report:', error);
+            }
+          }
+          
+          runs.push({
+            runId: runDir,
+            meta: runMeta,
+            batches: runBatches.sort((a, b) => a.batchIndex - b.batchIndex),
+            hasCombinedReport,
+            combinedReportInfo
+          });
+        } catch (error) {
+          console.error(`Error reading run metadata for ${runDir}:`, error);
+        }
+      }
     }
     
-    // Check for batch summary
+    // Sort runs by timestamp (newest first)
+    runs.sort((a, b) => new Date(b.meta?.timestamp || 0) - new Date(a.meta?.timestamp || 0));
+    
+    // Legacy support: Check for old-style batch reports
+    const legacyBatches = [];
+    if (await fs.pathExists(baseReportDir)) {
+      const reportDirContents = await fs.readdir(baseReportDir);
+      const batchDirs = reportDirContents
+        .filter(name => name.startsWith('batch_') && !runs.some(r => r.runId === name))
+        .sort((a, b) => {
+          const aBatch = parseInt(a.split('_')[1]);
+          const bBatch = parseInt(b.split('_')[1]);
+          return aBatch - bBatch;
+        });
+      
+      for (const dir of batchDirs) {
+        const batchNumber = parseInt(dir.replace('batch_', ''));
+        const batchDir = path.join(baseReportDir, dir);
+        const hasHtmlReport = await fs.pathExists(path.join(batchDir, 'index.html'));
+        
+        legacyBatches.push({
+          number: batchNumber,
+          directory: dir,
+          hasHtmlReport,
+          url: `/api/projects/${projectId}/report/index.html?batch=${batchNumber}`
+        });
+      }
+    }
+    
+    // Check for current summary report
     const reportJsonPath = path.join(baseReportDir, 'report.json');
     const hasSummary = await fs.pathExists(reportJsonPath);
     let summaryInfo = null;
@@ -2138,9 +2204,10 @@ app.get('/api/projects/:projectId/batches', async (req, res) => {
         const reportData = await fs.readJson(reportJsonPath);
         summaryInfo = {
           totalScenarios: reportData.batchInfo?.totalScenarios || reportData.tests?.length || 0,
-          totalBatches: reportData.batchInfo?.totalBatches || batches.length,
+          totalBatches: reportData.batchInfo?.totalBatches || legacyBatches.length,
           batchSize: reportData.batchInfo?.batchSize || null,
           sessionId: reportData.batchInfo?.sessionId || null,
+          runId: reportData.runId || null,
           passed: reportData.summary?.passed || 0,
           failed: reportData.summary?.failed || 0,
           total: reportData.summary?.total || 0,
@@ -2153,8 +2220,9 @@ app.get('/api/projects/:projectId/batches', async (req, res) => {
     
     res.json({
       projectId,
-      batches,
-      batchCount: batches.length,
+      runs,
+      batches: legacyBatches, // Legacy support
+      batchCount: legacyBatches.length,
       hasSummary,
       summaryInfo,
       selectionUrl: `/api/projects/${projectId}/report/index.html`
@@ -2163,6 +2231,302 @@ app.get('/api/projects/:projectId/batches', async (req, res) => {
   } catch (error) {
     console.error('Error getting batch information:', error);
     res.status(500).json({ error: 'Failed to get batch information' });
+  }
+});
+
+// New endpoint to get runs and their batches
+app.get('/api/projects/:projectId/runs', async (req, res) => {
+  try {
+    const { projectId } = req.params;
+    const batchRunsDir = path.join(__dirname, 'backstop_data', projectId, 'batch_runs');
+    
+    if (!await fs.pathExists(batchRunsDir)) {
+      return res.json({ runs: [] });
+    }
+    
+    const runDirs = await fs.readdir(batchRunsDir);
+    const runs = [];
+    
+    for (const runDir of runDirs) {
+      const runPath = path.join(batchRunsDir, runDir);
+      const runMetaPath = path.join(runPath, 'run-meta.json');
+      
+      if (await fs.pathExists(runMetaPath)) {
+        try {
+          const runMeta = await fs.readJson(runMetaPath);
+          runs.push({
+            runId: runDir,
+            meta: runMeta,
+            timestamp: runMeta.timestamp,
+            status: runMeta.status,
+            totalScenarios: runMeta.totalScenarios,
+            totalBatches: runMeta.totalBatches
+          });
+        } catch (error) {
+          console.error(`Error reading run metadata for ${runDir}:`, error);
+        }
+      }
+    }
+    
+    // Sort runs by timestamp (newest first)
+    runs.sort((a, b) => new Date(b.timestamp || 0) - new Date(a.timestamp || 0));
+    
+    res.json({ runs });
+    
+  } catch (error) {
+    console.error('Error getting runs:', error);
+    res.status(500).json({ error: 'Failed to get runs' });
+  }
+});
+
+// Get specific run details with batches
+app.get('/api/projects/:projectId/runs/:runId', async (req, res) => {
+  try {
+    const { projectId, runId } = req.params;
+    const batchRunsDir = path.join(__dirname, 'backstop_data', projectId, 'batch_runs', runId);
+    const baseReportDir = path.join(__dirname, 'backstop_data', projectId, 'html_report');
+    
+    if (!await fs.pathExists(batchRunsDir)) {
+      return res.status(404).json({ error: 'Run not found' });
+    }
+    
+    const runMetaPath = path.join(batchRunsDir, 'run-meta.json');
+    let runMeta = null;
+    
+    if (await fs.pathExists(runMetaPath)) {
+      runMeta = await fs.readJson(runMetaPath);
+    }
+    
+    const runBatches = [];
+    const batchDirs = await fs.readdir(batchRunsDir);
+    
+    for (const batchDir of batchDirs.filter(d => d.startsWith('batch_'))) {
+      const batchNumber = parseInt(batchDir.replace('batch_', ''));
+      const batchPath = path.join(batchRunsDir, batchDir);
+      const batchTimestamps = await fs.readdir(batchPath);
+      
+      for (const timestamp of batchTimestamps) {
+        const timestampPath = path.join(batchPath, timestamp);
+        const batchMetaPath = path.join(timestampPath, 'batch-meta.json');
+        const reportPath = path.join(baseReportDir, runId, batchDir, timestamp, 'index.html');
+        
+        let batchMeta = null;
+        if (await fs.pathExists(batchMetaPath)) {
+          batchMeta = await fs.readJson(batchMetaPath);
+        }
+        
+        runBatches.push({
+          batchIndex: batchNumber,
+          timestamp,
+          hasHtmlReport: await fs.pathExists(reportPath),
+          url: `/api/projects/${projectId}/report/index.html?run=${runId}&batch=${batchNumber}&timestamp=${timestamp}`,
+          meta: batchMeta
+        });
+      }
+    }
+    
+    // Check for combined report
+    const combinedReportPath = path.join(baseReportDir, runId, 'combined_report.json');
+    const hasCombinedReport = await fs.pathExists(combinedReportPath);
+    let combinedReportInfo = null;
+    
+    if (hasCombinedReport) {
+      try {
+        const reportData = await fs.readJson(combinedReportPath);
+        combinedReportInfo = {
+          totalScenarios: reportData.batchInfo?.totalScenarios || reportData.tests?.length || 0,
+          passed: reportData.summary?.passed || 0,
+          failed: reportData.summary?.failed || 0,
+          total: reportData.summary?.total || 0,
+          url: `/api/projects/${projectId}/report/combined.html?run=${runId}`
+        };
+      } catch (error) {
+        console.error('Error reading combined report:', error);
+      }
+    }
+    
+    res.json({
+      runId,
+      meta: runMeta,
+      batches: runBatches.sort((a, b) => a.batchIndex - b.batchIndex),
+      hasCombinedReport,
+      combinedReportInfo
+    });
+    
+  } catch (error) {
+    console.error('Error getting run details:', error);
+    res.status(500).json({ error: 'Failed to get run details' });
+  }
+});
+
+// Serve combined HTML report
+app.get('/api/projects/:projectId/runs/:runId/report', async (req, res) => {
+  try {
+    const { projectId, runId } = req.params;
+    const htmlReportPath = path.join(__dirname, 'backstop_data', projectId, 'html_report', runId, 'index.html');
+    
+    if (!await fs.pathExists(htmlReportPath)) {
+      return res.status(404).json({ error: 'Combined report not found' });
+    }
+    
+    const htmlContent = await fs.readFile(htmlReportPath, 'utf8');
+    res.setHeader('Content-Type', 'text/html');
+    res.send(htmlContent);
+  } catch (error) {
+    console.error('Error serving combined report:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get combined report JSON
+app.get('/api/projects/:projectId/runs/:runId/report/json', async (req, res) => {
+  try {
+    const { projectId, runId } = req.params;
+    const jsonReportPath = path.join(__dirname, 'backstop_data', projectId, 'html_report', runId, 'combined_report.json');
+    
+    if (!await fs.pathExists(jsonReportPath)) {
+      return res.status(404).json({ error: 'Combined report not found' });
+    }
+    
+    const reportData = await fs.readJson(jsonReportPath);
+    res.json(reportData);
+  } catch (error) {
+    console.error('Error getting combined report JSON:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Regenerate combined report for a specific run (for debugging)
+app.post('/api/projects/:projectId/runs/:runId/regenerate', async (req, res) => {
+  try {
+    const { projectId, runId } = req.params;
+    
+    console.log(`🔄 Regenerating combined report for ${projectId}/${runId}`);
+    
+    // Create minimal config for regeneration
+    const tempConfig = {
+      paths: {
+        html_report: path.join(__dirname, 'backstop_data', projectId, 'html_report'),
+        bitmaps_reference: path.join(__dirname, 'backstop_data', projectId, 'bitmaps_reference')
+      }
+    };
+    
+    // Create a temporary BatchTestProcessor instance to regenerate the report
+    const processor = new BatchTestProcessor(projectId, tempConfig, [], { batchSize: 4, maxConcurrent: 10 });
+    processor.runId = runId; // Override the runId to use the specific run
+    const combinedReport = await processor.generateFinalCombinedReport();
+    
+    res.json({ 
+      message: 'Combined report regenerated successfully',
+      report: combinedReport 
+    });
+  } catch (error) {
+    console.error('Error regenerating combined report:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Debug endpoint to see what runs are found
+app.get('/api/projects/:projectId/runs/debug', async (req, res) => {
+  try {
+    const { projectId } = req.params;
+    const batchRunsDir = path.join(__dirname, 'backstop_data', projectId, 'batch_runs');
+    
+    if (!await fs.pathExists(batchRunsDir)) {
+      return res.json({ error: 'No batch runs directory', path: batchRunsDir });
+    }
+    
+    const runDirs = await fs.readdir(batchRunsDir);
+    const debugInfo = [];
+    
+    for (const runDir of runDirs) {
+      if (runDir.startsWith('.')) continue;
+      
+      const runPath = path.join(batchRunsDir, runDir);
+      const runMetaPath = path.join(runPath, 'run-meta.json');
+      const combinedReportPath = path.join(__dirname, 'backstop_data', projectId, 'html_report', runDir, 'index.html');
+      
+      debugInfo.push({
+        runDir,
+        hasRunMeta: await fs.pathExists(runMetaPath),
+        hasCombinedReport: await fs.pathExists(combinedReportPath),
+        runMetaPath,
+        combinedReportPath
+      });
+    }
+    
+    res.json({ debugInfo });
+  } catch (error) {
+    res.json({ error: error.message });
+  }
+});
+
+// Get latest completed run with combined report
+app.get('/api/projects/:projectId/runs/latest', async (req, res) => {
+  // Simple test first
+  res.json({
+    latestRunId: 'run_1758280978644_lfdatt',
+    reportUrl: `/api/projects/${req.params.projectId}/runs/run_1758280978644_lfdatt/report`
+  });
+});
+
+// Get latest combined report
+app.get('/api/projects/:projectId/runs-latest-combined', async (req, res) => {
+  try {
+    const { projectId } = req.params;
+    const { projectDir } = await validateProject(projectId);
+    const batchRunsDir = path.join(projectDir, 'batch_runs');
+    
+    if (!await fs.pathExists(batchRunsDir)) {
+      return res.status(404).json({ error: 'No batch runs found' });
+    }
+    
+    // Get all run directories
+    const entries = await fs.readdir(batchRunsDir);
+    const runDirs = entries.filter(entry => entry.startsWith('run_'));
+    
+    if (runDirs.length === 0) {
+      return res.status(404).json({ error: 'No runs found' });
+    }
+    
+    // Sort by timestamp (embedded in directory name) to get latest
+    runDirs.sort((a, b) => {
+      const timestampA = parseInt(a.split('_')[1]);
+      const timestampB = parseInt(b.split('_')[1]);
+      return timestampB - timestampA; // Descending order (latest first)
+    });
+    
+    const latestRunId = runDirs[0];
+    const combinedReportPath = path.join(batchRunsDir, latestRunId, 'combined_report');
+    
+    // Check if combined report exists, if not generate it
+    if (!await fs.pathExists(combinedReportPath)) {
+      console.log('Combined report not found, generating...');
+      
+      // Create minimal config for regeneration
+      const tempConfig = {
+        paths: {
+          html_report: path.join(__dirname, 'backstop_data', projectId, 'html_report'),
+          bitmaps_reference: path.join(__dirname, 'backstop_data', projectId, 'bitmaps_reference')
+        }
+      };
+      
+      // Create a temporary BatchTestProcessor instance to regenerate the report
+      const processor = new BatchTestProcessor(projectId, tempConfig, [], { batchSize: 4, maxConcurrent: 10 });
+      processor.runId = latestRunId; // Override the runId to use the specific run
+      await processor.generateFinalCombinedReport();
+    }
+    
+    res.json({
+      latestRunId,
+      reportUrl: `/api/projects/${projectId}/runs/${latestRunId}/report`
+    });
+  } catch (err) {
+    console.error('Error getting latest combined report:', err);
+    res.status(500).json({ 
+      error: 'Failed to get latest combined report',
+      details: err.message
+    });
   }
 });
 
@@ -2178,6 +2542,27 @@ app.use('/api/projects/:projectId/bitmaps_test', (req, res, next) => {
   const { projectId } = req.params;
   const bitmapsTestDir = path.join(__dirname, 'backstop_data', projectId, 'bitmaps_test');
   express.static(bitmapsTestDir)(req, res, next);
+});
+
+// Serve project-specific HTML reports
+app.use('/api/projects/:projectId/report', (req, res, next) => {
+  const { projectId } = req.params;
+  const htmlReportDir = path.join(__dirname, 'backstop_data', projectId, 'html_report');
+  express.static(htmlReportDir)(req, res, next);
+});
+
+// Serve run-specific reports and assets (including reference images)
+app.use('/api/projects/:projectId/runs/:runId/report', (req, res, next) => {
+  const { projectId, runId } = req.params;
+  const runReportDir = path.join(__dirname, 'backstop_data', projectId, 'html_report', runId);
+  express.static(runReportDir)(req, res, next);
+});
+
+// Serve batch run images and assets from within run reports
+app.use('/api/projects/:projectId/runs/:runId/report/batch_runs', (req, res, next) => {
+  const { projectId, runId } = req.params;
+  const batchRunsDir = path.join(__dirname, 'backstop_data', projectId, 'batch_runs', runId);
+  express.static(batchRunsDir)(req, res, next);
 });
 
 // Serve uploaded screenshots
@@ -7799,36 +8184,53 @@ class BatchTestProcessor {
     this.totalCount = scenarios.length;
     this.startTime = Date.now();
     this.sessionId = `test_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    // Generate unique runId for this test run
+    this.runId = `run_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
+    this.runTimestamp = new Date().toISOString().replace(/[-:T]/g, '').slice(0, 15);
   }
 
   async processBatch(batchScenarios, batchIndex) {
     console.log(`🔄 Processing batch ${batchIndex + 1} with ${batchScenarios.length} scenarios`);
     
+    // Create batch_runs folder structure with runId
+    const batchTimestamp = new Date().toISOString().replace(/[-:T]/g, '').slice(0, 15);
+    const batchRunsPath = path.join(__dirname, 'backstop_data', this.projectId, 'batch_runs', this.runId);
+    const batchFolderPath = path.join(batchRunsPath, `batch_${batchIndex}`, batchTimestamp);
+    const batchHtmlReportPath = path.join(__dirname, 'backstop_data', this.projectId, 'html_report', this.runId, `batch_${batchIndex}`, batchTimestamp);
+
     // Create a temporary config for this batch
-        // Timestamp for batch folder
-        // Always create a batch folder with timestamp, even for single scenario runs
-        const timestamp = new Date().toISOString().replace(/[-:T]/g, '').slice(0, 15);
-        const batchFolderName = `batch_${batchIndex}/${timestamp}`;
-        const batchBitmapsTest = path.join(this.config.paths.bitmaps_test, batchFolderName);
-        const batchHtmlReport = path.join(this.config.paths.html_report, batchFolderName);
+    const batchConfig = {
+      ...this.config,
+      scenarios: batchScenarios,
+      paths: {
+        ...this.config.paths,
+        bitmaps_test: batchFolderPath,
+        html_report: batchHtmlReportPath
+      }
+    };
 
-        const batchConfig = {
-          ...this.config,
-          scenarios: batchScenarios,
-          paths: {
-            ...this.config.paths,
-            bitmaps_test: batchBitmapsTest,
-            html_report: batchHtmlReport
-          }
-        };
+    // Ensure directories exist
+    await Promise.all([
+      fs.ensureDir(batchFolderPath),
+      fs.ensureDir(batchHtmlReportPath),
+      fs.ensureDir(batchRunsPath)
+    ]);
 
-        await Promise.all([
-          fs.ensureDir(batchBitmapsTest),
-          fs.ensureDir(batchHtmlReport)
-        ]);
+    // Create batch metadata
+    const batchMeta = {
+      runId: this.runId,
+      batchIndex,
+      timestamp: batchTimestamp,
+      scenarioCount: batchScenarios.length,
+      scenarios: batchScenarios.map(s => s.label),
+      status: 'running',
+      startTime: new Date().toISOString()
+    };
+    
+    await fs.writeJson(path.join(batchFolderPath, 'batch-meta.json'), batchMeta, { spaces: 2 });
 
-        const batchConfigPath = path.join(getProjectPath(this.projectId), `${batchFolderName.replace('/', '_')}_backstop.json`);
-        await fs.writeJson(batchConfigPath, batchConfig, { spaces: 2 });
+    const batchConfigPath = path.join(getProjectPath(this.projectId), `${this.runId}_batch_${batchIndex}_backstop.json`);
+    await fs.writeJson(batchConfigPath, batchConfig, { spaces: 2 });
 
     return new Promise((resolve) => {
       const backstop = spawn('backstop', ['test', '--config=' + batchConfigPath, '--no-openReport'], {
@@ -7877,6 +8279,16 @@ class BatchTestProcessor {
         this.processedCount += batchScenarios.length;
         
         try {
+          // Update batch metadata with completion
+          const completedBatchMeta = {
+            ...batchMeta,
+            status: code === 0 ? 'completed' : 'failed',
+            endTime: new Date().toISOString(),
+            exitCode: code
+          };
+          
+          await fs.writeJson(path.join(batchFolderPath, 'batch-meta.json'), completedBatchMeta, { spaces: 2 });
+
           // Read batch results if available
           const batchReportPath = path.join(batchConfig.paths.html_report, 'report.json');
           let batchResults = null;
@@ -7892,7 +8304,9 @@ class BatchTestProcessor {
             results: batchResults,
             output,
             errorOutput,
-            configPath: batchConfigPath
+            configPath: batchConfigPath,
+            timestamp: batchTimestamp,
+            runId: this.runId
           };
 
           resolve(result);
@@ -7907,18 +8321,36 @@ class BatchTestProcessor {
             overallProgress: Math.round((this.processedCount / this.totalCount) * 100),
             processedCount: this.processedCount,
             totalCount: this.totalCount,
+            runId: this.runId,
             message: `Batch ${batchIndex + 1} completed (${batchScenarios.length} scenarios)`,
             timestamp: new Date().toISOString()
           });
 
         } catch (error) {
           console.error(`Error processing batch ${batchIndex} results:`, error);
+          
+          // Update batch metadata with error
+          try {
+            const errorBatchMeta = {
+              ...batchMeta,
+              status: 'error',
+              endTime: new Date().toISOString(),
+              error: error.message,
+              exitCode: code
+            };
+            await fs.writeJson(path.join(batchFolderPath, 'batch-meta.json'), errorBatchMeta, { spaces: 2 });
+          } catch (metaError) {
+            console.error('Error writing batch metadata:', metaError);
+          }
+
           resolve({
             batchIndex,
             code,
             scenarios: batchScenarios,
             error: error.message,
-            configPath: batchConfigPath
+            configPath: batchConfigPath,
+            timestamp: batchTimestamp,
+            runId: this.runId
           });
         }
       });
@@ -7954,6 +8386,30 @@ class BatchTestProcessor {
   async run() {
     console.log(`🚀 Starting batch test processing: ${this.totalCount} scenarios in batches of ${this.batchSize}`);
     
+    // Create run metadata folder and file
+    const runPath = path.join(__dirname, 'backstop_data', this.projectId, 'batch_runs', this.runId);
+    await fs.ensureDir(runPath);
+    
+    const batches = [];
+    for (let i = 0; i < this.scenarios.length; i += this.batchSize) {
+      batches.push(this.scenarios.slice(i, i + this.batchSize));
+    }
+
+    // Create run metadata
+    const runMeta = {
+      runId: this.runId,
+      timestamp: this.runTimestamp,
+      totalBatches: batches.length,
+      totalScenarios: this.totalCount,
+      batchSize: this.batchSize,
+      maxConcurrent: this.maxConcurrent,
+      status: 'running',
+      startTime: new Date().toISOString(),
+      sessionId: this.sessionId
+    };
+    
+    await fs.writeJson(path.join(runPath, 'run-meta.json'), runMeta, { spaces: 2 });
+    
     // Register active session
     activeTestSessions.set(this.sessionId, {
       projectId: this.projectId,
@@ -7970,14 +8426,10 @@ class BatchTestProcessor {
       totalCount: this.totalCount,
       batchSize: this.batchSize,
       maxConcurrent: this.maxConcurrent,
+      runId: this.runId,
       message: `Starting batch test: ${this.totalCount} scenarios`,
       timestamp: new Date().toISOString()
     });
-
-    const batches = [];
-    for (let i = 0; i < this.scenarios.length; i += this.batchSize) {
-      batches.push(this.scenarios.slice(i, i + this.batchSize));
-    }
 
     console.log(`📊 Created ${batches.length} batches`);
 
@@ -8011,8 +8463,17 @@ class BatchTestProcessor {
 
     console.log(`✅ All batches completed. Processing final results...`);
 
-    // Merge all batch results
-    const mergedResults = await this.mergeBatchResults(batchResults);
+    // Update run metadata with completion
+    runMeta.status = 'completed';
+    runMeta.endTime = new Date().toISOString();
+    runMeta.duration = Date.now() - this.startTime;
+    await fs.writeJson(path.join(runPath, 'run-meta.json'), runMeta, { spaces: 2 });
+
+    // Wait a moment for all file operations to complete
+    await new Promise(resolve => setTimeout(resolve, 2000));
+
+    // Generate combined report from ALL completed batches
+    const finalCombinedReport = await this.generateFinalCombinedReport();
     
     // Cleanup batch files
     await this.cleanup(batchResults);
@@ -8024,28 +8485,228 @@ class BatchTestProcessor {
     io.emit('test-complete', {
       sessionId: this.sessionId,
       projectId: this.projectId,
-      results: mergedResults,
+      results: finalCombinedReport,
       duration: Date.now() - this.startTime,
       batchCount: batches.length,
       totalScenarios: this.totalCount,
+      runId: this.runId,
       timestamp: new Date().toISOString()
     });
 
-    return mergedResults;
+    return finalCombinedReport;
+  }
+
+  async generateFinalCombinedReport() {
+    console.log('🔄 Generating final combined report from all completed batches...');
+    
+    const runPath = path.join(__dirname, 'backstop_data', this.projectId, 'batch_runs', this.runId);
+    const runHtmlReportDir = path.join(__dirname, 'backstop_data', this.projectId, 'html_report', this.runId);
+    
+    // Scan all batch directories in the completed run
+    const batchDirs = await fs.readdir(runPath);
+    const allBatchResults = [];
+    
+    for (const batchDir of batchDirs) {
+      if (batchDir.startsWith('batch_')) {
+        const batchPath = path.join(runPath, batchDir);
+        const batchIndex = parseInt(batchDir.split('_')[1]);
+        
+        // Get all timestamp directories in this batch and find the latest one
+        const timestampDirs = await fs.readdir(batchPath);
+        const validTimestampDirs = timestampDirs.filter(dir => dir !== 'batch-meta.json');
+        
+        if (validTimestampDirs.length > 0) {
+          // Sort by timestamp and get the latest (most recent) one
+          const latestTimestamp = validTimestampDirs.sort().pop();
+          const timestampPath = path.join(batchPath, latestTimestamp);
+          
+          // BackstopJS creates nested timestamp directories, so we need to search for report.json
+          let reportJsonPath = path.join(timestampPath, 'report.json');
+          let batchMetaPath = path.join(timestampPath, 'batch-meta.json');
+          
+          // If report.json is not directly in timestamp directory, search in nested directories
+          if (!await fs.pathExists(reportJsonPath)) {
+            const nestedDirs = await fs.readdir(timestampPath);
+            for (const nestedDir of nestedDirs) {
+              if (nestedDir !== 'batch-meta.json') {
+                const nestedPath = path.join(timestampPath, nestedDir);
+                const stats = await fs.stat(nestedPath);
+                if (stats.isDirectory()) {
+                  const nestedReportPath = path.join(nestedPath, 'report.json');
+                  if (await fs.pathExists(nestedReportPath)) {
+                    reportJsonPath = nestedReportPath;
+                    break;
+                  }
+                }
+              }
+            }
+          }
+          
+          // Read batch results if they exist
+          if (await fs.pathExists(reportJsonPath)) {
+            try {
+              const batchReport = await fs.readJson(reportJsonPath);
+              let batchMeta = null;
+              
+              if (await fs.pathExists(batchMetaPath)) {
+                batchMeta = await fs.readJson(batchMetaPath);
+              }
+              
+              allBatchResults.push({
+                batchIndex,
+                timestamp: latestTimestamp,
+                results: batchReport,
+                meta: batchMeta,
+                scenarios: batchMeta?.scenarios || []
+              });
+              
+              console.log(`✅ Found batch ${batchIndex} latest results (${latestTimestamp}): ${batchReport.tests?.length || 0} tests`);
+            } catch (error) {
+              console.error(`❌ Error reading batch ${batchIndex} report:`, error);
+            }
+          } else {
+            console.log(`❌ No report.json found for batch ${batchIndex} in ${timestampPath}`);
+          }
+        }
+      }
+    }
+    
+    console.log(`📊 Found ${allBatchResults.length} completed batches to combine`);
+    
+    // Create comprehensive merged report
+    const mergedReport = {
+      testSuite: `FinalBatchTest_${this.projectId}_${this.runId}`,
+      tests: [],
+      date: new Date().toISOString(),
+      runId: this.runId,
+      batchInfo: {
+        totalBatches: allBatchResults.length,
+        batchSize: this.batchSize,
+        totalScenarios: this.totalCount,
+        sessionId: this.sessionId,
+        runId: this.runId,
+        completionTime: new Date().toISOString()
+      }
+    };
+
+    let passCount = 0;
+    let failCount = 0;
+    
+    // Process all batch results
+    for (const batchResult of allBatchResults) {
+      if (batchResult.results && batchResult.results.tests) {
+        for (const test of batchResult.results.tests) {
+          // Transform image paths to use proper API endpoints
+          const transformedTest = {
+            ...test,
+            batchIndex: batchResult.batchIndex,
+            batchTimestamp: batchResult.timestamp,
+            runId: this.runId
+          };
+          
+          // Fix image paths to use correct API endpoints
+          if (transformedTest.pair) {
+            const pair = transformedTest.pair;
+            
+            // Transform reference image path
+            if (pair.reference && pair.fileName) {
+              pair.reference = `/api/projects/${this.projectId}/bitmaps_reference/${pair.fileName}`;
+            }
+            
+            // Transform test image path - use the batch runs API endpoint
+            if (pair.test) {
+              // Extract the relative path from after the runId in the batch run structure
+              // Original: ../../../../batch_runs/run_xyz/batch_0/timestamp/file.png
+              // Target: /api/projects/{projectId}/runs/{runId}/report/batch_runs/batch_0/timestamp/file.png
+              const testPath = pair.test.replace(/^.*\/batch_runs\/[^/]+\//, `/api/projects/${this.projectId}/runs/${this.runId}/report/batch_runs/`);
+              pair.test = testPath;
+            }
+            
+            // Transform diff image path if it exists
+            if (pair.diffImage) {
+              const diffPath = pair.diffImage.replace(/^.*\/batch_runs\/[^/]+\//, `/api/projects/${this.projectId}/runs/${this.runId}/report/batch_runs/`);
+              pair.diffImage = diffPath;
+            }
+            
+            // Transform log paths
+            if (pair.referenceLog && pair.fileName) {
+              const logFileName = pair.fileName.replace('.png', '.log.json');
+              pair.referenceLog = `/api/projects/${this.projectId}/bitmaps_reference/${logFileName}`;
+            }
+            
+            if (pair.testLog) {
+              const testLogPath = pair.testLog.replace(/^.*\/batch_runs\//, `/api/projects/${this.projectId}/runs/${this.runId}/report/batch_runs/`);
+              pair.testLog = testLogPath;
+            }
+          }
+          
+          mergedReport.tests.push(transformedTest);
+          
+          if (test.status === 'pass') passCount++;
+          else failCount++;
+        }
+      } else if (batchResult.meta?.error) {
+        // Handle batch-level errors
+        for (const scenario of batchResult.scenarios) {
+          mergedReport.tests.push({
+            pair: {
+              label: scenario.label,
+              url: scenario.url,
+              diff: { isSameDimensions: null, dimensionDifference: {} },
+              networkError: batchResult.meta.error,
+              cliError: batchResult.meta.error
+            },
+            status: 'fail',
+            batchIndex: batchResult.batchIndex,
+            batchTimestamp: batchResult.timestamp,
+            runId: this.runId,
+            error: batchResult.meta.error
+          });
+          failCount++;
+        }
+      }
+    }
+
+    mergedReport.summary = {
+      passed: passCount,
+      failed: failCount,
+      total: passCount + failCount
+    };
+
+    // Ensure report directory exists
+    await fs.ensureDir(runHtmlReportDir);
+    
+    // Write final combined reports
+    const finalReportPath = path.join(this.config.paths.html_report, 'report.json');
+    const runReportPath = path.join(runHtmlReportDir, 'combined_report.json');
+    
+    await Promise.all([
+      fs.writeJson(finalReportPath, mergedReport, { spaces: 2 }),
+      fs.writeJson(runReportPath, mergedReport, { spaces: 2 })
+    ]);
+
+    // Generate HTML combined report
+    await this.generateCombinedHtmlReport(mergedReport, runHtmlReportDir);
+
+    console.log(`✅ Final combined report generated: ${passCount} passed, ${failCount} failed, ${mergedReport.tests.length} total tests`);
+    
+    return mergedReport;
   }
 
   async mergeBatchResults(batchResults) {
     console.log('🔄 Merging batch results...');
     
     const mergedReport = {
-      testSuite: `BatchTest_${this.projectId}_${new Date().toISOString()}`,
+      testSuite: `BatchTest_${this.projectId}_${this.runId}`,
       tests: [],
       date: new Date().toISOString(),
+      runId: this.runId,
       batchInfo: {
         totalBatches: batchResults.length,
         batchSize: this.batchSize,
         totalScenarios: this.totalCount,
-        sessionId: this.sessionId
+        sessionId: this.sessionId,
+        runId: this.runId
       }
     };
 
@@ -8055,10 +8716,49 @@ class BatchTestProcessor {
     for (const batchResult of batchResults) {
       if (batchResult.results && batchResult.results.tests) {
         for (const test of batchResult.results.tests) {
-          mergedReport.tests.push({
+          // Transform image paths to use proper API endpoints
+          const transformedTest = {
             ...test,
-            batchIndex: batchResult.batchIndex
-          });
+            batchIndex: batchResult.batchIndex,
+            batchTimestamp: batchResult.timestamp,
+            runId: this.runId
+          };
+          
+          // Fix image paths to use correct API endpoints
+          if (transformedTest.pair) {
+            const pair = transformedTest.pair;
+            
+            // Transform reference image path
+            if (pair.reference && pair.fileName) {
+              pair.reference = `/api/projects/${this.projectId}/bitmaps_reference/${pair.fileName}`;
+            }
+            
+            // Transform test image path - keep relative path to batch results
+            if (pair.test) {
+              // Extract the relative path from after the runId in the batch run structure
+              const testPath = pair.test.replace(/^.*\/batch_runs\/[^/]+\//, `/api/projects/${this.projectId}/runs/${this.runId}/report/batch_runs/`);
+              pair.test = testPath;
+            }
+            
+            // Transform diff image path if it exists
+            if (pair.diffImage) {
+              const diffPath = pair.diffImage.replace(/^.*\/batch_runs\/[^/]+\//, `/api/projects/${this.projectId}/runs/${this.runId}/report/batch_runs/`);
+              pair.diffImage = diffPath;
+            }
+            
+            // Transform log paths
+            if (pair.referenceLog && pair.fileName) {
+              const logFileName = pair.fileName.replace('.png', '.log.json');
+              pair.referenceLog = `/api/projects/${this.projectId}/bitmaps_reference/${logFileName}`;
+            }
+            
+            if (pair.testLog) {
+              const testLogPath = pair.testLog.replace(/^.*\/batch_runs\/[^/]+\//, `/api/projects/${this.projectId}/runs/${this.runId}/report/batch_runs/`);
+              pair.testLog = testLogPath;
+            }
+          }
+          
+          mergedReport.tests.push(transformedTest);
           
           if (test.status === 'pass') passCount++;
           else failCount++;
@@ -8075,6 +8775,7 @@ class BatchTestProcessor {
             },
             status: 'fail',
             batchIndex: batchResult.batchIndex,
+            runId: this.runId,
             error: batchResult.error
           });
           failCount++;
@@ -8088,30 +8789,115 @@ class BatchTestProcessor {
       total: passCount + failCount
     };
 
-    // Write merged report
-        const finalReportPath = path.join(this.config.paths.html_report, 'report.json');
-        await fs.writeJson(finalReportPath, mergedReport, { spaces: 2 });
+    // Write combined report to both locations
+    const finalReportPath = path.join(this.config.paths.html_report, 'report.json');
+    const runReportPath = path.join(__dirname, 'backstop_data', this.projectId, 'html_report', this.runId, 'combined_report.json');
+    const runHtmlReportDir = path.join(__dirname, 'backstop_data', this.projectId, 'html_report', this.runId);
+    
+    await fs.ensureDir(runHtmlReportDir);
+    await Promise.all([
+      fs.writeJson(finalReportPath, mergedReport, { spaces: 2 }),
+      fs.writeJson(runReportPath, mergedReport, { spaces: 2 })
+    ]);
 
-        // Save batch metadata for each batch
-        for (const batchResult of batchResults) {
-          if (batchResult.batchIndex !== undefined && batchResult.batchIndex !== null && batchResult.timestamp) {
-            const batchFolder = path.join(this.config.paths.html_report, `batch_${batchResult.batchIndex}`, batchResult.timestamp);
-            if (await fs.pathExists(batchFolder)) {
-              const batchMeta = {
-                batchIndex: batchResult.batchIndex,
-                timestamp: batchResult.timestamp,
-                scenarioCount: batchResult.scenarios ? batchResult.scenarios.length : 0,
-                status: batchResult.error ? 'error' : 'complete',
-                error: batchResult.error || null
-              };
-              await fs.writeJson(path.join(batchFolder, 'batch-meta.json'), batchMeta, { spaces: 2 });
-            }
-          }
-        }
+    // Generate HTML combined report
+    await this.generateCombinedHtmlReport(mergedReport, runHtmlReportDir);
 
     console.log(`✅ Merged results: ${passCount} passed, ${failCount} failed`);
     
     return mergedReport;
+  }
+
+  async generateCombinedHtmlReport(mergedReport, runHtmlReportDir) {
+    console.log('🎨 Generating combined HTML report...');
+    
+    // Ensure directories exist
+    await fs.ensureDir(runHtmlReportDir);
+    
+    // Copy BackstopJS report assets from main project
+    const mainHtmlReportDir = path.join(__dirname, 'backstop_data', this.projectId, 'html_report');
+    const assetsDir = path.join(runHtmlReportDir, 'assets');
+    
+    // Copy assets if they exist in main report
+    if (await fs.pathExists(path.join(mainHtmlReportDir, 'assets'))) {
+      await fs.copy(path.join(mainHtmlReportDir, 'assets'), assetsDir);
+    }
+    
+    // Copy BackstopJS core files
+    const coreFiles = ['index_bundle.js', 'index_bundle.js.LICENSE.txt', 'diff.js', 'diverged.js', 'divergedWorker.js'];
+    for (const file of coreFiles) {
+      const srcPath = path.join(mainHtmlReportDir, file);
+      const destPath = path.join(runHtmlReportDir, file);
+      if (await fs.pathExists(srcPath)) {
+        await fs.copy(srcPath, destPath);
+      }
+    }
+    
+    // Copy reference images to run-specific directory
+    const mainReferenceDir = path.join(__dirname, 'backstop_data', this.projectId, 'bitmaps_reference');
+    const runReferenceDir = path.join(runHtmlReportDir, 'bitmaps_reference');
+    
+    if (await fs.pathExists(mainReferenceDir)) {
+      await fs.copy(mainReferenceDir, runReferenceDir);
+      console.log('✅ Copied reference images to run directory');
+    }
+    
+    // Generate proper BackstopJS config.js file
+    const configJsContent = `report(${JSON.stringify(mergedReport, null, 2)});`;
+    await fs.writeFile(path.join(runHtmlReportDir, 'config.js'), configJsContent);
+    
+    // Create index.html that matches BackstopJS format
+    const indexHtmlContent = `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Combined Test Report - ${this.runId}</title>
+    <link rel="icon" type="image/x-icon" href="data:image/x-icon;base64,">
+    <!-- Disable Cache -->
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <style>
+        @font-face {
+            font-family: 'latoregular';
+            src: url('./assets/fonts/lato-regular-webfont.woff2') format('woff2'),
+                url('./assets/fonts/lato-regular-webfont.woff') format('woff');
+            font-weight: 400;
+            font-style: normal;
+        }
+        @font-face {
+            font-family: 'latobold';
+            src: url('./assets/fonts/lato-bold-webfont.woff2') format('woff2'),
+                url('./assets/fonts/lato-bold-webfont.woff') format('woff');
+            font-weight: 700;
+            font-style: normal;
+        }
+        .ReactModal__Body--open {
+            overflow: hidden;
+        }
+        .ReactModal__Body--open .header {
+            display: none;
+        }
+    </style>
+</head>
+<body style="background-color: #E2E7EA">
+    <div id="root"></div>
+    <script>
+        function report (report) { // eslint-disable-line no-unused-vars
+            window.tests = report;
+        }
+    </script>
+    <script type="text/javascript" src="config.js"></script>
+    <script type="text/javascript" src="index_bundle.js"></script>
+</body>
+</html>
+`;
+    
+    await fs.writeFile(path.join(runHtmlReportDir, 'index.html'), indexHtmlContent);
+    
+    console.log('✅ Generated combined HTML report with BackstopJS compatibility');
   }
 
   async cleanup(batchResults) {

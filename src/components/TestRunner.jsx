@@ -89,6 +89,24 @@ function TestRunner({ project, config, scenarios: initialScenarios = [] }) {
     }
   }
 
+  // Open latest combined report
+  const openLatestReport = async () => {
+    try {
+      const response = await axios.get(`${API_BASE}/projects/${project.id}/runs-latest-combined`)
+      if (response.data && response.data.latestRunId) {
+        const reportUrl = `${API_BASE}/projects/${project.id}/runs/${response.data.latestRunId}/report/index.html`
+        window.open(reportUrl, '_blank')
+      } else {
+        // Fallback to regular report if no batch runs exist
+        window.open(`${API_BASE}/projects/${project.id}/report/index.html`, '_blank')
+      }
+    } catch (error) {
+      console.error('Error opening latest report:', error)
+      // Fallback to regular report on error
+      window.open(`${API_BASE}/projects/${project.id}/report/index.html`, '_blank')
+    }
+  }
+
   // Define loadBackstopReport function first
   const loadBackstopReport = React.useCallback(async () => {
     try {
@@ -470,7 +488,7 @@ function TestRunner({ project, config, scenarios: initialScenarios = [] }) {
                     variant="outlined"
                     size="medium"
                     startIcon={<Visibility />}
-                    onClick={() => window.open(`${API_BASE}/projects/${project.id}/report/index.html`, '_blank')}
+                    onClick={openLatestReport}
                     sx={{ borderRadius: '8px', textTransform: 'none', fontWeight: 600, px: 2, py: 1 }}
                   >
                     View Report
