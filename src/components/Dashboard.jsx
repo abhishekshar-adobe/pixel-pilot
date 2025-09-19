@@ -203,6 +203,51 @@ const Dashboard = ({ project, config }) => {
     }
   };
 
+  // Format custom timestamp (YYYYMMDDHHMMSS.) to readable date
+  const formatTimestamp = (timestamp) => {
+    if (!timestamp) return 'N/A';
+    
+    try {
+      // Handle the custom format like "20250919135208."
+      const cleanTimestamp = timestamp.toString().replace('.', '');
+      
+      if (cleanTimestamp.length >= 14) {
+        const year = cleanTimestamp.substring(0, 4);
+        const month = cleanTimestamp.substring(4, 6);
+        const day = cleanTimestamp.substring(6, 8);
+        const hours = cleanTimestamp.substring(8, 10);
+        const minutes = cleanTimestamp.substring(10, 12);
+        const seconds = cleanTimestamp.substring(12, 14);
+        
+        const date = new Date(`${year}-${month}-${day}T${hours}:${minutes}:${seconds}`);
+        
+        if (isNaN(date.getTime())) {
+          return 'Invalid Date';
+        }
+        
+        return date.toLocaleString('en-US', {
+          year: 'numeric',
+          month: 'short',
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit',
+          hour12: true
+        });
+      }
+      
+      // Fallback: try to parse as-is
+      const date = new Date(timestamp);
+      if (isNaN(date.getTime())) {
+        return 'Invalid Date';
+      }
+      return date.toLocaleString();
+    } catch (error) {
+      console.error('Error formatting timestamp:', timestamp, error);
+      return 'Invalid Date';
+    }
+  };
+
   const handleExportReport = async () => {
     try {
       const response = await axios.get(`${API_BASE}/projects/${project.id}/test-results`);
@@ -420,7 +465,7 @@ const Dashboard = ({ project, config }) => {
               </Button>
             </Box>
             <Typography variant="body2" color="textSecondary" gutterBottom>
-              Run ID: {combinedSummary.runId} • {combinedSummary.timestamp ? new Date(combinedSummary.timestamp).toLocaleString() : 'No timestamp'}
+              Run ID: {combinedSummary.runId} • {formatTimestamp(combinedSummary.timestamp)}
             </Typography>
             {/* Combined Report Pie Chart */}
             <Box mb={2}>
@@ -667,7 +712,7 @@ const Dashboard = ({ project, config }) => {
                       </Typography>
                     </TableCell>
                     <TableCell>
-                      {run.meta?.timestamp ? new Date(run.meta.timestamp).toLocaleString() : 'N/A'}
+                      {formatTimestamp(run.meta?.timestamp)}
                     </TableCell>
                     <TableCell>
                       {run.combinedReportInfo?.total || run.batches?.length || 'N/A'}
