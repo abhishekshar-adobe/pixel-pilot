@@ -1025,130 +1025,206 @@ function TestRunner({ project, config, scenarios: initialScenarios = [] }) {
             </ToggleButtonGroup>
           </Box>
 
-          {/* Enhanced Controls Row */}
-          <Box sx={{ mb: 2, display: 'flex', gap: 1.5, alignItems: 'center', flexWrap: 'wrap' }}>
-            {/* Search */}
-            <TextField
-              ref={searchInputRef}
-              size="small"
-              placeholder="Search scenarios or URLs..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              sx={{ 
-                minWidth: '200px',
-                flexGrow: 1,
-                maxWidth: '300px',
-                '& .MuiOutlinedInput-root': { borderRadius: '6px', fontSize: '0.875rem' }
-              }}
-              InputProps={{
-                startAdornment: <Search sx={{ color: 'text.secondary', mr: 1, fontSize: 18 }} />
-              }}
-            />
-
-            {/* Status Filter */}
-            <FormControl size="small" sx={{ minWidth: '120px' }}>
-              <InputLabel>Status</InputLabel>
-              <Select
-                value={statusFilter}
-                label="Status"
-                onChange={(e) => setStatusFilter(e.target.value)}
-                sx={{ borderRadius: '6px', fontSize: '0.875rem' }}
-              >
-                <MenuItem value="all">All Status</MenuItem>
-                <MenuItem value="passed">Passed</MenuItem>
-                <MenuItem value="failed">Failed</MenuItem>
-                <MenuItem value="pending">Pending</MenuItem>
-                <MenuItem value="running">Running</MenuItem>
-              </Select>
-            </FormControl>
-
-            {/* Sort Options */}
-            <FormControl size="small" sx={{ minWidth: '100px' }}>
-              <InputLabel>Sort</InputLabel>
-              <Select
-                value={sortBy}
-                label="Sort"
-                onChange={(e) => handleSortChange(e.target.value)}
-                sx={{ borderRadius: '6px', fontSize: '0.875rem' }}
-              >
-                <MenuItem value="label">Name</MenuItem>
-                <MenuItem value="url">URL</MenuItem>
-                <MenuItem value="status">Status</MenuItem>
-              </Select>
-            </FormControl>
-
-            {/* Sort Order */}
-            <Tooltip title={`Sort ${sortOrder === 'asc' ? 'Ascending' : 'Descending'}`}>
-              <IconButton 
-                size="small" 
-                onClick={() => setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc')}
+          {/* Enhanced Controls - Reorganized Layout */}
+          <Box sx={{ mb: 3 }}>
+            {/* Top Row - Search and Primary Filters */}
+            <Box sx={{ mb: 2.5, display: 'flex', gap: 2.5, alignItems: 'center', flexWrap: 'wrap' }}>
+              {/* Search */}
+              <TextField
+                ref={searchInputRef}
+                size="small"
+                placeholder="Search scenarios or URLs..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
                 sx={{ 
-                  bgcolor: 'background.default',
-                  '&:hover': { bgcolor: 'action.hover' }
+                  minWidth: '280px',
+                  flexGrow: 1,
+                  maxWidth: '450px',
+                  '& .MuiOutlinedInput-root': { 
+                    borderRadius: '10px', 
+                    fontSize: '0.875rem',
+                    '&:hover': {
+                      borderColor: 'primary.main'
+                    }
+                  }
+                }}
+                InputProps={{
+                  startAdornment: <Search sx={{ color: 'text.secondary', mr: 1.5, fontSize: 20 }} />
+                }}
+              />
+
+              {/* Status Filter */}
+              <FormControl size="small" sx={{ minWidth: '140px' }}>
+                <InputLabel sx={{ fontSize: '0.875rem' }}>Status</InputLabel>
+                <Select
+                  value={statusFilter}
+                  label="Status"
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                  sx={{ 
+                    borderRadius: '10px', 
+                    fontSize: '0.875rem',
+                    '&:hover .MuiOutlinedInput-notchedOutline': {
+                      borderColor: 'primary.main'
+                    }
+                  }}
+                >
+                  <MenuItem value="all">All Status</MenuItem>
+                  <MenuItem value="passed">✅ Passed</MenuItem>
+                  <MenuItem value="failed">❌ Failed</MenuItem>
+                  <MenuItem value="pending">⏳ Pending</MenuItem>
+                  <MenuItem value="running">🏃 Running</MenuItem>
+                </Select>
+              </FormControl>
+
+              {/* Show Selected Only Filter */}
+              <Button
+                variant={showSelectedOnly ? 'contained' : 'outlined'}
+                size="small"
+                startIcon={<FilterList sx={{ fontSize: 18 }} />}
+                onClick={() => setShowSelectedOnly(!showSelectedOnly)}
+                sx={{ 
+                  borderRadius: '10px', 
+                  textTransform: 'none', 
+                  fontSize: '0.875rem',
+                  minWidth: '140px',
+                  px: 2.5,
+                  py: 1,
+                  fontWeight: 500,
+                  '&:hover': {
+                    transform: 'translateY(-1px)',
+                    boxShadow: 2
+                  }
                 }}
               >
-                {sortOrder === 'asc' ? '↑' : '↓'}
-              </IconButton>
-            </Tooltip>
-
-            {/* Show Selected Only */}
-            <Button
-              variant={showSelectedOnly ? 'contained' : 'outlined'}
-              size="small"
-              startIcon={<FilterList />}
-              onClick={() => setShowSelectedOnly(!showSelectedOnly)}
-              sx={{ borderRadius: '6px', textTransform: 'none', fontSize: '0.875rem' }}
-            >
-              {showSelectedOnly ? 'Show All' : 'Selected Only'}
-            </Button>
-
-            {/* Page Size Selector */}
-            <FormControl size="small" sx={{ minWidth: '80px' }}>
-              <InputLabel>Show</InputLabel>
-              <Select
-                value={pageSize}
-                label="Show"
-                onChange={handlePageSizeChange}
-                sx={{ borderRadius: '6px', fontSize: '0.875rem' }}
-              >
-                <MenuItem value={25}>25</MenuItem>
-                <MenuItem value={50}>50</MenuItem>
-                <MenuItem value={100}>100</MenuItem>
-                <MenuItem value={250}>250</MenuItem>
-                <MenuItem value={500}>500</MenuItem>
-              </Select>
-            </FormControl>
-          </Box>
-
-          {/* Selection Actions */}
-          <Box sx={{ mb: 2, display: 'flex', gap: 1, alignItems: 'center', flexWrap: 'wrap' }}>
-            <ButtonGroup size="small" sx={{ '& .MuiButton-root': { borderRadius: '6px', textTransform: 'none', fontSize: '0.875rem' } }}>
-              <Button
-                variant="outlined"
-                onClick={selectAllScenarios}
-                disabled={selectedScenarios.length === scenarios.length}
-                startIcon={<CheckCircleRounded fontSize="small" />}
-              >
-                All ({scenarios.length})
+                {showSelectedOnly ? 'Show All' : 'Selected Only'}
               </Button>
-              <Button
-                variant="outlined"
-                onClick={selectAllFiltered}
-                disabled={selectedScenarios.length === filteredAndSortedScenarios.length || filteredAndSortedScenarios.length === 0}
-                startIcon={<FilterList fontSize="small" />}
+            </Box>
+
+            {/* Bottom Row - Sort, Display, and Actions */}
+            <Box sx={{ display: 'flex', gap: 2.5, alignItems: 'center', flexWrap: 'wrap', justifyContent: 'space-between' }}>
+              {/* Left Side - Sort Controls */}
+              <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'center' }}>
+                <FormControl size="small" sx={{ minWidth: '110px' }}>
+                  <InputLabel sx={{ fontSize: '0.875rem' }}>Sort By</InputLabel>
+                  <Select
+                    value={sortBy}
+                    label="Sort By"
+                    onChange={(e) => handleSortChange(e.target.value)}
+                    sx={{ 
+                      borderRadius: '10px', 
+                      fontSize: '0.875rem',
+                      '&:hover .MuiOutlinedInput-notchedOutline': {
+                        borderColor: 'primary.main'
+                      }
+                    }}
+                  >
+                    <MenuItem value="label">📝 Name</MenuItem>
+                    <MenuItem value="url">🔗 URL</MenuItem>
+                    <MenuItem value="status">📊 Status</MenuItem>
+                  </Select>
+                </FormControl>
+
+                <Tooltip title={`Sort ${sortOrder === 'asc' ? 'Ascending' : 'Descending'}`}>
+                  <IconButton 
+                    size="small" 
+                    onClick={() => setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc')}
+                    sx={{ 
+                      bgcolor: 'background.default',
+                      border: '1px solid',
+                      borderColor: 'divider',
+                      borderRadius: '10px',
+                      width: 40,
+                      height: 40,
+                      fontSize: '16px',
+                      fontWeight: 'bold',
+                      '&:hover': { 
+                        bgcolor: 'action.hover',
+                        borderColor: 'primary.main',
+                        transform: 'translateY(-1px)'
+                      }
+                    }}
+                  >
+                    {sortOrder === 'asc' ? '↑' : '↓'}
+                  </IconButton>
+                </Tooltip>
+
+                <FormControl size="small" sx={{ minWidth: '90px' }}>
+                  <InputLabel sx={{ fontSize: '0.875rem' }}>Show</InputLabel>
+                  <Select
+                    value={pageSize}
+                    label="Show"
+                    onChange={handlePageSizeChange}
+                    sx={{ 
+                      borderRadius: '10px', 
+                      fontSize: '0.875rem',
+                      '&:hover .MuiOutlinedInput-notchedOutline': {
+                        borderColor: 'primary.main'
+                      }
+                    }}
+                  >
+                    <MenuItem value={25}>25</MenuItem>
+                    <MenuItem value={50}>50</MenuItem>
+                    <MenuItem value={100}>100</MenuItem>
+                    <MenuItem value={250}>250</MenuItem>
+                    <MenuItem value={500}>500</MenuItem>
+                  </Select>
+                </FormControl>
+              </Box>
+
+              {/* Right Side - Selection Actions */}
+              <ButtonGroup 
+                size="small" 
+                sx={{ 
+                  '& .MuiButton-root': { 
+                    borderRadius: '10px', 
+                    textTransform: 'none', 
+                    fontSize: '0.875rem',
+                    px: 2,
+                    py: 1,
+                    fontWeight: 500,
+                    '&:hover': {
+                      transform: 'translateY(-1px)',
+                      boxShadow: 1
+                    }
+                  },
+                  '& .MuiButtonGroup-grouped:not(:last-of-type)': {
+                    borderTopRightRadius: '10px',
+                    borderBottomRightRadius: '10px',
+                    mr: 1
+                  },
+                  '& .MuiButtonGroup-grouped:not(:first-of-type)': {
+                    borderTopLeftRadius: '10px',
+                    borderBottomLeftRadius: '10px'
+                  }
+                }}
               >
-                Filtered ({filteredAndSortedScenarios.length})
-              </Button>
-              <Button
-                variant="outlined"
-                onClick={unselectAllScenarios}
-                color="secondary"
-                disabled={selectedScenarios.length === 0}
-                startIcon={<Clear fontSize="small" />}
-              >
-                Clear All
-              </Button>
-            </ButtonGroup>
+                <Button
+                  variant="outlined"
+                  onClick={selectAllScenarios}
+                  disabled={selectedScenarios.length === scenarios.length}
+                  startIcon={<CheckCircleRounded fontSize="small" />}
+                >
+                  All ({scenarios.length})
+                </Button>
+                <Button
+                  variant="outlined"
+                  onClick={selectAllFiltered}
+                  disabled={selectedScenarios.length === filteredAndSortedScenarios.length || filteredAndSortedScenarios.length === 0}
+                  startIcon={<FilterList fontSize="small" />}
+                >
+                  Filtered ({filteredAndSortedScenarios.length})
+                </Button>
+                <Button
+                  variant="outlined"
+                  onClick={unselectAllScenarios}
+                  color="secondary"
+                  disabled={selectedScenarios.length === 0}
+                  startIcon={<Clear fontSize="small" />}
+                >
+                  Clear
+                </Button>
+              </ButtonGroup>
+            </Box>
           </Box>
 
           {/* Pagination - Top */}
