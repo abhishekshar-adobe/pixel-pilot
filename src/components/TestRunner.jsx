@@ -269,7 +269,7 @@ function TestRunner({ project, config, scenarios: initialScenarios = [] }) {
     }
   }, [project.id, fetchBatchInfo])
 
-  // Enhanced state for batch processing
+  // Enhanced state for batch processing with timing
   const [batchProgress, setBatchProgress] = useState(null)
   const [sessionId, setSessionId] = useState(null)
   const [estimatedTime, setEstimatedTime] = useState(null)
@@ -277,6 +277,13 @@ function TestRunner({ project, config, scenarios: initialScenarios = [] }) {
   const [currentBatch, setCurrentBatch] = useState(null)
   const [batchInfo, setBatchInfo] = useState(null)
   const [showBatchSelector, setShowBatchSelector] = useState(false)
+  
+  // Additional batch timing and status tracking
+  const [batchStartTime, setBatchStartTime] = useState(null)
+  const [currentBatchStartTime, setCurrentBatchStartTime] = useState(null)
+  const [completedBatches, setCompletedBatches] = useState([])
+  const [batchErrors, setBatchErrors] = useState([])
+  const [totalElapsedTime, setTotalElapsedTime] = useState(0)
 
   // Socket connection with enhanced batch processing support
   useEffect(() => {
@@ -292,28 +299,65 @@ function TestRunner({ project, config, scenarios: initialScenarios = [] }) {
 
     // Enhanced progress tracking for batch processing
     socket.on('test-progress', (data) => {
+      console.log('Socket test-progress data:', data) // Debug logging
+      
       if (data.sessionId && data.sessionId !== sessionId) {
         setSessionId(data.sessionId)
       }
 
       // Handle different types of progress updates
       if (data.status === 'started') {
-        setMessage(`🚀 Starting batch test: ${data.totalCount} scenarios`)
+        console.log('Batch started data:', data) // Debug logging
+        const totalCount = data.totalCount || data.totalScenarios || selectedScenarios.length
+        const batchSize = data.batchSize || data.scenariosPerBatch || 50
+        const maxConcurrent = data.maxConcurrent || data.concurrency || 5
+        
+        setMessage(`🚀 Starting batch test: ${totalCount} scenarios`)
         setBatchProgress({
-          totalBatches: Math.ceil(data.totalCount / data.batchSize),
-          batchSize: data.batchSize,
-          maxConcurrent: data.maxConcurrent,
-          totalCount: data.totalCount
+          totalBatches: Math.ceil(totalCount / batchSize),
+          batchSize: batchSize,
+          maxConcurrent: maxConcurrent,
+          totalCount: totalCount
         })
+        setBatchStartTime(new Date())
+        setCompletedBatches([])
+        setBatchErrors([])
+        setTotalElapsedTime(0)
+        setProcessedCount(0)
+        setCurrentBatch(1)
       } else if (data.status === 'running') {
-        setProcessedCount(data.processedCount || 0)
-        setCurrentBatch(data.batchIndex + 1)
+        console.log('Batch running data:', data) // Debug logging
+        const processedCount = data.processedCount || data.completed || 0
+        const batchIndex = data.batchIndex !== undefined ? data.batchIndex : (data.currentBatch || 1) - 1
+        
+        setProcessedCount(processedCount)
+        setCurrentBatch(batchIndex + 1)
+        
+        // Calculate elapsed time and update ETA
+        if (batchStartTime) {
+          const elapsed = (new Date() - batchStartTime) / 1000
+          setTotalElapsedTime(elapsed)
+          
+          // More accurate ETA calculation
+          if (processedCount > 0 && batchProgress) {
+            const avgTimePerScenario = elapsed / processedCount
+            const remainingCount = batchProgress.totalCount - processedCount
+            const estimatedSeconds = Math.ceil(remainingCount * avgTimePerScenario)
+            
+            setEstimatedTime({
+              seconds: estimatedSeconds,
+              formatted: estimatedSeconds > 60 
+                ? `${Math.floor(estimatedSeconds / 60)}m ${estimatedSeconds % 60}s`
+                : `${estimatedSeconds}s`
+            })
+          }
+        }
         
         if (data.eta) {
           setEstimatedTime(data.eta)
         }
         
-        setMessage(data.message || `Processing batch ${data.batchIndex + 1}...`)
+        setMessage(data.message || `Processing batch ${batchIndex + 1}...`)
         
         // Update individual scenario status
         if (data.currentScenario) {
@@ -323,13 +367,29 @@ function TestRunner({ project, config, scenarios: initialScenarios = [] }) {
               status: 'running',
               mismatchPercentage: data.mismatchPercentage,
               timestamp: data.timestamp,
-              batchIndex: data.batchIndex,
+              batchIndex: batchIndex,
               progress: data.batchProgress
             }
           }))
         }
       } else if (data.status === 'batch-complete') {
-        setMessage(`✅ Batch ${data.batchIndex + 1} completed`)
+        const batchEndTime = new Date()
+        const batchDuration = currentBatchStartTime ? (batchEndTime - currentBatchStartTime) / 1000 : 0
+        
+        setMessage(`✅ Batch ${data.batchIndex + 1} completed in ${batchDuration.toFixed(1)}s`)
+        
+        // Track completed batch
+        setCompletedBatches(prev => [...prev, {
+          batchNumber: data.batchIndex,
+          duration: batchDuration,
+          scenarioCount: data.batchResults?.tests?.length || 0,
+          completedAt: batchEndTime,
+          passedCount: data.batchResults?.tests?.filter(t => t.status === 'pass').length || 0,
+          failedCount: data.batchResults?.tests?.filter(t => t.status === 'fail').length || 0
+        }])
+        
+        // Set current batch start time for next batch
+        setCurrentBatchStartTime(new Date())
         
         // Update all scenarios in the completed batch
         if (data.batchResults && data.batchResults.tests) {
@@ -346,6 +406,13 @@ function TestRunner({ project, config, scenarios: initialScenarios = [] }) {
         }
       } else if (data.status === 'validating') {
         setMessage(data.message || 'Validating URLs...')
+      } else if (data.status === 'error') {
+        setBatchErrors(prev => [...prev, {
+          batchNumber: data.batchIndex || currentBatch - 1,
+          error: data.error || data.message,
+          timestamp: new Date()
+        }])
+        setMessage(`❌ Error in batch ${(data.batchIndex || currentBatch - 1) + 1}: ${data.error || data.message}`)
       } else if (data.scenario) {
         // Individual scenario update (legacy support)
         setLiveScenarioResults(prev => ({
@@ -367,6 +434,13 @@ function TestRunner({ project, config, scenarios: initialScenarios = [] }) {
       setEstimatedTime(null)
       setProcessedCount(0)
       setCurrentBatch(null)
+      
+      // Reset timing states
+      setBatchStartTime(null)
+      setCurrentBatchStartTime(null)
+      setTotalElapsedTime(0)
+      setCompletedBatches([])
+      setBatchErrors([])
       
       if (data.sessionId) {
         setMessage(`✅ Test completed: ${data.totalScenarios} scenarios in ${data.batchCount || 1} batches`)
@@ -392,7 +466,7 @@ function TestRunner({ project, config, scenarios: initialScenarios = [] }) {
     })
 
     return () => socket.disconnect()
-  }, [loadBackstopReport, sessionId])
+  }, [loadBackstopReport, sessionId, batchStartTime, currentBatch, currentBatchStartTime, batchProgress, selectedScenarios.length])
 
   // Load scenarios and test results on mount
   useEffect(() => {
@@ -420,6 +494,13 @@ function TestRunner({ project, config, scenarios: initialScenarios = [] }) {
     setCurrentBatch(null)
     setEstimatedTime(null)
 
+    // Reset timing and tracking states
+    setBatchStartTime(null)
+    setCurrentBatchStartTime(null)
+    setTotalElapsedTime(0)
+    setCompletedBatches([])
+    setBatchErrors([])
+
     try {
       const filter = selectedScenarios.join("|")
       const scenarioCount = selectedScenarios.length
@@ -431,6 +512,16 @@ function TestRunner({ project, config, scenarios: initialScenarios = [] }) {
 
       // Always show batch message, even for small runs
       setMessage(`🚀 Starting batch test: ${scenarioCount} scenarios (${batchConfig.batchSize} per batch, ${batchConfig.maxConcurrent} concurrent)`)
+
+      // Initialize batch progress immediately with known values
+      setBatchProgress({
+        totalBatches: Math.ceil(scenarioCount / batchConfig.batchSize),
+        batchSize: batchConfig.batchSize,
+        maxConcurrent: batchConfig.maxConcurrent,
+        totalCount: scenarioCount
+      })
+      setCurrentBatch(1)
+      setProcessedCount(0)
 
       await axios.post(`${API_BASE}/projects/${project.id}/test`, batchConfig)
       await loadBackstopReport()
@@ -1025,53 +1116,348 @@ function TestRunner({ project, config, scenarios: initialScenarios = [] }) {
         </CardContent>
       </Card>
 
-      {/* Batch Progress Indicator */}
+      {/* Enhanced Batch Progress Indicator */}
       {testRunning && batchProgress && (
         <Card elevation={0} sx={{ mb: 2, borderRadius: '12px', border: '1px solid', borderColor: 'primary.main', bgcolor: 'primary.lighter' }}>
           <CardContent sx={{ p: 2 }}>
+            {/* Header with Batch Status */}
             <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
-              <Typography variant="subtitle1" sx={{ fontWeight: 600, color: 'primary.dark' }}>
-                Batch Processing Progress
-              </Typography>
-              <Chip 
-                size="small" 
-                label={`Batch ${currentBatch || 1}/${batchProgress.totalBatches}`}
-                sx={{ bgcolor: 'primary.main', color: 'white', fontWeight: 500 }}
-              />
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                <CircularProgress 
+                  size={20} 
+                  thickness={4} 
+                  sx={{ color: 'primary.main' }} 
+                />
+                <Typography variant="subtitle1" sx={{ fontWeight: 600, color: 'primary.dark' }}>
+                  Batch Processing in Progress
+                </Typography>
+              </Box>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Chip 
+                  size="small" 
+                  label={`Batch ${currentBatch || 1} of ${batchProgress?.totalBatches || 1}`}
+                  sx={{ bgcolor: 'primary.main', color: 'white', fontWeight: 500 }}
+                />
+                <Chip 
+                  size="small" 
+                  label={`${batchProgress?.totalCount ? Math.round((processedCount / batchProgress.totalCount) * 100) : 0}% Complete`}
+                  sx={{ bgcolor: 'success.main', color: 'white', fontWeight: 500 }}
+                />
+              </Box>
             </Box>
             
-            <Grid container spacing={2} alignItems="center">
-              <Grid item xs={12} md={8}>
-                <Box sx={{ mb: 1 }}>
-                  <Typography variant="body2" sx={{ color: 'primary.dark', mb: 0.5 }}>
-                    Overall Progress: {processedCount}/{batchProgress.totalCount} scenarios
-                  </Typography>
+            {/* Detailed Progress Information */}
+            <Grid container spacing={2}>
+              {/* Overall Progress */}
+              <Grid item xs={12} md={6}>
+                <Box sx={{ mb: 2 }}>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+                    <Typography variant="body2" sx={{ color: 'primary.dark', fontWeight: 600 }}>
+                      Overall Progress
+                    </Typography>
+                    <Typography variant="body2" sx={{ color: 'primary.dark', fontWeight: 500 }}>
+                      {processedCount}/{batchProgress?.totalCount || selectedScenarios.length} scenarios
+                    </Typography>
+                  </Box>
                   <Box sx={{ 
                     width: '100%', 
-                    height: 8, 
+                    height: 10, 
                     bgcolor: 'rgba(255,255,255,0.3)', 
                     borderRadius: 1,
-                    overflow: 'hidden'
+                    overflow: 'hidden',
+                    boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.1)'
                   }}>
                     <Box sx={{ 
-                      width: `${Math.round((processedCount / batchProgress.totalCount) * 100)}%`, 
+                      width: `${batchProgress?.totalCount ? Math.round((processedCount / batchProgress.totalCount) * 100) : 0}%`, 
                       height: '100%', 
                       bgcolor: 'primary.main',
-                      transition: 'width 0.3s ease'
+                      transition: 'width 0.3s ease',
+                      background: 'linear-gradient(90deg, #1976d2 0%, #42a5f5 100%)'
                     }} />
                   </Box>
                 </Box>
               </Grid>
-              <Grid item xs={12} md={4} sx={{ textAlign: { xs: 'left', md: 'right' } }}>
-                <Typography variant="body2" sx={{ color: 'primary.dark' }}>
-                  <strong>Batch Size:</strong> {batchProgress.batchSize} | <strong>Parallel:</strong> {batchProgress.maxConcurrent}
-                </Typography>
-                {estimatedTime && (
-                  <Typography variant="body2" sx={{ color: 'primary.dark' }}>
-                    <strong>ETA:</strong> {estimatedTime.formatted}
-                  </Typography>
-                )}
+
+              {/* Current Batch Progress */}
+              <Grid item xs={12} md={6}>
+                <Box sx={{ mb: 2 }}>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+                    <Typography variant="body2" sx={{ color: 'primary.dark', fontWeight: 600 }}>
+                      Current Batch
+                    </Typography>
+                    <Typography variant="body2" sx={{ color: 'primary.dark', fontWeight: 500 }}>
+                      {(() => {
+                        const batchSize = batchProgress?.batchSize || 50;
+                        const currentBatchProgress = Math.min(processedCount % batchSize || batchSize, batchSize);
+                        return `${currentBatchProgress}/${batchSize} scenarios`;
+                      })()}
+                    </Typography>
+                  </Box>
+                  <Box sx={{ 
+                    width: '100%', 
+                    height: 10, 
+                    bgcolor: 'rgba(255,255,255,0.3)', 
+                    borderRadius: 1,
+                    overflow: 'hidden',
+                    boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.1)'
+                  }}>
+                    <Box sx={{ 
+                      width: `${(() => {
+                        const batchSize = batchProgress?.batchSize || 50;
+                        const currentBatchProgress = Math.min(processedCount % batchSize || batchSize, batchSize);
+                        return Math.round((currentBatchProgress / batchSize) * 100);
+                      })()}%`, 
+                      height: '100%', 
+                      bgcolor: 'warning.main',
+                      transition: 'width 0.3s ease',
+                      background: 'linear-gradient(90deg, #ff9800 0%, #ffb74d 100%)'
+                    }} />
+                  </Box>
+                </Box>
               </Grid>
+
+              {/* Batch Configuration Details */}
+              <Grid item xs={12} md={6}>
+                <Box sx={{ p: 1.5, bgcolor: 'rgba(255,255,255,0.1)', borderRadius: '8px' }}>
+                  <Typography variant="caption" sx={{ color: 'primary.dark', fontWeight: 600, display: 'block', mb: 0.5 }}>
+                    Batch Configuration
+                  </Typography>
+                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                    <Chip
+                      size="small"
+                      label={`Size: ${batchProgress?.batchSize || 50}`}
+                      sx={{ fontSize: '0.7rem', height: '20px', bgcolor: 'rgba(255,255,255,0.2)', color: 'primary.dark' }}
+                    />
+                    <Chip
+                      size="small"
+                      label={`Parallel: ${batchProgress?.maxConcurrent || 5}`}
+                      sx={{ fontSize: '0.7rem', height: '20px', bgcolor: 'rgba(255,255,255,0.2)', color: 'primary.dark' }}
+                    />
+                    <Chip
+                      size="small"
+                      label={`Total Batches: ${batchProgress?.totalBatches || 1}`}
+                      sx={{ fontSize: '0.7rem', height: '20px', bgcolor: 'rgba(255,255,255,0.2)', color: 'primary.dark' }}
+                    />
+                  </Box>
+                </Box>
+              </Grid>
+
+              {/* Timing Information */}
+              <Grid item xs={12} md={6}>
+                <Box sx={{ p: 1.5, bgcolor: 'rgba(255,255,255,0.1)', borderRadius: '8px' }}>
+                  <Typography variant="caption" sx={{ color: 'primary.dark', fontWeight: 600, display: 'block', mb: 0.5 }}>
+                    Timing Information
+                  </Typography>
+                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                    {estimatedTime && (
+                      <Chip
+                        size="small"
+                        label={`ETA: ${estimatedTime.formatted || estimatedTime}`}
+                        sx={{ fontSize: '0.7rem', height: '20px', bgcolor: 'rgba(255,255,255,0.2)', color: 'primary.dark' }}
+                      />
+                    )}
+                    <Chip
+                      size="small"
+                      label={`Running: ${(() => {
+                        const runningCount = Object.values(liveScenarioResults).filter(r => r.status === 'running').length;
+                        return runningCount || 0;
+                      })()} scenarios`}
+                      sx={{ fontSize: '0.7rem', height: '20px', bgcolor: 'rgba(255,152,0,0.2)', color: 'warning.dark' }}
+                    />
+                    <Chip
+                      size="small"
+                      label={`Completed: ${Object.values(liveScenarioResults).filter(r => r.status === 'passed' || r.status === 'failed').length || 0}`}
+                      sx={{ fontSize: '0.7rem', height: '20px', bgcolor: 'rgba(76,175,80,0.2)', color: 'success.dark' }}
+                    />
+                    {totalElapsedTime > 0 && (
+                      <Chip
+                        size="small"
+                        label={`Elapsed: ${Math.floor(totalElapsedTime / 60)}m ${Math.floor(totalElapsedTime % 60)}s`}
+                        sx={{ fontSize: '0.7rem', height: '20px', bgcolor: 'rgba(255,255,255,0.2)', color: 'primary.dark' }}
+                      />
+                    )}
+                  </Box>
+                </Box>
+              </Grid>
+
+              {/* Current Batch Scenarios Preview */}
+              {Object.keys(liveScenarioResults).length > 0 && (
+                <Grid item xs={12}>
+                  <Box sx={{ mt: 1 }}>
+                    <Typography variant="caption" sx={{ color: 'primary.dark', fontWeight: 600, display: 'block', mb: 1 }}>
+                      Current Batch Activity ({Object.keys(liveScenarioResults).length} scenarios)
+                    </Typography>
+                    <Box sx={{ 
+                      maxHeight: '120px', 
+                      overflowY: 'auto', 
+                      bgcolor: 'rgba(255,255,255,0.05)', 
+                      borderRadius: '6px', 
+                      p: 1,
+                      border: '1px solid rgba(255,255,255,0.1)'
+                    }}>
+                      {Object.entries(liveScenarioResults).slice(0, 8).map(([scenarioLabel, result]) => (
+                        <Box 
+                          key={scenarioLabel} 
+                          sx={{ 
+                            display: 'flex', 
+                            alignItems: 'center', 
+                            gap: 1, 
+                            mb: 0.5,
+                            p: 0.5,
+                            bgcolor: result.status === 'running' ? 'rgba(255,152,0,0.1)' : 
+                                     result.status === 'passed' ? 'rgba(76,175,80,0.1)' : 
+                                     result.status === 'failed' ? 'rgba(244,67,54,0.1)' : 'transparent',
+                            borderRadius: '4px',
+                            fontSize: '0.75rem'
+                          }}
+                        >
+                          {getStatusIcon(result.status)}
+                          <Typography 
+                            variant="caption" 
+                            sx={{ 
+                              color: 'primary.dark', 
+                              flex: 1, 
+                              overflow: 'hidden', 
+                              textOverflow: 'ellipsis', 
+                              whiteSpace: 'nowrap',
+                              fontSize: '0.7rem'
+                            }}
+                          >
+                            {scenarioLabel}
+                          </Typography>
+                          {result.status === 'running' && (
+                            <CircularProgress 
+                              size={12} 
+                              thickness={4} 
+                              sx={{ color: 'warning.main' }} 
+                            />
+                          )}
+                          {result.mismatchPercentage > 0 && (
+                            <Typography variant="caption" sx={{ color: 'primary.dark', fontSize: '0.6rem' }}>
+                              {result.mismatchPercentage}%
+                            </Typography>
+                          )}
+                        </Box>
+                      ))}
+                      {Object.keys(liveScenarioResults).length > 8 && (
+                        <Typography variant="caption" sx={{ color: 'primary.dark', fontStyle: 'italic', fontSize: '0.7rem' }}>
+                          ... and {Object.keys(liveScenarioResults).length - 8} more scenarios
+                        </Typography>
+                      )}
+                    </Box>
+                  </Box>
+                </Grid>
+              )}
+
+              {/* Completed Batches Summary */}
+              {completedBatches.length > 0 && (
+                <Grid item xs={12}>
+                  <Box sx={{ mt: 1 }}>
+                    <Typography variant="caption" sx={{ color: 'primary.dark', fontWeight: 600, display: 'block', mb: 1 }}>
+                      Completed Batches ({completedBatches.length})
+                    </Typography>
+                    <Box sx={{ 
+                      maxHeight: '100px', 
+                      overflowY: 'auto', 
+                      bgcolor: 'rgba(255,255,255,0.05)', 
+                      borderRadius: '6px', 
+                      p: 1,
+                      border: '1px solid rgba(255,255,255,0.1)'
+                    }}>
+                      {completedBatches.map((batch, index) => (
+                        <Box 
+                          key={index}
+                          sx={{ 
+                            display: 'flex', 
+                            alignItems: 'center', 
+                            justifyContent: 'space-between',
+                            mb: 0.5,
+                            p: 0.5,
+                            bgcolor: 'rgba(76,175,80,0.1)',
+                            borderRadius: '4px',
+                            fontSize: '0.75rem'
+                          }}
+                        >
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                            <CheckCircle sx={{ color: 'success.main', fontSize: 14 }} />
+                            <Typography variant="caption" sx={{ color: 'primary.dark', fontSize: '0.7rem', fontWeight: 500 }}>
+                              Batch {batch.batchNumber + 1}
+                            </Typography>
+                          </Box>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                            <Typography variant="caption" sx={{ color: 'primary.dark', fontSize: '0.6rem' }}>
+                              {batch.scenarioCount} scenarios
+                            </Typography>
+                            <Typography variant="caption" sx={{ color: 'success.dark', fontSize: '0.6rem', fontWeight: 500 }}>
+                              {batch.duration.toFixed(1)}s
+                            </Typography>
+                            {batch.passedCount !== undefined && (
+                              <Typography variant="caption" sx={{ color: 'primary.dark', fontSize: '0.6rem' }}>
+                                {batch.passedCount}✅ {batch.failedCount}❌
+                              </Typography>
+                            )}
+                          </Box>
+                        </Box>
+                      ))}
+                    </Box>
+                  </Box>
+                </Grid>
+              )}
+
+              {/* Batch Errors */}
+              {batchErrors.length > 0 && (
+                <Grid item xs={12}>
+                  <Box sx={{ mt: 1 }}>
+                    <Typography variant="caption" sx={{ color: 'error.dark', fontWeight: 600, display: 'block', mb: 1 }}>
+                      Batch Errors ({batchErrors.length})
+                    </Typography>
+                    <Box sx={{ 
+                      maxHeight: '80px', 
+                      overflowY: 'auto', 
+                      bgcolor: 'rgba(244,67,54,0.05)', 
+                      borderRadius: '6px', 
+                      p: 1,
+                      border: '1px solid rgba(244,67,54,0.2)'
+                    }}>
+                      {batchErrors.map((error, index) => (
+                        <Box 
+                          key={index}
+                          sx={{ 
+                            display: 'flex', 
+                            alignItems: 'flex-start', 
+                            gap: 1,
+                            mb: 0.5,
+                            p: 0.5,
+                            bgcolor: 'rgba(244,67,54,0.1)',
+                            borderRadius: '4px',
+                            fontSize: '0.75rem'
+                          }}
+                        >
+                          <Error sx={{ color: 'error.main', fontSize: 14, mt: 0.25 }} />
+                          <Box sx={{ flex: 1 }}>
+                            <Typography variant="caption" sx={{ color: 'error.dark', fontSize: '0.7rem', fontWeight: 500 }}>
+                              Batch {error.batchNumber + 1}
+                            </Typography>
+                            <Typography 
+                              variant="caption" 
+                              sx={{ 
+                                color: 'error.dark', 
+                                fontSize: '0.6rem', 
+                                display: 'block',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                whiteSpace: 'nowrap'
+                              }}
+                            >
+                              {error.error}
+                            </Typography>
+                          </Box>
+                        </Box>
+                      ))}
+                    </Box>
+                  </Box>
+                </Grid>
+              )}
             </Grid>
           </CardContent>
         </Card>
