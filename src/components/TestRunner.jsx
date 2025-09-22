@@ -138,13 +138,16 @@ function TestRunner({ project, config, scenarios: initialScenarios = [] }) {
   // Define loadBackstopReport function first
   const loadBackstopReport = React.useCallback(async () => {
     try {
+      console.log('Loading test results for project:', project.id)
       const response = await axios.get(`${API_BASE}/projects/${project.id}/test-results`)
+      console.log('API Response:', response.data)
       if (response.data && !response.data.error) {
         setBackstopReport(response.data)
         // Also fetch batch info when loading report
         fetchBatchInfo()
         if (response.data?.tests) {
           const results = {}
+          console.log('Loading test results:', response.data.tests.length, 'tests found')
           response.data.tests.forEach(test => {
             // Handle different test statuses, but distinguish network errors
             let status = 'pending'
@@ -159,23 +162,34 @@ function TestRunner({ project, config, scenarios: initialScenarios = [] }) {
               }
             }
             
-            results[test.pair.label] = {
-              status,
-              misMatchPercentage: test.misMatchPercentage || (test.pair?.diff?.misMatchPercentage || 0),
-              isSameDimensions: test.isSameDimensions,
-              networkError: test.pair?.networkError || test.pair?.cliError || null,
-              errorMessage: test.error || null
+            const testLabel = test.pair?.label || test.label
+            if (testLabel) {
+              results[testLabel] = {
+                status,
+                misMatchPercentage: test.misMatchPercentage || (test.pair?.diff?.misMatchPercentage || 0),
+                isSameDimensions: test.isSameDimensions,
+                networkError: test.pair?.networkError || test.pair?.cliError || null,
+                errorMessage: test.error || null
+              }
+              console.log('Added result for scenario:', testLabel, 'status:', status)
+            } else {
+              console.warn('Test without label found:', test)
             }
           })
+          console.log('Final scenario results:', results)
           setScenarioResults(results)
+        } else {
+          console.log('No tests found in response data')
         }
       } else {
         setBackstopReport(null)
         setMessage('No test results found. Click "Run Visual Test" to generate your first results.')
+        console.log('No test results found or error in response:', response.data)
       }
-    } catch {
+    } catch (error) {
       setBackstopReport(null)
       setMessage('No test results found. Click "Run Visual Test" to generate your first results.')
+      console.error('Error loading backstop report:', error)
     }
   }, [project.id, fetchBatchInfo])
 
@@ -304,17 +318,19 @@ function TestRunner({ project, config, scenarios: initialScenarios = [] }) {
     return () => socket.disconnect()
   }, [loadBackstopReport, sessionId])
 
-  // Load scenarios on mount
+  // Load scenarios and test results on mount
   useEffect(() => {
     if (initialScenarios.length > 0) {
       setSelectedScenarios(initialScenarios.map(s => s.label))
-      loadBackstopReport()
     }
+    // Always load backstop report to show previous test results
+    loadBackstopReport()
   }, [initialScenarios, loadBackstopReport])
 
   // Update scenarios when initialScenarios changes
   useEffect(() => {
     setScenarios(initialScenarios)
+    console.log('Scenarios updated:', initialScenarios.map(s => ({ label: s.label, url: s.url })))
   }, [initialScenarios])
 
   const runTest = async () => {
@@ -762,49 +778,161 @@ function TestRunner({ project, config, scenarios: initialScenarios = [] }) {
         </CardContent>
       </Card>
 
-      {/* Enhanced Stats Dashboard with Real-time Progress */}
-      <Grid container spacing={2} sx={{ mb: 2 }}>
-        <Grid item xs={6} sm={3}>
-          <Card elevation={0} sx={{ textAlign: 'center', p: 1.5, borderRadius: '8px', bgcolor: 'primary.lighter' }}>
-            <Typography variant="h5" sx={{ fontWeight: 700, color: 'primary.main' }}>
-              {testRunning ? processedCount : selectedScenarios.length}
-            </Typography>
-            <Typography variant="caption" sx={{ color: 'primary.dark', fontWeight: 500 }}>
-              {testRunning ? 'Processed' : 'Selected'}
-            </Typography>
-          </Card>
-        </Grid>
-        <Grid item xs={6} sm={3}>
-          <Card elevation={0} sx={{ textAlign: 'center', p: 1.5, borderRadius: '8px', bgcolor: 'success.lighter' }}>
-            <Typography variant="h5" sx={{ fontWeight: 700, color: 'success.main' }}>
-              {Object.values(scenarioResults).filter(r => r.status === 'passed').length}
-            </Typography>
-            <Typography variant="caption" sx={{ color: 'success.dark', fontWeight: 500 }}>
-              Passed
-            </Typography>
-          </Card>
-        </Grid>
-        <Grid item xs={6} sm={3}>
-          <Card elevation={0} sx={{ textAlign: 'center', p: 1.5, borderRadius: '8px', bgcolor: 'error.lighter' }}>
-            <Typography variant="h5" sx={{ fontWeight: 700, color: 'error.main' }}>
-              {Object.values(scenarioResults).filter(r => r.status === 'failed' || r.status === 'network_error').length}
-            </Typography>
-            <Typography variant="caption" sx={{ color: 'error.dark', fontWeight: 500 }}>
-              Failed
-            </Typography>
-          </Card>
-        </Grid>
-        <Grid item xs={6} sm={3}>
-          <Card elevation={0} sx={{ textAlign: 'center', p: 1.5, borderRadius: '8px', bgcolor: 'warning.lighter' }}>
-            <Typography variant="h5" sx={{ fontWeight: 700, color: 'warning.main' }}>
-              {testRunning && estimatedTime ? estimatedTime.formatted : Object.values(liveScenarioResults).filter(r => r.status === 'running').length}
-            </Typography>
-            <Typography variant="caption" sx={{ color: 'warning.dark', fontWeight: 500 }}>
-              {testRunning && estimatedTime ? 'ETA' : 'Running'}
-            </Typography>
-          </Card>
-        </Grid>
-      </Grid>
+      {/* Consolidated Stats Dashboard */}
+      <Card elevation={0} sx={{ mb: 2, borderRadius: '12px', border: '1px solid', borderColor: 'divider' }}>
+        <CardContent sx={{ p: 2 }}>
+          <Typography variant="subtitle1" sx={{ mb: 2, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Assessment sx={{ color: 'primary.main', fontSize: 20 }} />
+            Test Overview
+          </Typography>
+          
+          <Grid container spacing={2}>
+            {/* Selected/Processing Count */}
+            <Grid item xs={6} sm={4} md={2}>
+              <Box sx={{ textAlign: 'center', p: 1.5, bgcolor: 'primary.lighter', borderRadius: '8px' }}>
+                <Typography variant="h5" sx={{ fontWeight: 700, color: 'primary.main' }}>
+                  {testRunning ? processedCount : selectedScenarios.length}
+                </Typography>
+                <Typography variant="caption" sx={{ color: 'primary.dark', fontWeight: 500 }}>
+                  {testRunning ? 'Processed' : 'Selected'}
+                </Typography>
+              </Box>
+            </Grid>
+
+            {/* Passed Count */}
+            <Grid item xs={6} sm={4} md={2}>
+              <Box sx={{ textAlign: 'center', p: 1.5, bgcolor: 'success.lighter', borderRadius: '8px' }}>
+                <Typography variant="h5" sx={{ fontWeight: 700, color: 'success.main' }}>
+                  {Object.values(scenarioResults).filter(r => r.status === 'passed').length}
+                </Typography>
+                <Typography variant="caption" sx={{ color: 'success.dark', fontWeight: 500 }}>
+                  Passed
+                </Typography>
+              </Box>
+            </Grid>
+
+            {/* Failed Count */}
+            <Grid item xs={6} sm={4} md={2}>
+              <Box sx={{ textAlign: 'center', p: 1.5, bgcolor: 'error.lighter', borderRadius: '8px' }}>
+                <Typography variant="h5" sx={{ fontWeight: 700, color: 'error.main' }}>
+                  {Object.values(scenarioResults).filter(r => r.status === 'failed' || r.status === 'network_error').length}
+                </Typography>
+                <Typography variant="caption" sx={{ color: 'error.dark', fontWeight: 500 }}>
+                  Failed
+                </Typography>
+              </Box>
+            </Grid>
+
+            {/* Running/ETA */}
+            <Grid item xs={6} sm={4} md={2}>
+              <Box sx={{ textAlign: 'center', p: 1.5, bgcolor: 'warning.lighter', borderRadius: '8px' }}>
+                <Typography variant="h5" sx={{ fontWeight: 700, color: 'warning.main' }}>
+                  {testRunning && estimatedTime ? estimatedTime.formatted : Object.values(liveScenarioResults).filter(r => r.status === 'running').length}
+                </Typography>
+                <Typography variant="caption" sx={{ color: 'warning.dark', fontWeight: 500 }}>
+                  {testRunning && estimatedTime ? 'ETA' : 'Running'}
+                </Typography>
+              </Box>
+            </Grid>
+
+            {/* Success Rate */}
+            <Grid item xs={6} sm={4} md={2}>
+              <Box sx={{ textAlign: 'center', p: 1.5, bgcolor: 'info.lighter', borderRadius: '8px' }}>
+                <Typography variant="h5" sx={{ fontWeight: 700, color: 'info.main' }}>
+                  {(() => {
+                    const totalResults = Object.values(scenarioResults)
+                    const passedResults = totalResults.filter(r => r.status === 'passed')
+                    if (totalResults.length === 0) return '0'
+                    return Math.round((passedResults.length / totalResults.length) * 100)
+                  })()}%
+                </Typography>
+                <Typography variant="caption" sx={{ color: 'info.dark', fontWeight: 500 }}>
+                  Success Rate
+                </Typography>
+              </Box>
+            </Grid>
+
+            {/* Last Run Date */}
+            <Grid item xs={6} sm={4} md={2}>
+              <Box sx={{ textAlign: 'center', p: 1.5, bgcolor: 'grey.100', borderRadius: '8px' }}>
+                <Typography variant="h6" sx={{ fontWeight: 700, color: 'grey.700' }}>
+                  {(() => {
+                    if (backstopReport?.testSuite?.date) {
+                      const date = new Date(backstopReport.testSuite.date)
+                      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+                    } else if (backstopReport?.testSuite && typeof backstopReport.testSuite === 'string') {
+                      return 'Recent'
+                    }
+                    return 'Never'
+                  })()}
+                </Typography>
+                <Typography variant="caption" sx={{ color: 'grey.600', fontWeight: 500, display: 'block' }}>
+                  {(() => {
+                    if (backstopReport?.testSuite?.date) {
+                      const date = new Date(backstopReport.testSuite.date)
+                      return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+                    }
+                    return 'Last Run'
+                  })()}
+                </Typography>
+              </Box>
+            </Grid>
+          </Grid>
+
+          {/* Compact Configuration Info */}
+          {config && (
+            <Box sx={{ mt: 2, pt: 2, borderTop: '1px solid', borderColor: 'divider', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
+                <Typography variant="body2" sx={{ color: 'text.secondary', display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                  <Settings sx={{ fontSize: 16 }} />
+                  <strong>Viewports:</strong> {config?.viewports?.length || 0}
+                </Typography>
+                <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                  <strong>Scenarios:</strong> {scenarios?.length || 0}
+                </Typography>
+                <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                  <strong>Engine:</strong> BackstopJS
+                </Typography>
+                <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                  <strong>Threshold:</strong> {config?.misMatchThreshold || 0.1}%
+                </Typography>
+              </Box>
+              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                {config?.viewports?.slice(0, 3).map((viewport, index) => (
+                  <Chip
+                    key={index}
+                    size="small"
+                    icon={getViewportIcon(viewport)}
+                    label={`${viewport.width}×${viewport.height}`}
+                    sx={{
+                      bgcolor: 'primary.lighter',
+                      color: 'primary.dark',
+                      fontWeight: 500,
+                      borderRadius: '4px',
+                      fontSize: '0.7rem',
+                      height: '24px'
+                    }}
+                  />
+                ))}
+                {config?.viewports?.length > 3 && (
+                  <Chip
+                    size="small"
+                    label={`+${config.viewports.length - 3} more`}
+                    sx={{
+                      bgcolor: 'grey.200',
+                      color: 'text.secondary',
+                      fontWeight: 500,
+                      borderRadius: '4px',
+                      fontSize: '0.7rem',
+                      height: '24px'
+                    }}
+                  />
+                )}
+              </Box>
+            </Box>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Batch Progress Indicator */}
       {testRunning && batchProgress && (
@@ -858,127 +986,6 @@ function TestRunner({ project, config, scenarios: initialScenarios = [] }) {
         </Card>
       )}
 
-      {/* Test Results Summary - Compact */}
-      {Object.keys(scenarioResults).length > 0 && (
-        <Card elevation={0} sx={{ mb: 2, borderRadius: '12px', border: '1px solid', borderColor: 'divider' }}>
-          <CardContent sx={{ p: 2 }}>
-            <Typography variant="subtitle1" sx={{ mb: 2, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 1 }}>
-              <Assessment sx={{ color: 'primary.main', fontSize: 20 }} />
-              Performance Overview
-            </Typography>
-            
-            <Grid container spacing={2}>
-              <Grid item xs={6} sm={4} md={2}>
-                <Box sx={{ textAlign: 'center', p: 1.5, bgcolor: 'success.lighter', borderRadius: '8px' }}>
-                  <Typography variant="h5" sx={{ fontWeight: 700, color: 'success.main' }}>
-                    {(() => {
-                      const totalResults = Object.values(scenarioResults)
-                      const passedResults = totalResults.filter(r => r.status === 'passed')
-                      if (totalResults.length === 0) return '0'
-                      return Math.round((passedResults.length / totalResults.length) * 100)
-                    })()}%
-                  </Typography>
-                  <Typography variant="caption" sx={{ color: 'success.dark', fontWeight: 500 }}>
-                    Success
-                  </Typography>
-                </Box>
-              </Grid>
-              <Grid item xs={6} sm={4} md={2}>
-                <Box sx={{ textAlign: 'center', p: 1.5, bgcolor: 'warning.lighter', borderRadius: '8px' }}>
-                  <Typography variant="h6" sx={{ fontWeight: 700, color: 'warning.main' }}>
-                    {(() => {
-                      const mismatchResults = Object.values(scenarioResults)
-                        .filter(r => r.status === 'failed' && typeof r.misMatchPercentage !== 'undefined' && r.misMatchPercentage > 0)
-                      if (mismatchResults.length === 0) return '0.0'
-                      const avgMismatch = mismatchResults.reduce((acc, r) => acc + r.misMatchPercentage, 0) / mismatchResults.length
-                      return avgMismatch.toFixed(1)
-                    })()}%
-                  </Typography>
-                  <Typography variant="caption" sx={{ color: 'warning.dark', fontWeight: 500 }}>
-                    Avg Diff
-                  </Typography>
-                </Box>
-              </Grid>
-              <Grid item xs={6} sm={4} md={2}>
-                <Box sx={{ textAlign: 'center', p: 1.5, bgcolor: 'error.lighter', borderRadius: '8px' }}>
-                  <Typography variant="h6" sx={{ fontWeight: 700, color: 'error.main' }}>
-                    {Object.values(scenarioResults).filter(r => r.status === 'network_error').length}
-                  </Typography>
-                  <Typography variant="caption" sx={{ color: 'error.dark', fontWeight: 500 }}>
-                    Network
-                  </Typography>
-                </Box>
-              </Grid>
-              <Grid item xs={6} sm={4} md={2}>
-                <Box sx={{ textAlign: 'center', p: 1.5, bgcolor: 'warning.lighter', borderRadius: '8px' }}>
-                  <Typography variant="h6" sx={{ fontWeight: 700, color: 'warning.main' }}>
-                    {Object.values(scenarioResults).filter(r => r.isSameDimensions === false).length}
-                  </Typography>
-                  <Typography variant="caption" sx={{ color: 'warning.dark', fontWeight: 500 }}>
-                    Size Issues
-                  </Typography>
-                </Box>
-              </Grid>
-              <Grid item xs={6} sm={4} md={2}>
-                <Box sx={{ textAlign: 'center', p: 1.5, bgcolor: 'info.lighter', borderRadius: '8px' }}>
-                  <Typography variant="h6" sx={{ fontWeight: 700, color: 'info.main' }}>
-                    {(() => {
-                      if (backstopReport?.testSuite?.date) {
-                        return new Date(backstopReport.testSuite.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-                      } else if (backstopReport?.testSuite && typeof backstopReport.testSuite === 'string') {
-                        return 'Recent'
-                      }
-                      return 'Never'
-                    })()}
-                  </Typography>
-                  <Typography variant="caption" sx={{ color: 'info.dark', fontWeight: 500 }}>
-                    Last Run
-                  </Typography>
-                </Box>
-              </Grid>
-            </Grid>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Compact Configuration - Only show when config is available */}
-      {config && (
-        <Card elevation={0} sx={{ mb: 2, borderRadius: '12px', border: '1px solid', borderColor: 'divider' }}>
-          <CardContent sx={{ p: 2 }}>
-            <Grid container spacing={2} alignItems="center">
-              <Grid item xs={12} md={8}>
-                <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <Settings sx={{ fontSize: 16, color: 'primary.main' }} />
-                  Viewports ({config?.viewports?.length || 0})
-                </Typography>
-                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-                  {config?.viewports?.map((viewport, index) => (
-                    <Chip
-                      key={index}
-                      size="small"
-                      icon={getViewportIcon(viewport)}
-                      label={`${viewport.width}×${viewport.height}`}
-                      sx={{
-                        bgcolor: 'primary.lighter',
-                        color: 'primary.dark',
-                        fontWeight: 500,
-                        borderRadius: '6px',
-                        fontSize: '0.75rem'
-                      }}
-                    />
-                  ))}
-                </Box>
-              </Grid>
-              <Grid item xs={12} md={4}>
-                <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block', mb: 0.5 }}>
-                  <strong>Scenarios:</strong> {scenarios?.length || 0} | <strong>Engine:</strong> BackstopJS | <strong>Threshold:</strong> {config?.misMatchThreshold || 0.1}%
-                </Typography>
-              </Grid>
-            </Grid>
-          </CardContent>
-        </Card>
-      )}
-
       {/* Enhanced Scenario Management */}
       <Card elevation={0} sx={{ borderRadius: '12px', border: '1px solid', borderColor: 'divider' }}>
         <CardContent sx={{ p: 2 }}>
@@ -989,31 +996,6 @@ function TestRunner({ project, config, scenarios: initialScenarios = [] }) {
                 <List sx={{ color: 'primary.main', fontSize: 20 }} />
                 Scenarios
               </Typography>
-              <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
-                <Chip 
-                  size="small" 
-                  label={`Total: ${scenarios.length}`}
-                  sx={{ bgcolor: 'background.default', fontWeight: 500 }}
-                />
-                <Chip 
-                  size="small" 
-                  label={`Filtered: ${filteredAndSortedScenarios.length}`}
-                  color="primary"
-                  variant="outlined"
-                  sx={{ fontWeight: 500 }}
-                />
-                <Chip 
-                  size="small" 
-                  label={`Selected: ${selectedScenarios.length}`}
-                  color={selectedScenarios.length > 0 ? 'success' : 'default'}
-                  sx={{ fontWeight: 500 }}
-                />
-                <Chip 
-                  size="small" 
-                  label={`Page: ${currentPage}/${totalPages}`}
-                  sx={{ bgcolor: 'background.default', fontWeight: 500 }}
-                />
-              </Box>
             </Box>
             
             {/* View Mode Toggle */}
