@@ -794,7 +794,14 @@ app.get('/api/projects/:projectId/test-results', async (req, res) => {
     
     await validateProject(projectId);
     
-    // First, try to get enhanced results from config.js (includes invalid scenarios)
+    // First priority: Try to get latest batch/combined results
+    const batchResults = await getLatestBatchResults(projectId);
+    if (batchResults) {
+      console.log(`📊 Returning batch test results: ${batchResults.tests?.length || 0} total tests`);
+      return res.json(batchResults);
+    }
+    
+    // Second priority: Try to get enhanced results from config.js (includes invalid scenarios)
     const enhancedResults = await getEnhancedTestResults(projectId);
     if (enhancedResults) {
       console.log(`📊 Returning enhanced test results: ${enhancedResults.tests?.length || 0} total tests`);
@@ -864,6 +871,61 @@ async function getEnhancedTestResults(projectId) {
     
   } catch (error) {
     console.error('❌ Error reading enhanced test results:', error);
+    return null;
+  }
+}
+
+// Helper function to get latest batch/combined test results
+async function getLatestBatchResults(projectId) {
+  try {
+    const htmlReportPath = path.join(__dirname, 'backstop_data', projectId, 'html_report');
+    
+    if (!await fs.pathExists(htmlReportPath)) {
+      console.log('📄 No html_report directory found');
+      return null;
+    }
+    
+    // Look for the latest batch run directory (run_timestamp_id format)
+    const items = await fs.readdir(htmlReportPath);
+    const runDirs = items.filter(item => item.startsWith('run_'));
+    
+    if (runDirs.length === 0) {
+      console.log('📄 No batch run directories found');
+      return null;
+    }
+    
+    // Sort by timestamp to get the latest
+    const latestRunDir = runDirs.sort().pop();
+    const combinedReportPath = path.join(htmlReportPath, latestRunDir, 'combined_report.json');
+    
+    if (!await fs.pathExists(combinedReportPath)) {
+      console.log('📄 No combined_report.json found in latest batch run');
+      return null;
+    }
+    
+    // Read the combined report
+    const combinedReport = await fs.readJson(combinedReportPath);
+    
+    // Add metadata about the batch results
+    const batchResults = {
+      ...combinedReport,
+      isBatchResults: true,
+      batchRunId: latestRunDir,
+      totalTests: combinedReport.tests?.length || 0,
+      testSuite: {
+        name: combinedReport.testSuite || `batch_${projectId}`,
+        date: new Date().toISOString(), // Use current date for batch reports
+        enhanced: true,
+        batch: true
+      }
+    };
+    
+    console.log(`📊 Batch results summary: ${batchResults.totalTests} total tests from run ${latestRunDir}`);
+    
+    return batchResults;
+    
+  } catch (error) {
+    console.error('❌ Error reading batch test results:', error);
     return null;
   }
 }

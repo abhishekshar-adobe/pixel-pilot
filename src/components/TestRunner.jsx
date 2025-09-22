@@ -82,6 +82,42 @@ const getStatusIcon = (status) => {
   }
 }
 
+const getStatusBorderColor = (status, isSelected = false) => {
+  // Prioritize status color over selection - status is more important for visual feedback
+  switch (status) {
+    case 'passed':
+      return '#4caf50' // Green for passed tests
+    case 'failed':
+      return '#f44336' // Red for failed tests
+    case 'network_error':
+      return '#d32f2f' // Dark red for network errors
+    case 'running':
+      return '#ff9800' // Orange for running tests
+    case 'pending':
+    default:
+      // Only use blue for pending/default items when they're selected
+      return isSelected ? '#1976d2' : '#e0e0e0' // Blue if selected, grey if not
+  }
+}
+
+const getStatusBackgroundColor = (status, isSelected = false) => {
+  // Prioritize status color over selection
+  switch (status) {
+    case 'passed':
+      return '#f1f8e9' // Very light green
+    case 'failed':
+      return '#ffebee' // Very light red
+    case 'network_error':
+      return '#ffebee' // Very light red
+    case 'running':
+      return '#fff3e0' // Very light orange
+    case 'pending':
+    default:
+      // Only use blue background for pending items when selected
+      return isSelected ? '#e3f2fd' : 'background.paper' // Light blue if selected, white if not
+  }
+}
+
 function TestRunner({ project, config, scenarios: initialScenarios = [] }) {
   const [scenarios, setScenarios] = useState(initialScenarios)
   const [selectedScenarios, setSelectedScenarios] = useState([])
@@ -97,7 +133,7 @@ function TestRunner({ project, config, scenarios: initialScenarios = [] }) {
   // Pagination and virtualization state for large datasets
   const [currentPage, setCurrentPage] = useState(1)
   const [pageSize, setPageSize] = useState(50)
-  const [viewMode, setViewMode] = useState('detailed') // 'compact' | 'detailed'
+  const [viewMode, setViewMode] = useState('compact') // 'compact' | 'detailed' - default to compact
   const [sortBy, setSortBy] = useState('label') // 'label' | 'status' | 'url'
   const [sortOrder, setSortOrder] = useState('asc') // 'asc' | 'desc'
   const [statusFilter, setStatusFilter] = useState('all') // 'all' | 'passed' | 'failed' | 'pending' | 'running'
@@ -1310,20 +1346,27 @@ function TestRunner({ project, config, scenarios: initialScenarios = [] }) {
               const isSelected = selectedScenarios.includes(scenario.label)
 
               return viewMode === 'compact' ? (
-                // Compact View - List Item Style for Dense Display
+                // Compact View - List Item Style for Dense Display with Status Border Colors
                 <ListItem
                   key={scenario.label || scenario.url}
                   disablePadding
                   sx={{
-                    border: '1px solid',
-                    borderColor: isSelected ? 'primary.main' : 'divider',
-                    borderRadius: '4px',
-                    mb: 0.5,
-                    bgcolor: isSelected ? 'primary.lighter' : 'background.paper',
+                    border: '3px solid',
+                    borderColor: getStatusBorderColor(displayStatus || 'pending', isSelected),
+                    borderRadius: '8px',
+                    mb: 0.75,
+                    bgcolor: getStatusBackgroundColor(displayStatus || 'pending', isSelected),
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+                    opacity: isSelected ? 1 : 0.85, // Subtle selection indicator via opacity
                     '&:hover': {
-                      borderColor: 'primary.main',
-                      bgcolor: isSelected ? 'primary.lighter' : 'action.hover'
-                    }
+                      borderColor: getStatusBorderColor(displayStatus || 'pending', isSelected),
+                      bgcolor: getStatusBackgroundColor(displayStatus || 'pending', isSelected),
+                      transform: 'translateX(4px)',
+                      boxShadow: '0 2px 6px rgba(0,0,0,0.15)',
+                      opacity: 1,
+                      transition: 'all 0.2s ease'
+                    },
+                    transition: 'all 0.2s ease'
                   }}
                 >
                   <ListItemButton
@@ -1372,22 +1415,25 @@ function TestRunner({ project, config, scenarios: initialScenarios = [] }) {
                   </ListItemButton>
                 </ListItem>
               ) : (
-                // Detailed View - Card Style for Rich Information
+                // Detailed View - Card Style for Rich Information with Status Border Colors
                 <Paper
                   key={scenario.label || scenario.url}
                   elevation={0}
                   sx={{ 
                     p: 2, 
-                    border: '1px solid', 
-                    borderColor: isSelected ? 'primary.main' : 'divider', 
+                    border: '3px solid', 
+                    borderColor: getStatusBorderColor(displayStatus || 'pending', isSelected), 
                     borderRadius: '8px', 
                     cursor: 'pointer', 
-                    transition: 'all 0.2s',
-                    bgcolor: isSelected ? 'primary.lighter' : 'background.paper',
+                    transition: 'all 0.2s ease',
+                    bgcolor: getStatusBackgroundColor(displayStatus || 'pending', isSelected),
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+                    opacity: isSelected ? 1 : 0.85, // Subtle selection indicator via opacity
                     '&:hover': { 
-                      borderColor: 'primary.main',
-                      transform: 'translateY(-1px)',
-                      boxShadow: '0 2px 4px -1px rgba(0, 0, 0, 0.1)'
+                      borderColor: getStatusBorderColor(displayStatus || 'pending', isSelected),
+                      transform: 'translateY(-2px)',
+                      boxShadow: '0 4px 8px -2px rgba(0, 0, 0, 0.15)',
+                      opacity: 1
                     }
                   }}
                   onClick={() => handleScenarioSelection(scenario.label)}
