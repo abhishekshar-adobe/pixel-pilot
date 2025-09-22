@@ -163,15 +163,55 @@ function TestRunner({ project, config, scenarios: initialScenarios = [] }) {
             }
             
             const testLabel = test.pair?.label || test.label
+            const viewportLabel = test.pair?.viewportLabel || 'unknown'
+            
             if (testLabel) {
-              results[testLabel] = {
+              // Aggregate viewport results for the same scenario
+              if (!results[testLabel]) {
+                results[testLabel] = {
+                  status: 'passed', // Start optimistic
+                  misMatchPercentage: 0,
+                  isSameDimensions: true,
+                  networkError: null,
+                  errorMessage: null,
+                  viewports: {}
+                }
+              }
+              
+              // Store individual viewport result
+              results[testLabel].viewports[viewportLabel] = {
                 status,
                 misMatchPercentage: test.misMatchPercentage || (test.pair?.diff?.misMatchPercentage || 0),
                 isSameDimensions: test.isSameDimensions,
                 networkError: test.pair?.networkError || test.pair?.cliError || null,
                 errorMessage: test.error || null
               }
-              console.log('Added result for scenario:', testLabel, 'status:', status)
+              
+              // Aggregate overall scenario status (worst case wins)
+              if (status === 'failed' || status === 'network_error') {
+                results[testLabel].status = status
+              } else if (status === 'pending' && results[testLabel].status === 'passed') {
+                results[testLabel].status = 'pending'
+              }
+              
+              // Aggregate mismatch percentage (highest)
+              const currentMismatch = test.misMatchPercentage || (test.pair?.diff?.misMatchPercentage || 0)
+              if (currentMismatch > results[testLabel].misMatchPercentage) {
+                results[testLabel].misMatchPercentage = currentMismatch
+              }
+              
+              // Aggregate dimensions (all must be same)
+              if (!test.isSameDimensions) {
+                results[testLabel].isSameDimensions = false
+              }
+              
+              // Keep any error info
+              if (test.pair?.networkError || test.pair?.cliError || test.error) {
+                results[testLabel].networkError = test.pair?.networkError || test.pair?.cliError || null
+                results[testLabel].errorMessage = test.error || null
+              }
+              
+              console.log('Added viewport result for scenario:', testLabel, 'viewport:', viewportLabel, 'status:', status)
             } else {
               console.warn('Test without label found:', test)
             }
@@ -325,7 +365,9 @@ function TestRunner({ project, config, scenarios: initialScenarios = [] }) {
     }
     // Always load backstop report to show previous test results
     loadBackstopReport()
-  }, [initialScenarios, loadBackstopReport])
+    // Ensure we have the latest batch summary info for Test Overview
+    fetchBatchInfo()
+  }, [initialScenarios, loadBackstopReport, fetchBatchInfo])
 
   // Update scenarios when initialScenarios changes
   useEffect(() => {
@@ -787,14 +829,14 @@ function TestRunner({ project, config, scenarios: initialScenarios = [] }) {
           </Typography>
           
           <Grid container spacing={2}>
-            {/* Selected/Processing Count */}
+            {/* Total Scenarios */}
             <Grid item xs={6} sm={4} md={2}>
               <Box sx={{ textAlign: 'center', p: 1.5, bgcolor: 'primary.lighter', borderRadius: '8px' }}>
                 <Typography variant="h5" sx={{ fontWeight: 700, color: 'primary.main' }}>
-                  {testRunning ? processedCount : selectedScenarios.length}
+                  {batchInfo?.summaryInfo?.totalScenarios || selectedScenarios.length}
                 </Typography>
                 <Typography variant="caption" sx={{ color: 'primary.dark', fontWeight: 500 }}>
-                  {testRunning ? 'Processed' : 'Selected'}
+                  Total Scenarios
                 </Typography>
               </Box>
             </Grid>
@@ -803,7 +845,7 @@ function TestRunner({ project, config, scenarios: initialScenarios = [] }) {
             <Grid item xs={6} sm={4} md={2}>
               <Box sx={{ textAlign: 'center', p: 1.5, bgcolor: 'success.lighter', borderRadius: '8px' }}>
                 <Typography variant="h5" sx={{ fontWeight: 700, color: 'success.main' }}>
-                  {Object.values(scenarioResults).filter(r => r.status === 'passed').length}
+                  {batchInfo?.summaryInfo?.passed || Object.values(scenarioResults).filter(r => r.status === 'passed').length}
                 </Typography>
                 <Typography variant="caption" sx={{ color: 'success.dark', fontWeight: 500 }}>
                   Passed
@@ -815,7 +857,7 @@ function TestRunner({ project, config, scenarios: initialScenarios = [] }) {
             <Grid item xs={6} sm={4} md={2}>
               <Box sx={{ textAlign: 'center', p: 1.5, bgcolor: 'error.lighter', borderRadius: '8px' }}>
                 <Typography variant="h5" sx={{ fontWeight: 700, color: 'error.main' }}>
-                  {Object.values(scenarioResults).filter(r => r.status === 'failed' || r.status === 'network_error').length}
+                  {batchInfo?.summaryInfo?.failed || Object.values(scenarioResults).filter(r => r.status === 'failed' || r.status === 'network_error').length}
                 </Typography>
                 <Typography variant="caption" sx={{ color: 'error.dark', fontWeight: 500 }}>
                   Failed
@@ -823,14 +865,22 @@ function TestRunner({ project, config, scenarios: initialScenarios = [] }) {
               </Box>
             </Grid>
 
-            {/* Running/ETA */}
+            {/* Pending/Processing */}
             <Grid item xs={6} sm={4} md={2}>
               <Box sx={{ textAlign: 'center', p: 1.5, bgcolor: 'warning.lighter', borderRadius: '8px' }}>
                 <Typography variant="h5" sx={{ fontWeight: 700, color: 'warning.main' }}>
-                  {testRunning && estimatedTime ? estimatedTime.formatted : Object.values(liveScenarioResults).filter(r => r.status === 'running').length}
+                  {(() => {
+                    if (testRunning && estimatedTime) return estimatedTime.formatted
+                    if (testRunning) return Object.values(liveScenarioResults).filter(r => r.status === 'running').length
+                    if (batchInfo?.summaryInfo) {
+                      const pending = batchInfo.summaryInfo.totalScenarios - batchInfo.summaryInfo.passed - batchInfo.summaryInfo.failed
+                      return pending > 0 ? pending : '-'
+                    }
+                    return selectedScenarios.length
+                  })()}
                 </Typography>
                 <Typography variant="caption" sx={{ color: 'warning.dark', fontWeight: 500 }}>
-                  {testRunning && estimatedTime ? 'ETA' : 'Running'}
+                  {testRunning && estimatedTime ? 'ETA' : testRunning ? 'Running' : 'Pending'}
                 </Typography>
               </Box>
             </Grid>
@@ -840,6 +890,11 @@ function TestRunner({ project, config, scenarios: initialScenarios = [] }) {
               <Box sx={{ textAlign: 'center', p: 1.5, bgcolor: 'info.lighter', borderRadius: '8px' }}>
                 <Typography variant="h5" sx={{ fontWeight: 700, color: 'info.main' }}>
                   {(() => {
+                    if (batchInfo?.summaryInfo) {
+                      const { passed, totalScenarios } = batchInfo.summaryInfo
+                      if (totalScenarios === 0) return '0'
+                      return Math.round((passed / totalScenarios) * 100)
+                    }
                     const totalResults = Object.values(scenarioResults)
                     const passedResults = totalResults.filter(r => r.status === 'passed')
                     if (totalResults.length === 0) return '0'
