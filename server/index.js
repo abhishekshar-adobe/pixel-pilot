@@ -2523,6 +2523,26 @@ app.get('/api/projects/:projectId/batches/:runId/csv', async (req, res) => {
 });
 
 // Serve combined HTML report
+// Serve run-specific HTML report (index.html)
+app.get('/api/projects/:projectId/runs/:runId/report/index.html', async (req, res) => {
+  try {
+    const { projectId, runId } = req.params;
+    const htmlReportPath = path.join(__dirname, 'backstop_data', projectId, 'html_report', runId, 'index.html');
+    
+    if (!await fs.pathExists(htmlReportPath)) {
+      return res.status(404).json({ error: 'Combined report not found' });
+    }
+    
+    const htmlContent = await fs.readFile(htmlReportPath, 'utf8');
+    res.setHeader('Content-Type', 'text/html');
+    res.send(htmlContent);
+  } catch (error) {
+    console.error('Error serving combined report:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Serve run-specific report main endpoint (redirect to index.html)
 app.get('/api/projects/:projectId/runs/:runId/report', async (req, res) => {
   try {
     const { projectId, runId } = req.params;
@@ -2539,6 +2559,22 @@ app.get('/api/projects/:projectId/runs/:runId/report', async (req, res) => {
     console.error('Error serving combined report:', error);
     res.status(500).json({ error: error.message });
   }
+});
+
+// Serve run-specific reports static assets (JS, CSS, images, etc.) - MUST come after specific routes
+app.use('/api/projects/:projectId/runs/:runId/report', (req, res, next) => {
+  const { projectId, runId } = req.params;
+  const runReportDir = path.join(__dirname, 'backstop_data', projectId, 'html_report', runId);
+  const baseReportDir = path.join(__dirname, 'backstop_data', 'html_report');
+  
+  // Try to serve from run-specific directory first
+  express.static(runReportDir)(req, res, (err) => {
+    if (err || res.headersSent) {
+      return next(err);
+    }
+    // If file not found in run directory, fallback to base html_report directory
+    express.static(baseReportDir)(req, res, next);
+  });
 });
 
 // Get combined report JSON
@@ -2712,13 +2748,6 @@ app.use('/api/projects/:projectId/report', (req, res, next) => {
   const { projectId } = req.params;
   const htmlReportDir = path.join(__dirname, 'backstop_data', projectId, 'html_report');
   express.static(htmlReportDir)(req, res, next);
-});
-
-// Serve run-specific reports and assets (including reference images)
-app.use('/api/projects/:projectId/runs/:runId/report', (req, res, next) => {
-  const { projectId, runId } = req.params;
-  const runReportDir = path.join(__dirname, 'backstop_data', projectId, 'html_report', runId);
-  express.static(runReportDir)(req, res, next);
 });
 
 // Serve batch run images and assets from within run reports
