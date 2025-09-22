@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import {
   Box,
   Button,
@@ -13,7 +13,24 @@ import {
   Stack,
   TextField,
   CircularProgress,
-  Divider
+  Divider,
+  Pagination,
+  Select,
+  MenuItem,
+  FormControl,
+  InputLabel,
+  IconButton,
+  Tooltip,
+  Autocomplete,
+  ToggleButton,
+  ToggleButtonGroup,
+  LinearProgress,
+  List,
+  ListItem,
+  ListItemButton,
+  ListItemIcon,
+  ListItemText,
+  Checkbox
 } from '@mui/material'
 import {
   PlayArrow,
@@ -23,7 +40,6 @@ import {
   Visibility,
   Assessment,
   Settings,
-  List,
   Search,
   FilterList,
   Link,
@@ -77,6 +93,18 @@ function TestRunner({ project, config, scenarios: initialScenarios = [] }) {
   const [searchTerm, setSearchTerm] = useState('')
   const [showSelectedOnly, setShowSelectedOnly] = useState(false)
   const [socketConnected, setSocketConnected] = useState(false)
+
+  // Pagination and virtualization state for large datasets
+  const [currentPage, setCurrentPage] = useState(1)
+  const [pageSize, setPageSize] = useState(50)
+  const [viewMode, setViewMode] = useState('detailed') // 'compact' | 'detailed'
+  const [sortBy, setSortBy] = useState('label') // 'label' | 'status' | 'url'
+  const [sortOrder, setSortOrder] = useState('asc') // 'asc' | 'desc'
+  const [statusFilter, setStatusFilter] = useState('all') // 'all' | 'passed' | 'failed' | 'pending' | 'running'
+
+  // Refs for performance optimization
+  const listRef = useRef(null)
+  const searchInputRef = useRef(null)
 
   // Fetch batch information
   const fetchBatchInfo = React.useCallback(async () => {
@@ -374,29 +402,126 @@ function TestRunner({ project, config, scenarios: initialScenarios = [] }) {
     }
   }
 
-  const handleScenarioSelection = (scenarioLabel) => {
+  // Memoized filtering and sorting for performance with large datasets
+  const filteredAndSortedScenarios = useMemo(() => {
+    let filtered = scenarios.filter(scenario => {
+      // Search filter
+      const matchesSearch = scenario.label.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                           scenario.url.toLowerCase().includes(searchTerm.toLowerCase())
+      
+      // Selection filter
+      const isSelected = selectedScenarios.includes(scenario.label)
+      const matchesSelection = !showSelectedOnly || isSelected
+      
+      // Status filter
+      const result = scenarioResults[scenario.label] || {}
+      const liveResult = liveScenarioResults[scenario.label]
+      const displayStatus = liveResult?.status || result.status || 'pending'
+      
+      let matchesStatus = true
+      if (statusFilter !== 'all') {
+        if (statusFilter === 'failed') {
+          matchesStatus = displayStatus === 'failed' || displayStatus === 'network_error'
+        } else {
+          matchesStatus = displayStatus === statusFilter
+        }
+      }
+      
+      return matchesSearch && matchesSelection && matchesStatus
+    })
+
+    // Sort scenarios
+    filtered.sort((a, b) => {
+      let aValue, bValue
+      
+      switch (sortBy) {
+        case 'status': {
+          const aResult = scenarioResults[a.label] || {}
+          const bResult = scenarioResults[b.label] || {}
+          const aLive = liveScenarioResults[a.label]
+          const bLive = liveScenarioResults[b.label]
+          aValue = aLive?.status || aResult.status || 'pending'
+          bValue = bLive?.status || bResult.status || 'pending'
+          break
+        }
+        case 'url':
+          aValue = a.url
+          bValue = b.url
+          break
+        default: // 'label'
+          aValue = a.label
+          bValue = b.label
+      }
+      
+      const comparison = aValue.localeCompare(bValue)
+      return sortOrder === 'asc' ? comparison : -comparison
+    })
+
+    return filtered
+  }, [scenarios, searchTerm, selectedScenarios, showSelectedOnly, statusFilter, sortBy, sortOrder, scenarioResults, liveScenarioResults])
+
+  // Paginated scenarios for rendering
+  const paginatedScenarios = useMemo(() => {
+    const startIndex = (currentPage - 1) * pageSize
+    return filteredAndSortedScenarios.slice(startIndex, startIndex + pageSize)
+  }, [filteredAndSortedScenarios, currentPage, pageSize])
+
+  const totalPages = Math.ceil(filteredAndSortedScenarios.length / pageSize)
+
+  // Optimized callback functions for performance
+  const handleScenarioSelection = useCallback((scenarioLabel) => {
     setSelectedScenarios(prev => 
       prev.includes(scenarioLabel) 
         ? prev.filter(s => s !== scenarioLabel)
         : [...prev, scenarioLabel]
     )
-  }
+  }, [])
 
-  const selectAllScenarios = () => {
-    setSelectedScenarios(scenarios.map(s => s.label))
-  }
+  const handlePageChange = useCallback((event, newPage) => {
+    setCurrentPage(newPage)
+    // Scroll to top of list when page changes
+    if (listRef.current) {
+      listRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }
+  }, [])
 
-  const unselectAllScenarios = () => {
+  const handlePageSizeChange = useCallback((event) => {
+    setPageSize(event.target.value)
+    setCurrentPage(1) // Reset to first page when page size changes
+  }, [])
+
+  const handleSortChange = useCallback((newSortBy) => {
+    if (sortBy === newSortBy) {
+      setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc')
+    } else {
+      setSortBy(newSortBy)
+      setSortOrder('asc')
+    }
+    setCurrentPage(1) // Reset to first page when sorting changes
+  }, [sortBy])
+
+  const selectAllScenarios = useCallback(() => {
+    setSelectedScenarios(filteredAndSortedScenarios.map(s => s.label))
+  }, [filteredAndSortedScenarios])
+
+  const unselectAllScenarios = useCallback(() => {
     setSelectedScenarios([])
-  }
+  }, [])
 
-  // Filter scenarios
-  const filteredScenarios = scenarios.filter(scenario => {
-    const matchesSearch = scenario.label.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         scenario.url.toLowerCase().includes(searchTerm.toLowerCase())
-    const isSelected = selectedScenarios.includes(scenario.label)
-    return matchesSearch && (!showSelectedOnly || isSelected)
-  })
+  const selectAllFiltered = useCallback(() => {
+    setSelectedScenarios(prev => {
+      const filteredLabels = filteredAndSortedScenarios.map(s => s.label)
+      const newSelection = [...new Set([...prev, ...filteredLabels])]
+      return newSelection
+    })
+  }, [filteredAndSortedScenarios])
+
+  const unselectAllFiltered = useCallback(() => {
+    setSelectedScenarios(prev => {
+      const filteredLabels = new Set(filteredAndSortedScenarios.map(s => s.label))
+      return prev.filter(label => !filteredLabels.has(label))
+    })
+  }, [filteredAndSortedScenarios])
 
   return (
     <Box sx={{ width: '100%', py: 2 }}>
@@ -854,90 +979,298 @@ function TestRunner({ project, config, scenarios: initialScenarios = [] }) {
         </Card>
       )}
 
-      {/* Scenario Selection */}
+      {/* Enhanced Scenario Management */}
       <Card elevation={0} sx={{ borderRadius: '12px', border: '1px solid', borderColor: 'divider' }}>
         <CardContent sx={{ p: 2 }}>
-          <Box sx={{ mb: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 1 }}>
-            <Typography variant="h6" sx={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: 1 }}>
-              <List sx={{ color: 'primary.main', fontSize: 20 }} />
-              Scenarios ({filteredScenarios.length})
-            </Typography>
-            <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', flexWrap: 'wrap' }}>
-              <TextField
-                size="small"
-                placeholder="Search..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                sx={{ 
-                  minWidth: '160px',
-                  '& .MuiOutlinedInput-root': { borderRadius: '6px', fontSize: '0.875rem' }
-                }}
-                InputProps={{
-                  startAdornment: <Search sx={{ color: 'text.secondary', mr: 1, fontSize: 18 }} />
-                }}
-              />
-              <Button
-                variant={showSelectedOnly ? 'contained' : 'outlined'}
-                size="small"
-                startIcon={<FilterList />}
-                onClick={() => setShowSelectedOnly(!showSelectedOnly)}
-                sx={{ borderRadius: '6px', textTransform: 'none', fontSize: '0.875rem' }}
-              >
-                {showSelectedOnly ? 'All' : 'Selected'}
-              </Button>
-              <ButtonGroup size="small" sx={{ '& .MuiButton-root': { borderRadius: '6px', textTransform: 'none', fontSize: '0.875rem' } }}>
-                <Button
+          {/* Header with Summary Stats */}
+          <Box sx={{ mb: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 2 }}>
+            <Box>
+              <Typography variant="h6" sx={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                <List sx={{ color: 'primary.main', fontSize: 20 }} />
+                Scenarios
+              </Typography>
+              <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+                <Chip 
+                  size="small" 
+                  label={`Total: ${scenarios.length}`}
+                  sx={{ bgcolor: 'background.default', fontWeight: 500 }}
+                />
+                <Chip 
+                  size="small" 
+                  label={`Filtered: ${filteredAndSortedScenarios.length}`}
+                  color="primary"
                   variant="outlined"
-                  onClick={selectAllScenarios}
-                  disabled={selectedScenarios.length === scenarios.length}
-                  startIcon={<CheckCircleRounded fontSize="small" />}
-                >
-                  Select All ({scenarios.length})
-                </Button>
-                <Button
-                  variant="outlined"
-                  onClick={unselectAllScenarios}
-                  color="secondary"
-                  disabled={selectedScenarios.length === 0}
-                  startIcon={<Clear fontSize="small" />}
-                >
-                  Clear All
-                </Button>
-              </ButtonGroup>
-              
-              <Chip 
-                label={`${selectedScenarios.length}/${scenarios.length} selected`}
-                size="small"
-                color={selectedScenarios.length === 0 ? 'default' : 'primary'}
-                sx={{ 
-                  borderRadius: '6px',
-                  fontWeight: 500,
-                  fontSize: '0.8rem'
-                }}
-              />
+                  sx={{ fontWeight: 500 }}
+                />
+                <Chip 
+                  size="small" 
+                  label={`Selected: ${selectedScenarios.length}`}
+                  color={selectedScenarios.length > 0 ? 'success' : 'default'}
+                  sx={{ fontWeight: 500 }}
+                />
+                <Chip 
+                  size="small" 
+                  label={`Page: ${currentPage}/${totalPages}`}
+                  sx={{ bgcolor: 'background.default', fontWeight: 500 }}
+                />
+              </Box>
             </Box>
+            
+            {/* View Mode Toggle */}
+            <ToggleButtonGroup
+              value={viewMode}
+              exclusive
+              onChange={(e, newMode) => newMode && setViewMode(newMode)}
+              size="small"
+              sx={{ '& .MuiToggleButton-root': { px: 2, py: 0.5, borderRadius: '6px' } }}
+            >
+              <ToggleButton value="compact">
+                <Tooltip title="Compact View">
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                    <List sx={{ fontSize: 16 }} />
+                    Compact
+                  </Box>
+                </Tooltip>
+              </ToggleButton>
+              <ToggleButton value="detailed">
+                <Tooltip title="Detailed View">
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                    <Assessment sx={{ fontSize: 16 }} />
+                    Detailed
+                  </Box>
+                </Tooltip>
+              </ToggleButton>
+            </ToggleButtonGroup>
           </Box>
 
-          {/* Compact Scenario List */}
-          <Box sx={{ display: 'grid', gap: 1.5 }}>
-            {filteredScenarios.map((scenario) => {
+          {/* Enhanced Controls Row */}
+          <Box sx={{ mb: 2, display: 'flex', gap: 1.5, alignItems: 'center', flexWrap: 'wrap' }}>
+            {/* Search */}
+            <TextField
+              ref={searchInputRef}
+              size="small"
+              placeholder="Search scenarios or URLs..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              sx={{ 
+                minWidth: '200px',
+                flexGrow: 1,
+                maxWidth: '300px',
+                '& .MuiOutlinedInput-root': { borderRadius: '6px', fontSize: '0.875rem' }
+              }}
+              InputProps={{
+                startAdornment: <Search sx={{ color: 'text.secondary', mr: 1, fontSize: 18 }} />
+              }}
+            />
+
+            {/* Status Filter */}
+            <FormControl size="small" sx={{ minWidth: '120px' }}>
+              <InputLabel>Status</InputLabel>
+              <Select
+                value={statusFilter}
+                label="Status"
+                onChange={(e) => setStatusFilter(e.target.value)}
+                sx={{ borderRadius: '6px', fontSize: '0.875rem' }}
+              >
+                <MenuItem value="all">All Status</MenuItem>
+                <MenuItem value="passed">Passed</MenuItem>
+                <MenuItem value="failed">Failed</MenuItem>
+                <MenuItem value="pending">Pending</MenuItem>
+                <MenuItem value="running">Running</MenuItem>
+              </Select>
+            </FormControl>
+
+            {/* Sort Options */}
+            <FormControl size="small" sx={{ minWidth: '100px' }}>
+              <InputLabel>Sort</InputLabel>
+              <Select
+                value={sortBy}
+                label="Sort"
+                onChange={(e) => handleSortChange(e.target.value)}
+                sx={{ borderRadius: '6px', fontSize: '0.875rem' }}
+              >
+                <MenuItem value="label">Name</MenuItem>
+                <MenuItem value="url">URL</MenuItem>
+                <MenuItem value="status">Status</MenuItem>
+              </Select>
+            </FormControl>
+
+            {/* Sort Order */}
+            <Tooltip title={`Sort ${sortOrder === 'asc' ? 'Ascending' : 'Descending'}`}>
+              <IconButton 
+                size="small" 
+                onClick={() => setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc')}
+                sx={{ 
+                  bgcolor: 'background.default',
+                  '&:hover': { bgcolor: 'action.hover' }
+                }}
+              >
+                {sortOrder === 'asc' ? '↑' : '↓'}
+              </IconButton>
+            </Tooltip>
+
+            {/* Show Selected Only */}
+            <Button
+              variant={showSelectedOnly ? 'contained' : 'outlined'}
+              size="small"
+              startIcon={<FilterList />}
+              onClick={() => setShowSelectedOnly(!showSelectedOnly)}
+              sx={{ borderRadius: '6px', textTransform: 'none', fontSize: '0.875rem' }}
+            >
+              {showSelectedOnly ? 'Show All' : 'Selected Only'}
+            </Button>
+
+            {/* Page Size Selector */}
+            <FormControl size="small" sx={{ minWidth: '80px' }}>
+              <InputLabel>Show</InputLabel>
+              <Select
+                value={pageSize}
+                label="Show"
+                onChange={handlePageSizeChange}
+                sx={{ borderRadius: '6px', fontSize: '0.875rem' }}
+              >
+                <MenuItem value={25}>25</MenuItem>
+                <MenuItem value={50}>50</MenuItem>
+                <MenuItem value={100}>100</MenuItem>
+                <MenuItem value={250}>250</MenuItem>
+                <MenuItem value={500}>500</MenuItem>
+              </Select>
+            </FormControl>
+          </Box>
+
+          {/* Selection Actions */}
+          <Box sx={{ mb: 2, display: 'flex', gap: 1, alignItems: 'center', flexWrap: 'wrap' }}>
+            <ButtonGroup size="small" sx={{ '& .MuiButton-root': { borderRadius: '6px', textTransform: 'none', fontSize: '0.875rem' } }}>
+              <Button
+                variant="outlined"
+                onClick={selectAllScenarios}
+                disabled={selectedScenarios.length === scenarios.length}
+                startIcon={<CheckCircleRounded fontSize="small" />}
+              >
+                All ({scenarios.length})
+              </Button>
+              <Button
+                variant="outlined"
+                onClick={selectAllFiltered}
+                disabled={selectedScenarios.length === filteredAndSortedScenarios.length || filteredAndSortedScenarios.length === 0}
+                startIcon={<FilterList fontSize="small" />}
+              >
+                Filtered ({filteredAndSortedScenarios.length})
+              </Button>
+              <Button
+                variant="outlined"
+                onClick={unselectAllScenarios}
+                color="secondary"
+                disabled={selectedScenarios.length === 0}
+                startIcon={<Clear fontSize="small" />}
+              >
+                Clear All
+              </Button>
+            </ButtonGroup>
+          </Box>
+
+          {/* Pagination - Top */}
+          {totalPages > 1 && (
+            <Box sx={{ mb: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
+              <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                Showing {((currentPage - 1) * pageSize) + 1}-{Math.min(currentPage * pageSize, filteredAndSortedScenarios.length)} of {filteredAndSortedScenarios.length} scenarios
+              </Typography>
+              <Pagination
+                count={totalPages}
+                page={currentPage}
+                onChange={handlePageChange}
+                size="small"
+                showFirstButton
+                showLastButton
+                sx={{ '& .MuiPaginationItem-root': { borderRadius: '6px' } }}
+              />
+            </Box>
+          )}
+
+          {/* Optimized Scenario List with ref */}
+          <Box ref={listRef} sx={{ display: 'grid', gap: viewMode === 'compact' ? 1 : 1.5 }}>
+            {paginatedScenarios.map((scenario) => {
               const result = scenarioResults[scenario.label] || {}
               const liveResult = liveScenarioResults[scenario.label]
               const displayStatus = liveResult?.status || result.status
               const displayMismatch = liveResult?.mismatchPercentage || result.misMatchPercentage
+              const isSelected = selectedScenarios.includes(scenario.label)
 
-              return (
+              return viewMode === 'compact' ? (
+                // Compact View - List Item Style for Dense Display
+                <ListItem
+                  key={scenario.label || scenario.url}
+                  disablePadding
+                  sx={{
+                    border: '1px solid',
+                    borderColor: isSelected ? 'primary.main' : 'divider',
+                    borderRadius: '4px',
+                    mb: 0.5,
+                    bgcolor: isSelected ? 'primary.lighter' : 'background.paper',
+                    '&:hover': {
+                      borderColor: 'primary.main',
+                      bgcolor: isSelected ? 'primary.lighter' : 'action.hover'
+                    }
+                  }}
+                >
+                  <ListItemButton
+                    onClick={() => handleScenarioSelection(scenario.label)}
+                    sx={{ py: 0.5, px: 1 }}
+                  >
+                    <ListItemIcon sx={{ minWidth: 28 }}>
+                      <Checkbox
+                        checked={isSelected}
+                        size="small"
+                        sx={{ p: 0 }}
+                      />
+                    </ListItemIcon>
+                    <ListItemText
+                      primary={
+                        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                          <Typography variant="body2" sx={{ fontWeight: 500, flex: 1, minWidth: 0, mr: 1 }}>
+                            {scenario.label}
+                          </Typography>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                            {displayStatus && getStatusIcon(displayStatus)}
+                            {typeof displayMismatch !== 'undefined' && displayMismatch > 0 && (
+                              <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.7rem' }}>
+                                {displayMismatch}%
+                              </Typography>
+                            )}
+                          </Box>
+                        </Box>
+                      }
+                      secondary={
+                        <Typography 
+                          variant="caption" 
+                          sx={{ 
+                            color: 'text.secondary',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                            fontSize: '0.7rem'
+                          }}
+                        >
+                          {scenario.url}
+                        </Typography>
+                      }
+                      sx={{ my: 0 }}
+                    />
+                  </ListItemButton>
+                </ListItem>
+              ) : (
+                // Detailed View - Card Style for Rich Information
                 <Paper
                   key={scenario.label || scenario.url}
                   elevation={0}
                   sx={{ 
                     p: 2, 
                     border: '1px solid', 
-                    borderColor: selectedScenarios.includes(scenario.label) ? 'primary.main' : 'divider', 
+                    borderColor: isSelected ? 'primary.main' : 'divider', 
                     borderRadius: '8px', 
                     cursor: 'pointer', 
                     transition: 'all 0.2s',
-                    bgcolor: selectedScenarios.includes(scenario.label) ? 'primary.lighter' : 'background.paper',
+                    bgcolor: isSelected ? 'primary.lighter' : 'background.paper',
                     '&:hover': { 
                       borderColor: 'primary.main',
                       transform: 'translateY(-1px)',
@@ -947,7 +1280,7 @@ function TestRunner({ project, config, scenarios: initialScenarios = [] }) {
                   onClick={() => handleScenarioSelection(scenario.label)}
                 >
                   <Stack direction="row" alignItems="flex-start" spacing={1.5}>
-                    {selectedScenarios.includes(scenario.label) ? (
+                    {isSelected ? (
                       <CheckCircleRounded sx={{ color: 'primary.main', fontSize: 20, mt: 0.25 }} />
                     ) : (
                       <RadioButtonUnchecked sx={{ color: 'text.secondary', fontSize: 20, mt: 0.25 }} />
@@ -958,7 +1291,7 @@ function TestRunner({ project, config, scenarios: initialScenarios = [] }) {
                         variant="subtitle1" 
                         sx={{ 
                           fontWeight: 600,
-                          color: selectedScenarios.includes(scenario.label) ? 'primary.dark' : 'text.primary',
+                          color: isSelected ? 'primary.dark' : 'text.primary',
                           mb: 0.5,
                           lineHeight: 1.3
                         }}
@@ -1044,17 +1377,41 @@ function TestRunner({ project, config, scenarios: initialScenarios = [] }) {
               )
             })}
             
-            {filteredScenarios.length === 0 && (
+            {/* Empty State */}
+            {paginatedScenarios.length === 0 && (
               <Card elevation={0} sx={{ p: 4, textAlign: 'center', bgcolor: 'background.default', borderRadius: '8px' }}>
                 <Typography variant="subtitle1" sx={{ color: 'text.secondary', mb: 0.5 }}>
-                  No scenarios found
+                  {filteredAndSortedScenarios.length === 0 ? 'No scenarios found' : 'Page is empty'}
                 </Typography>
                 <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-                  {searchTerm ? 'Try adjusting your search terms' : 'No scenarios available for testing'}
+                  {filteredAndSortedScenarios.length === 0 
+                    ? (searchTerm || statusFilter !== 'all' 
+                        ? 'Try adjusting your search or filter criteria' 
+                        : 'No scenarios available for testing')
+                    : 'This page has no items. Try going to a different page.'
+                  }
                 </Typography>
               </Card>
             )}
           </Box>
+
+          {/* Pagination - Bottom */}
+          {totalPages > 1 && (
+            <Box sx={{ mt: 2, pt: 2, borderTop: '1px solid', borderColor: 'divider', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
+              <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                Showing {((currentPage - 1) * pageSize) + 1}-{Math.min(currentPage * pageSize, filteredAndSortedScenarios.length)} of {filteredAndSortedScenarios.length} scenarios
+              </Typography>
+              <Pagination
+                count={totalPages}
+                page={currentPage}
+                onChange={handlePageChange}
+                size="small"
+                showFirstButton
+                showLastButton
+                sx={{ '& .MuiPaginationItem-root': { borderRadius: '6px' } }}
+              />
+            </Box>
+          )}
         </CardContent>
       </Card>
     </Box>
