@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import axios from 'axios'
-import { alpha, darken, useTheme } from '@mui/material/styles'
+import { alpha, useTheme } from '@mui/material/styles'
 import {
   Box,
   Typography,
@@ -630,6 +630,7 @@ function ScenarioManager({ project, config: projectConfig, onConfigUpdate }) {
             }}
           >
             <AccordionSummary 
+              className="custom-accordion-header"
               expandIcon={
                 <ExpandMore sx={{
                   transition: 'transform 0.3s ease',
@@ -640,17 +641,22 @@ function ScenarioManager({ project, config: projectConfig, onConfigUpdate }) {
                 }} />
               }
               sx={{ 
-                background: (theme) => `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.dark} 100%)`,
+                '&.custom-accordion-header': {
+                  backgroundColor: '#262936 !important',
+                  background: 'linear-gradient(135deg, #262936 0%, #1e2028 100%) !important',
+                },
                 color: 'white',
                 minHeight: { xs: 64, sm: 72 },
                 borderRadius: '12px 12px 0 0',
                 transition: 'all 0.3s ease',
                 '&.Mui-expanded': {
                   minHeight: { xs: 64, sm: 72 },
-                  background: (theme) => `linear-gradient(135deg, ${darken(theme.palette.primary.main, 0.1)} 0%, ${darken(theme.palette.primary.dark, 0.1)} 100%)`
+                  backgroundColor: '#1e2028 !important',
+                  background: 'linear-gradient(135deg, #1e2028 0%, #1a1d24 100%) !important',
                 },
                 '&:hover': {
-                  background: (theme) => `linear-gradient(135deg, ${darken(theme.palette.primary.main, 0.05)} 0%, ${darken(theme.palette.primary.dark, 0.05)} 100%)`
+                  backgroundColor: '#2d3142 !important',
+                  background: 'linear-gradient(135deg, #2d3142 0%, #262936 100%) !important',
                 },
                 '& .MuiAccordionSummary-content': {
                   alignItems: 'center',
@@ -766,7 +772,7 @@ function ScenarioManager({ project, config: projectConfig, onConfigUpdate }) {
               </Stack>
             </AccordionSummary>
 
-            <AccordionDetails sx={{ p: 3, bgcolor: 'grey.50' }}>
+            <AccordionDetails sx={{ p: 3, bgcolor: 'background.default' }}>
               {/* Action Buttons Row - Moved outside AccordionSummary */}
               <Box sx={{ mb: 3, display: 'flex', justifyContent: 'flex-end', gap: 1 }}>
                 <Tooltip title="Preview Scenario">
@@ -1113,7 +1119,7 @@ function ScenarioManager({ project, config: projectConfig, onConfigUpdate }) {
             mx: 'auto', 
             mb: 3,
             boxShadow: theme.palette.mode === 'dark' ? '0 8px 32px rgba(0,0,0,0.3)' : '0 8px 32px rgba(0,0,0,0.1)',
-            background: (theme) => `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.dark} 100%)`,
+            background: 'linear-gradient(135deg, #262936 0%, #1e2028 100%)',
             animation: 'pulse 2s infinite',
             '@keyframes pulse': {
               '0%': {
@@ -1172,16 +1178,16 @@ function ScenarioManager({ project, config: projectConfig, onConfigUpdate }) {
               fontSize: '1rem',
               fontWeight: 600,
               textTransform: 'none',
-              background: (theme) => `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.dark} 100%)`,
-              boxShadow: (theme) => `0 8px 24px ${alpha(theme.palette.primary.main, 0.25)}`,
+              background: 'linear-gradient(135deg, #262936 0%, #1e2028 100%)',
+              boxShadow: '0 8px 24px rgba(38, 41, 54, 0.25)',
               '&:hover': {
-                background: (theme) => `linear-gradient(135deg, ${theme.palette.primary.dark} 0%, ${darken(theme.palette.primary.dark, 0.2)} 100%)`,
+                background: 'linear-gradient(135deg, #1e2028 0%, #1a1d24 100%)',
                 transform: 'translateY(-2px)',
-                boxShadow: (theme) => `0 12px 32px ${alpha(theme.palette.primary.main, 0.35)}`
+                boxShadow: '0 12px 32px rgba(38, 41, 54, 0.35)'
               },
               '&:active': {
                 transform: 'translateY(0)',
-                boxShadow: (theme) => `0 6px 16px ${alpha(theme.palette.primary.main, 0.2)}`
+                boxShadow: '0 6px 16px rgba(38, 41, 54, 0.2)'
               }
             }}
           >
@@ -1223,16 +1229,16 @@ function ScenarioManager({ project, config: projectConfig, onConfigUpdate }) {
                 left: 0,
                 right: 0,
                 height: 1,
-                background: (theme) => `linear-gradient(to right, ${theme.palette.primary.main}, transparent)`,
+                background: 'linear-gradient(to right, #262936, transparent)',
                 opacity: 0.3
               }
             }}
           >
             <Avatar 
               sx={{ 
-                bgcolor: 'primary.main',
-                background: (theme) => `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.dark} 100%)`,
-                boxShadow: (theme) => `0 8px 16px ${alpha(theme.palette.primary.main, 0.25)}`,
+                bgcolor: '#262936',
+                background: 'linear-gradient(135deg, #262936 0%, #1e2028 100%)',
+                boxShadow: '0 8px 16px rgba(38, 41, 54, 0.25)',
                 width: { xs: 48, sm: 56 },
                 height: { xs: 48, sm: 56 }
               }}
@@ -1636,16 +1642,16 @@ function ScenarioManager({ project, config: projectConfig, onConfigUpdate }) {
                 left: 0,
                 right: 0,
                 height: 1,
-                background: (theme) => `linear-gradient(to right, ${theme.palette.secondary.main}, transparent)`,
+                background: 'linear-gradient(to right, #262936, transparent)',
                 opacity: 0.3
               }
             }}
           >
             <Avatar 
               sx={{ 
-                bgcolor: 'secondary.main',
-                background: (theme) => `linear-gradient(135deg, ${theme.palette.secondary.main} 0%, ${theme.palette.secondary.dark} 100%)`,
-                boxShadow: (theme) => `0 8px 16px ${alpha(theme.palette.secondary.main, 0.25)}`,
+                bgcolor: '#262936',
+                background: 'linear-gradient(135deg, #262936 0%, #1e2028 100%)',
+                boxShadow: '0 8px 16px rgba(38, 41, 54, 0.25)',
                 width: { xs: 48, sm: 56 },
                 height: { xs: 48, sm: 56 }
               }}

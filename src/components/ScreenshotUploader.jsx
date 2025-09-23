@@ -717,7 +717,7 @@ const ScreenshotUploader = ({ project, config }) => {
       {/* Scenario Selection Card */}
       <Card sx={{ mb: 4, borderRadius: 2, boxShadow: 3 }}>
         <Box sx={{
-          background: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
+          background: 'linear-gradient(135deg, #262936 0%, #1e2028 100%)',
           p: 3
         }}>
           <Stack direction="row" alignItems="center" spacing={2}>

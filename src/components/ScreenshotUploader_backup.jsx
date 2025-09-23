@@ -720,7 +720,7 @@ function ScreenshotUploader() {
       {/* Scenario Selection Card */}
       <Card sx={{ mb: 4, borderRadius: 3, boxShadow: 3 }}>
         <Box sx={{
-          background: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
+          background: 'linear-gradient(135deg, #262936 0%, #1e2028 100%)',
           p: 3,
           borderRadius: '12px 12px 0 0'
         }}>
@@ -1193,7 +1193,7 @@ function ScreenshotUploader() {
           
           <Grid item xs={12} sm={6} md={3}>
             <Card sx={{ 
-              background: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
+              background: 'linear-gradient(135deg, #262936 0%, #1e2028 100%)',
               color: 'white',
               height: '100%'
             }}>

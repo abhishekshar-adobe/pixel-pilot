@@ -152,13 +152,13 @@ export const ThemeIndicator = () => {
       <Brightness4 
         sx={{ 
           fontSize: 14, 
-          color: isDarkMode ? '#727cf5' : '#3b82f6' 
+          color: isDarkMode ? '#6366f1' : '#3b82f6' 
         }} 
       />
       <Typography 
         variant="caption" 
         sx={{ 
-          color: isDarkMode ? '#727cf5' : '#3b82f6',
+          color: isDarkMode ? '#6366f1' : '#3b82f6',
           fontWeight: 500,
           fontSize: '0.75rem'
         }}
