@@ -30,6 +30,7 @@ import {
 } from '@mui/icons-material';
 import axios from 'axios';
 import pixelPilotLogo from '../assets/pixelpilot-logo.svg';
+import { ThemeToggleButton } from './ThemeSwitcher';
 
 const API_BASE = 'http://localhost:5000/api';
 
@@ -188,11 +189,13 @@ const ProjectSelector = ({ onProjectSelect }) => {
               sx={{
                 fontWeight: 700,
                 color: 'text.primary',
-                letterSpacing: '-0.025em'
+                letterSpacing: '-0.025em',
+                flexGrow: 1
               }}
             >
               PixelPilot Projects
             </Typography>
+            <ThemeToggleButton size="large" />
           </Box>
           <Typography 
             variant="body1" 

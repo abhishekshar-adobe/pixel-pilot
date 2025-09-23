@@ -23,6 +23,7 @@ import {
 } from '@mui/icons-material';
 import axios from 'axios';
 import pixelPilotLogo from '../assets/pixelpilot-logo.svg';
+import { ThemeToggleButton } from './ThemeSwitcher';
 
 // Import existing components
 import ConfigEditor from './ConfigEditor';
@@ -161,19 +162,22 @@ function ProjectContent({ project, onBack }) {
           >
             {project.name}
           </Typography>
-          <Chip
-            label={project.id}
-            size="small"
-            sx={{ 
-              bgcolor: 'primary.main',
-              color: 'white',
-              fontWeight: 500,
-              '& .MuiChip-label': {
-                px: 2
-              },
-              borderRadius: '6px'
-            }}
-          />
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+            <ThemeToggleButton size="medium" />
+            <Chip
+              label={project.id}
+              size="small"
+              sx={{ 
+                bgcolor: 'primary.main',
+                color: 'white',
+                fontWeight: 500,
+                '& .MuiChip-label': {
+                  px: 2
+                },
+                borderRadius: '6px'
+              }}
+            />
+          </Box>
         </Toolbar>
       </AppBar>
 

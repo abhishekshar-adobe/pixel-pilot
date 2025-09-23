@@ -1,9 +1,8 @@
 import React, { useState } from 'react';
-import { ThemeProvider } from '@mui/material/styles';
 import { CssBaseline, Box } from '@mui/material';
 import ProjectSelector from './components/ProjectSelector';
 import ProjectDashboard from './components/ProjectDashboard';
-import pixelPilotTheme from './theme/theme';
+import { PixelPilotThemeProvider } from './theme/ThemeContext.jsx';
 
 function App() {
   const [selectedProject, setSelectedProject] = useState(() => {
@@ -23,7 +22,7 @@ function App() {
   };
 
   return (
-    <ThemeProvider theme={pixelPilotTheme}>
+    <PixelPilotThemeProvider>
       <CssBaseline />
       <Box sx={{ minHeight: '100vh', width: '100%', bgcolor: 'background.default' }}>
         {selectedProject ? (
@@ -35,7 +34,7 @@ function App() {
           <ProjectSelector onProjectSelect={handleProjectSelect} />
         )}
       </Box>
-    </ThemeProvider>
+    </PixelPilotThemeProvider>
   );
 }
 
