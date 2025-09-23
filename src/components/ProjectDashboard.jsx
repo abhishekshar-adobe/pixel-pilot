@@ -212,7 +212,10 @@ function ProjectContent({ project, onBack }) {
           top: 0,
           zIndex: 1100,
           backdropFilter: 'blur(20px)',
-          backgroundColor: 'rgba(255, 255, 255, 0.9)'
+          backgroundColor: (theme) => 
+            theme.palette.mode === 'dark' 
+              ? 'rgba(30, 41, 59, 0.9)' 
+              : 'rgba(255, 255, 255, 0.9)'
         }}
       >
         <Tabs

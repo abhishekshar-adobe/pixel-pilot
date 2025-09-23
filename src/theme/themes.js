@@ -235,6 +235,31 @@ export const darkTheme = createTheme({
         },
       },
     },
+    MuiTabs: {
+      styleOverrides: {
+        root: {
+          backgroundColor: '#1e293b',
+          '& .MuiTabs-indicator': {
+            backgroundColor: '#60a5fa',
+          },
+        },
+      },
+    },
+    MuiTab: {
+      styleOverrides: {
+        root: {
+          color: '#94a3b8',
+          textTransform: 'none',
+          '&.Mui-selected': {
+            color: '#f1f5f9',
+          },
+          '&:hover': {
+            color: '#f1f5f9',
+            backgroundColor: 'rgba(96, 165, 250, 0.1)',
+          },
+        },
+      },
+    },
     MuiTextField: {
       styleOverrides: {
         root: {
@@ -264,25 +289,52 @@ export const darkTheme = createTheme({
         root: {
           borderRadius: '0.75rem',
           '&.MuiAlert-standardError': {
-            backgroundColor: 'rgba(248, 113, 113, 0.1)',
+            backgroundColor: 'rgba(248, 113, 113, 0.15)',
             border: '1px solid rgba(248, 113, 113, 0.3)',
             color: '#fca5a5',
           },
           '&.MuiAlert-standardWarning': {
-            backgroundColor: 'rgba(251, 191, 36, 0.1)',
+            backgroundColor: 'rgba(251, 191, 36, 0.15)',
             border: '1px solid rgba(251, 191, 36, 0.3)',
             color: '#fcd34d',
           },
-          '&.MuiAlert-standardInfo': {
-            backgroundColor: 'rgba(34, 211, 238, 0.1)',
-            border: '1px solid rgba(34, 211, 238, 0.3)',
-            color: '#67e8f9',
-          },
           '&.MuiAlert-standardSuccess': {
-            backgroundColor: 'rgba(52, 211, 153, 0.1)',
+            backgroundColor: 'rgba(52, 211, 153, 0.15)',
             border: '1px solid rgba(52, 211, 153, 0.3)',
             color: '#6ee7b7',
           },
+          '&.MuiAlert-standardInfo': {
+            backgroundColor: 'rgba(34, 211, 238, 0.15)',
+            border: '1px solid rgba(34, 211, 238, 0.3)',
+            color: '#67e8f9',
+          },
+        },
+      },
+    },
+    MuiListItem: {
+      styleOverrides: {
+        root: {
+          color: '#f1f5f9',
+          '&:hover': {
+            backgroundColor: 'rgba(96, 165, 250, 0.1)',
+          },
+        },
+      },
+    },
+    MuiListItemText: {
+      styleOverrides: {
+        primary: {
+          color: '#f1f5f9',
+        },
+        secondary: {
+          color: '#94a3b8',
+        },
+      },
+    },
+    MuiDivider: {
+      styleOverrides: {
+        root: {
+          borderColor: '#334155',
         },
       },
     },
