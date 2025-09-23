@@ -5,15 +5,15 @@ export const pixelPilotTheme = createTheme({
   palette: {
     mode: 'light',
     primary: {
-      main: '#3b82f6', // Modern blue
-      light: '#60a5fa',
-      dark: '#2563eb',
+      main: '#02c0ce', // Cyan
+      light: '#06d6f1',
+      dark: '#0891b2',
       contrastText: '#ffffff',
     },
     secondary: {
-      main: '#6366f1', // Modern indigo
-      light: '#818cf8',
-      dark: '#4f46e5',
+      main: '#02c0ce', // Cyan to match
+      light: '#06d6f1',
+      dark: '#0891b2',
       contrastText: '#ffffff',
     },
     success: {
@@ -170,10 +170,10 @@ export const pixelPilotTheme = createTheme({
           },
         },
         contained: {
-          backgroundColor: '#2563eb',
+          backgroundColor: '#02c0ce',
           color: '#ffffff',
           '&:hover': {
-            backgroundColor: '#1d4ed8',
+            backgroundColor: '#0891b2',
             boxShadow: 'none',
           },
         },
@@ -181,7 +181,7 @@ export const pixelPilotTheme = createTheme({
           borderColor: '#e5e7eb',
           color: '#374151',
           '&:hover': {
-            borderColor: '#2563eb',
+            borderColor: '#0891b2',
             backgroundColor: '#f9fafb',
           },
         },
@@ -210,7 +210,7 @@ export const pixelPilotTheme = createTheme({
               borderColor: '#9ca3af',
             },
             '&.Mui-focused fieldset': {
-              borderColor: '#2563eb',
+              borderColor: '#0891b2',
               borderWidth: '2px',
             },
           },
@@ -290,7 +290,7 @@ export const pixelPilotTheme = createTheme({
           minHeight: 48,
           borderRadius: 0,
           '&.Mui-selected': {
-            color: '#2563eb',
+            color: '#0891b2',
             fontWeight: 600,
           },
         },
@@ -299,7 +299,7 @@ export const pixelPilotTheme = createTheme({
     MuiTabs: {
       styleOverrides: {
         indicator: {
-          backgroundColor: '#2563eb',
+          backgroundColor: '#02c0ce',
           height: 2,
         },
       },

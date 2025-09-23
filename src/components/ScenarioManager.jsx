@@ -1178,16 +1178,16 @@ function ScenarioManager({ project, config: projectConfig, onConfigUpdate }) {
               fontSize: '1rem',
               fontWeight: 600,
               textTransform: 'none',
-              background: 'linear-gradient(135deg, #262936 0%, #1e2028 100%)',
-              boxShadow: '0 8px 24px rgba(38, 41, 54, 0.25)',
+              background: 'linear-gradient(135deg, #02c0ce 0%, #0891b2 100%)',
+              boxShadow: '0 8px 24px rgba(2, 192, 206, 0.25)',
               '&:hover': {
-                background: 'linear-gradient(135deg, #1e2028 0%, #1a1d24 100%)',
+                background: 'linear-gradient(135deg, #0891b2 0%, #0e7490 100%)',
                 transform: 'translateY(-2px)',
-                boxShadow: '0 12px 32px rgba(38, 41, 54, 0.35)'
+                boxShadow: '0 12px 32px rgba(2, 192, 206, 0.35)'
               },
               '&:active': {
                 transform: 'translateY(0)',
-                boxShadow: '0 6px 16px rgba(38, 41, 54, 0.2)'
+                boxShadow: '0 6px 16px rgba(2, 192, 206, 0.2)'
               }
             }}
           >
