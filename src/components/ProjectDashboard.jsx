@@ -214,7 +214,7 @@ function ProjectContent({ project, onBack }) {
           backdropFilter: 'blur(20px)',
           backgroundColor: (theme) => 
             theme.palette.mode === 'dark' 
-              ? 'rgba(30, 41, 59, 0.9)' 
+              ? 'rgba(38, 41, 54, 0.9)' 
               : 'rgba(255, 255, 255, 0.9)'
         }}
       >

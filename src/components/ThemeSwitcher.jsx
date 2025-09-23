@@ -23,20 +23,20 @@ export const ThemeToggleButton = ({ size = 'medium', showTooltip = true }) => {
       onClick={toggleTheme}
       size={size}
       sx={{
-        color: isDarkMode ? '#fbbf24' : '#f59e0b',
+        color: isDarkMode ? '#ffbc00' : '#f59e0b',
         backgroundColor: isDarkMode 
-          ? 'rgba(251, 191, 36, 0.1)' 
+          ? 'rgba(255, 188, 0, 0.1)' 
           : 'rgba(245, 158, 11, 0.1)',
         '&:hover': {
           backgroundColor: isDarkMode 
-            ? 'rgba(251, 191, 36, 0.2)' 
+            ? 'rgba(255, 188, 0, 0.2)' 
             : 'rgba(245, 158, 11, 0.2)',
           transform: 'scale(1.05)',
         },
         transition: 'all 0.2s ease-in-out',
         border: '1px solid',
         borderColor: isDarkMode 
-          ? 'rgba(251, 191, 36, 0.3)' 
+          ? 'rgba(255, 188, 0, 0.3)' 
           : 'rgba(245, 158, 11, 0.3)',
       }}
     >
@@ -90,10 +90,10 @@ export const ThemeSwitch = ({ label = true, size = 'medium' }) => {
         sx={{
           '& .MuiSwitch-switchBase': {
             '&.Mui-checked': {
-              color: '#fbbf24',
+              color: '#ffbc00',
               '& + .MuiSwitch-track': {
-                backgroundColor: '#1e293b',
-                border: '1px solid #334155',
+                backgroundColor: '#262936',
+                border: '1px solid #3a3f5c',
               },
             },
           },
@@ -152,13 +152,13 @@ export const ThemeIndicator = () => {
       <Brightness4 
         sx={{ 
           fontSize: 14, 
-          color: isDarkMode ? '#60a5fa' : '#3b82f6' 
+          color: isDarkMode ? '#727cf5' : '#3b82f6' 
         }} 
       />
       <Typography 
         variant="caption" 
         sx={{ 
-          color: isDarkMode ? '#60a5fa' : '#3b82f6',
+          color: isDarkMode ? '#727cf5' : '#3b82f6',
           fontWeight: 500,
           fontSize: '0.75rem'
         }}

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import axios from 'axios'
-import { alpha, darken } from '@mui/material/styles'
+import { alpha, darken, useTheme } from '@mui/material/styles'
 import {
   Box,
   Typography,
@@ -60,6 +60,7 @@ const API_BASE = 'http://localhost:5000/api'
 import CSVScenarioUploader from './CSVScenarioUploader';
 
 function ScenarioManager({ project, config: projectConfig, onConfigUpdate }) {
+  const theme = useTheme()
   const [scenarios, setScenarios] = useState([])
   const [config, setConfig] = useState(projectConfig || null)
   const [loading, setLoading] = useState(true)
@@ -377,7 +378,7 @@ function ScenarioManager({ project, config: projectConfig, onConfigUpdate }) {
                   borderColor: 'secondary.dark',
                   color: 'secondary.dark',
                   transform: 'translateY(-1px)',
-                  boxShadow: '0 4px 12px rgba(156, 39, 176, 0.3)'
+                  boxShadow: theme.palette.mode === 'dark' ? '0 4px 12px rgba(156, 39, 176, 0.4)' : '0 4px 12px rgba(156, 39, 176, 0.3)'
                 }
               }}
             >
@@ -391,11 +392,11 @@ function ScenarioManager({ project, config: projectConfig, onConfigUpdate }) {
                 borderRadius: 2,
                 px: 3,
                 py: 1.5,
-                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                background: 'primary.main',
                 '&:hover': {
-                  background: 'linear-gradient(135deg, #5a6fd8 0%, #6a4190 100%)',
+                  background: 'primary.dark',
                   transform: 'translateY(-1px)',
-                  boxShadow: '0 4px 12px rgba(102, 126, 234, 0.3)'
+                  boxShadow: theme.palette.mode === 'dark' ? '0 4px 12px rgba(114, 124, 245, 0.4)' : '0 4px 12px rgba(114, 124, 245, 0.3)'
                 }
               }}
             >
@@ -412,11 +413,11 @@ function ScenarioManager({ project, config: projectConfig, onConfigUpdate }) {
                   borderRadius: 2,
                   px: 3,
                   py: 1.5,
-                  background: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
+                  background: 'success.main',
                   '&:hover': {
-                    background: 'linear-gradient(135deg, #3d8bfe 0%, #00d9fe 100%)',
+                    background: 'success.dark',
                     transform: 'translateY(-1px)',
-                    boxShadow: '0 4px 12px rgba(79, 172, 254, 0.3)'
+                    boxShadow: theme.palette.mode === 'dark' ? '0 4px 12px rgba(10, 207, 151, 0.4)' : '0 4px 12px rgba(10, 207, 151, 0.3)'
                   }
                 }}
               >
@@ -430,16 +431,16 @@ function ScenarioManager({ project, config: projectConfig, onConfigUpdate }) {
         <Grid container spacing={2} sx={{ mb: 3 }}>
           <Grid item xs={12} sm={6} md={3}>
             <Card sx={{ 
-              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-              color: 'white',
+              bgcolor: 'primary.main',
+              color: 'primary.contrastText',
               height: '100%'
             }}>
               <CardContent sx={{ textAlign: 'center', py: 2 }}>
-                <Timeline sx={{ fontSize: 32, mb: 1 }} />
-                <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                <Timeline sx={{ fontSize: 32, mb: 1, color: 'inherit' }} />
+                <Typography variant="h6" sx={{ fontWeight: 600, color: 'inherit' }}>
                   {scenarios.length}
                 </Typography>
-                <Typography variant="body2" sx={{ opacity: 0.9 }}>
+                <Typography variant="body2" sx={{ color: 'inherit', opacity: 1 }}>
                   Total Scenarios
                 </Typography>
               </CardContent>
@@ -448,16 +449,16 @@ function ScenarioManager({ project, config: projectConfig, onConfigUpdate }) {
           
           <Grid item xs={12} sm={6} md={3}>
             <Card sx={{ 
-              background: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
-              color: 'white',
+              bgcolor: 'error.main',
+              color: 'error.contrastText',
               height: '100%'
             }}>
               <CardContent sx={{ textAlign: 'center', py: 2 }}>
-                <Settings sx={{ fontSize: 32, mb: 1 }} />
-                <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                <Settings sx={{ fontSize: 32, mb: 1, color: 'inherit' }} />
+                <Typography variant="h6" sx={{ fontWeight: 600, color: 'inherit' }}>
                   {scenarios.filter(s => s.customScript || s.customBeforeScript).length}
                 </Typography>
-                <Typography variant="body2" sx={{ opacity: 0.9 }}>
+                <Typography variant="body2" sx={{ color: 'inherit', opacity: 1 }}>
                   With Custom Scripts
                 </Typography>
               </CardContent>
@@ -466,16 +467,16 @@ function ScenarioManager({ project, config: projectConfig, onConfigUpdate }) {
           
           <Grid item xs={12} sm={6} md={3}>
             <Card sx={{ 
-              background: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
-              color: 'white',
+              bgcolor: 'info.main',
+              color: 'info.contrastText',
               height: '100%'
             }}>
               <CardContent sx={{ textAlign: 'center', py: 2 }}>
-                <TouchApp sx={{ fontSize: 32, mb: 1 }} />
-                <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                <TouchApp sx={{ fontSize: 32, mb: 1, color: 'inherit' }} />
+                <Typography variant="h6" sx={{ fontWeight: 600, color: 'inherit' }}>
                   {scenarios.filter(s => s.clickSelector || s.hoverSelector).length}
                 </Typography>
-                <Typography variant="body2" sx={{ opacity: 0.9 }}>
+                <Typography variant="body2" sx={{ color: 'inherit', opacity: 1 }}>
                   Interactive Scenarios
                 </Typography>
               </CardContent>
@@ -484,22 +485,20 @@ function ScenarioManager({ project, config: projectConfig, onConfigUpdate }) {
           
           <Grid item xs={12} sm={6} md={3}>
             <Card sx={{ 
-              background: hasUnsavedChanges 
-                ? 'linear-gradient(135deg, #fa709a 0%, #fee140 100%)'
-                : 'linear-gradient(135deg, #a8edea 0%, #fed6e3 100%)',
-              color: hasUnsavedChanges ? 'white' : '#8B4513',
+              bgcolor: hasUnsavedChanges ? 'warning.main' : 'success.main',
+              color: hasUnsavedChanges ? 'warning.contrastText' : 'success.contrastText',
               height: '100%'
             }}>
               <CardContent sx={{ textAlign: 'center', py: 2 }}>
                 {hasUnsavedChanges ? (
-                  <Edit sx={{ fontSize: 32, mb: 1 }} />
+                  <Edit sx={{ fontSize: 32, mb: 1, color: 'inherit' }} />
                 ) : (
-                  <Save sx={{ fontSize: 32, mb: 1 }} />
+                  <Save sx={{ fontSize: 32, mb: 1, color: 'inherit' }} />
                 )}
-                <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                <Typography variant="h6" sx={{ fontWeight: 600, color: 'inherit' }}>
                   {hasUnsavedChanges ? 'Unsaved' : 'Saved'}
                 </Typography>
-                <Typography variant="body2" sx={{ opacity: 0.8 }}>
+                <Typography variant="body2" sx={{ color: 'inherit', opacity: 1 }}>
                   Changes Status
                 </Typography>
               </CardContent>
@@ -532,7 +531,14 @@ function ScenarioManager({ project, config: projectConfig, onConfigUpdate }) {
 
       {/* Search and Pagination Controls */}
       {scenarios.length > 10 && (
-        <Paper sx={{ p: 3, mb: 3, borderRadius: 3, background: 'linear-gradient(135deg, #f8f9ff 0%, #eef2ff 100%)' }}>
+        <Paper sx={{ 
+          p: 3, 
+          mb: 3, 
+          borderRadius: 3, 
+          background: theme.palette.mode === 'dark' 
+            ? `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.1)} 0%, ${alpha(theme.palette.primary.dark, 0.05)} 100%)`
+            : 'linear-gradient(135deg, #f8f9ff 0%, #eef2ff 100%)'
+        }}>
           <Grid container spacing={2} alignItems="center">
             <Grid item xs={12} md={6}>
               <TextField
@@ -550,9 +556,9 @@ function ScenarioManager({ project, config: projectConfig, onConfigUpdate }) {
                 sx={{
                   '& .MuiOutlinedInput-root': {
                     borderRadius: 2,
-                    backgroundColor: 'white',
+                    backgroundColor: 'background.paper',
                     '&:hover': {
-                      boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                      boxShadow: theme.palette.mode === 'dark' ? '0 4px 12px rgba(0,0,0,0.3)' : '0 4px 12px rgba(0,0,0,0.1)',
                     },
                   },
                 }}
@@ -680,16 +686,16 @@ function ScenarioManager({ project, config: projectConfig, onConfigUpdate }) {
                       label={`${scenario.delay || 0}ms`}
                       size="small"
                       sx={{ 
-                        bgcolor: 'rgba(255,255,255,0.12)',
-                        color: 'white',
-                        border: '1px solid rgba(255,255,255,0.25)',
+                        bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.08)',
+                        color: theme.palette.mode === 'dark' ? 'white' : 'text.primary',
+                        border: theme.palette.mode === 'dark' ? '1px solid rgba(255,255,255,0.25)' : '1px solid rgba(0,0,0,0.15)',
                         fontSize: '0.7rem',
                         height: 22,
                         backdropFilter: 'blur(4px)',
                         transition: 'all 0.2s ease',
                         '&:hover': {
-                          bgcolor: 'rgba(255,255,255,0.18)',
-                          borderColor: 'rgba(255,255,255,0.35)'
+                          bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.25)' : 'rgba(0,0,0,0.12)',
+                          borderColor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.35)' : 'rgba(0,0,0,0.25)'
                         },
                         '& .MuiChip-label': {
                           px: 1,
@@ -706,9 +712,9 @@ function ScenarioManager({ project, config: projectConfig, onConfigUpdate }) {
                       label={`${Math.round((scenario.misMatchThreshold || 0.1) * 100)}%`}
                       size="small"
                       sx={{ 
-                        bgcolor: 'rgba(255,255,255,0.15)',
-                        color: 'white',
-                        border: '1px solid rgba(255,255,255,0.3)',
+                        bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.08)',
+                        color: theme.palette.mode === 'dark' ? 'white' : 'text.primary',
+                        border: theme.palette.mode === 'dark' ? '1px solid rgba(255,255,255,0.3)' : '1px solid rgba(0,0,0,0.15)',
                         fontSize: '0.7rem',
                         height: 20
                       }}
@@ -719,9 +725,9 @@ function ScenarioManager({ project, config: projectConfig, onConfigUpdate }) {
                         label="Interactive"
                         size="small"
                         sx={{ 
-                          bgcolor: 'rgba(255,255,255,0.15)',
-                          color: 'white',
-                          border: '1px solid rgba(255,255,255,0.3)',
+                          bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.08)',
+                          color: theme.palette.mode === 'dark' ? 'white' : 'text.primary',
+                          border: theme.palette.mode === 'dark' ? '1px solid rgba(255,255,255,0.3)' : '1px solid rgba(0,0,0,0.15)',
                           fontSize: '0.7rem',
                           height: 20
                         }}
@@ -733,9 +739,9 @@ function ScenarioManager({ project, config: projectConfig, onConfigUpdate }) {
                         label="Custom Script"
                         size="small"
                         sx={{ 
-                          bgcolor: 'rgba(255,255,255,0.15)',
-                          color: 'white',
-                          border: '1px solid rgba(255,255,255,0.3)',
+                          bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.08)',
+                          color: theme.palette.mode === 'dark' ? 'white' : 'text.primary',
+                          border: theme.palette.mode === 'dark' ? '1px solid rgba(255,255,255,0.3)' : '1px solid rgba(0,0,0,0.15)',
                           fontSize: '0.7rem',
                           height: 20
                         }}
@@ -746,9 +752,10 @@ function ScenarioManager({ project, config: projectConfig, onConfigUpdate }) {
                         label="No Expansion"
                         size="small"
                         sx={{ 
-                          bgcolor: 'rgba(255,193,7,0.8)',
-                          color: 'rgba(0,0,0,0.87)',
-                          border: '1px solid rgba(255,193,7,1)',
+                          bgcolor: 'warning.main',
+                          color: 'warning.contrastText',
+                          border: '1px solid',
+                          borderColor: 'warning.main',
                           fontSize: '0.7rem',
                           height: 20
                         }}
@@ -1071,10 +1078,10 @@ function ScenarioManager({ project, config: projectConfig, onConfigUpdate }) {
               '& .MuiPaginationItem-root': {
                 borderRadius: 2,
                 '&.Mui-selected': {
-                  background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                  color: 'white',
+                  background: 'primary.main',
+                  color: 'primary.contrastText',
                   '&:hover': {
-                    background: 'linear-gradient(135deg, #5a6fd8 0%, #6a4190 100%)',
+                    background: 'primary.dark',
                   },
                 },
               },
@@ -1105,13 +1112,13 @@ function ScenarioManager({ project, config: projectConfig, onConfigUpdate }) {
             height: { xs: 64, sm: 80 }, 
             mx: 'auto', 
             mb: 3,
-            boxShadow: '0 8px 32px rgba(0,0,0,0.1)',
+            boxShadow: theme.palette.mode === 'dark' ? '0 8px 32px rgba(0,0,0,0.3)' : '0 8px 32px rgba(0,0,0,0.1)',
             background: (theme) => `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.dark} 100%)`,
             animation: 'pulse 2s infinite',
             '@keyframes pulse': {
               '0%': {
                 transform: 'scale(1)',
-                boxShadow: '0 8px 32px rgba(0,0,0,0.1)'
+                boxShadow: theme.palette.mode === 'dark' ? '0 8px 32px rgba(0,0,0,0.3)' : '0 8px 32px rgba(0,0,0,0.1)'
               },
               '50%': {
                 transform: 'scale(1.05)',
@@ -1119,7 +1126,7 @@ function ScenarioManager({ project, config: projectConfig, onConfigUpdate }) {
               },
               '100%': {
                 transform: 'scale(1)',
-                boxShadow: '0 8px 32px rgba(0,0,0,0.1)'
+                boxShadow: theme.palette.mode === 'dark' ? '0 8px 32px rgba(0,0,0,0.3)' : '0 8px 32px rgba(0,0,0,0.1)'
               }
             }
           }}>

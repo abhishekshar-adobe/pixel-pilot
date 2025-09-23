@@ -32,6 +32,7 @@ import {
   ListItemText,
   Checkbox
 } from '@mui/material'
+import { useTheme } from '@mui/material/styles'
 import {
   PlayArrow,
   CheckCircle,
@@ -70,55 +71,56 @@ const getViewportIcon = (viewport) => {
 const getStatusIcon = (status) => {
   switch (status) {
     case 'passed':
-      return <CheckCircle sx={{ color: '#4caf50', fontSize: 16 }} />
+      return <CheckCircle sx={{ color: 'success.main', fontSize: 16 }} />
     case 'failed':
-      return <Error sx={{ color: '#f44336', fontSize: 16 }} />
+      return <Error sx={{ color: 'error.main', fontSize: 16 }} />
     case 'network_error':
-      return <Clear sx={{ color: '#d32f2f', fontSize: 16 }} />
+      return <Clear sx={{ color: 'error.dark', fontSize: 16 }} />
     case 'running':
-      return <AccessTime sx={{ color: '#ff9800', fontSize: 16 }} />
+      return <AccessTime sx={{ color: 'warning.main', fontSize: 16 }} />
     default:
-      return <RadioButtonUnchecked sx={{ color: '#9e9e9e', fontSize: 16 }} />
+      return <RadioButtonUnchecked sx={{ color: 'text.secondary', fontSize: 16 }} />
   }
 }
 
-const getStatusBorderColor = (status, isSelected = false) => {
+const getStatusBorderColor = (status, isSelected = false, theme) => {
   // Prioritize status color over selection - status is more important for visual feedback
   switch (status) {
     case 'passed':
-      return '#4caf50' // Green for passed tests
+      return theme.palette.success.main // Green for passed tests
     case 'failed':
-      return '#f44336' // Red for failed tests
+      return theme.palette.error.main // Red for failed tests
     case 'network_error':
-      return '#d32f2f' // Dark red for network errors
+      return theme.palette.error.dark // Dark red for network errors
     case 'running':
-      return '#ff9800' // Orange for running tests
+      return theme.palette.warning.main // Orange for running tests
     case 'pending':
     default:
       // Only use blue for pending/default items when they're selected
-      return isSelected ? '#1976d2' : '#e0e0e0' // Blue if selected, grey if not
+      return isSelected ? theme.palette.primary.main : theme.palette.grey[400] // Blue if selected, grey if not
   }
 }
 
-const getStatusBackgroundColor = (status, isSelected = false) => {
+const getStatusBackgroundColor = (status, isSelected = false, theme) => {
   // Prioritize status color over selection
   switch (status) {
     case 'passed':
-      return '#f1f8e9' // Very light green
+      return theme.palette.mode === 'dark' ? 'rgba(76,175,80,0.1)' : '#f1f8e9' // Very light green
     case 'failed':
-      return '#ffebee' // Very light red
+      return theme.palette.mode === 'dark' ? 'rgba(244,67,54,0.1)' : '#ffebee' // Very light red
     case 'network_error':
-      return '#ffebee' // Very light red
+      return theme.palette.mode === 'dark' ? 'rgba(244,67,54,0.1)' : '#ffebee' // Very light red
     case 'running':
-      return '#fff3e0' // Very light orange
+      return theme.palette.mode === 'dark' ? 'rgba(255,152,0,0.1)' : '#fff3e0' // Very light orange
     case 'pending':
     default:
       // Only use blue background for pending items when selected
-      return isSelected ? '#e3f2fd' : 'background.paper' // Light blue if selected, white if not
+      return isSelected ? (theme.palette.mode === 'dark' ? 'rgba(114,124,245,0.1)' : '#e3f2fd') : 'background.paper' // Light blue if selected, theme background if not
   }
 }
 
 function TestRunner({ project, config, scenarios: initialScenarios = [] }) {
+  const theme = useTheme()
   const [scenarios, setScenarios] = useState(initialScenarios)
   const [selectedScenarios, setSelectedScenarios] = useState([])
   const [scenarioResults, setScenarioResults] = useState({})
@@ -1162,17 +1164,16 @@ function TestRunner({ project, config, scenarios: initialScenarios = [] }) {
                   <Box sx={{ 
                     width: '100%', 
                     height: 10, 
-                    bgcolor: 'rgba(255,255,255,0.3)', 
+                    bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)', 
                     borderRadius: 1,
                     overflow: 'hidden',
-                    boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.1)'
+                    boxShadow: theme.palette.mode === 'dark' ? 'inset 0 1px 3px rgba(0,0,0,0.3)' : 'inset 0 1px 3px rgba(0,0,0,0.1)'
                   }}>
                     <Box sx={{ 
                       width: `${batchProgress?.totalCount ? Math.round((processedCount / batchProgress.totalCount) * 100) : 0}%`, 
                       height: '100%', 
                       bgcolor: 'primary.main',
-                      transition: 'width 0.3s ease',
-                      background: 'linear-gradient(90deg, #1976d2 0%, #42a5f5 100%)'
+                      transition: 'width 0.3s ease'
                     }} />
                   </Box>
                 </Box>
@@ -1196,10 +1197,10 @@ function TestRunner({ project, config, scenarios: initialScenarios = [] }) {
                   <Box sx={{ 
                     width: '100%', 
                     height: 10, 
-                    bgcolor: 'rgba(255,255,255,0.3)', 
+                    bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)', 
                     borderRadius: 1,
                     overflow: 'hidden',
-                    boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.1)'
+                    boxShadow: theme.palette.mode === 'dark' ? 'inset 0 1px 3px rgba(0,0,0,0.3)' : 'inset 0 1px 3px rgba(0,0,0,0.1)'
                   }}>
                     <Box sx={{ 
                       width: `${(() => {
@@ -1209,8 +1210,7 @@ function TestRunner({ project, config, scenarios: initialScenarios = [] }) {
                       })()}%`, 
                       height: '100%', 
                       bgcolor: 'warning.main',
-                      transition: 'width 0.3s ease',
-                      background: 'linear-gradient(90deg, #ff9800 0%, #ffb74d 100%)'
+                      transition: 'width 0.3s ease'
                     }} />
                   </Box>
                 </Box>
@@ -1218,7 +1218,7 @@ function TestRunner({ project, config, scenarios: initialScenarios = [] }) {
 
               {/* Batch Configuration Details */}
               <Grid item xs={12} md={6}>
-                <Box sx={{ p: 1.5, bgcolor: 'rgba(255,255,255,0.1)', borderRadius: '8px' }}>
+                <Box sx={{ p: 1.5, bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)', borderRadius: '8px' }}>
                   <Typography variant="caption" sx={{ color: 'primary.dark', fontWeight: 600, display: 'block', mb: 0.5 }}>
                     Batch Configuration
                   </Typography>
@@ -1226,17 +1226,17 @@ function TestRunner({ project, config, scenarios: initialScenarios = [] }) {
                     <Chip
                       size="small"
                       label={`Size: ${batchProgress?.batchSize || 50}`}
-                      sx={{ fontSize: '0.7rem', height: '20px', bgcolor: 'rgba(255,255,255,0.2)', color: 'primary.dark' }}
+                      sx={{ fontSize: '0.7rem', height: '20px', bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)', color: 'primary.dark' }}
                     />
                     <Chip
                       size="small"
                       label={`Parallel: ${batchProgress?.maxConcurrent || 5}`}
-                      sx={{ fontSize: '0.7rem', height: '20px', bgcolor: 'rgba(255,255,255,0.2)', color: 'primary.dark' }}
+                      sx={{ fontSize: '0.7rem', height: '20px', bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)', color: 'primary.dark' }}
                     />
                     <Chip
                       size="small"
                       label={`Total Batches: ${batchProgress?.totalBatches || 1}`}
-                      sx={{ fontSize: '0.7rem', height: '20px', bgcolor: 'rgba(255,255,255,0.2)', color: 'primary.dark' }}
+                      sx={{ fontSize: '0.7rem', height: '20px', bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)', color: 'primary.dark' }}
                     />
                   </Box>
                 </Box>
@@ -1244,7 +1244,7 @@ function TestRunner({ project, config, scenarios: initialScenarios = [] }) {
 
               {/* Timing Information */}
               <Grid item xs={12} md={6}>
-                <Box sx={{ p: 1.5, bgcolor: 'rgba(255,255,255,0.1)', borderRadius: '8px' }}>
+                <Box sx={{ p: 1.5, bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)', borderRadius: '8px' }}>
                   <Typography variant="caption" sx={{ color: 'primary.dark', fontWeight: 600, display: 'block', mb: 0.5 }}>
                     Timing Information
                   </Typography>
@@ -1253,7 +1253,7 @@ function TestRunner({ project, config, scenarios: initialScenarios = [] }) {
                       <Chip
                         size="small"
                         label={`ETA: ${estimatedTime.formatted || estimatedTime}`}
-                        sx={{ fontSize: '0.7rem', height: '20px', bgcolor: 'rgba(255,255,255,0.2)', color: 'primary.dark' }}
+                        sx={{ fontSize: '0.7rem', height: '20px', bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)', color: 'primary.dark' }}
                       />
                     )}
                     <Chip
@@ -1262,18 +1262,18 @@ function TestRunner({ project, config, scenarios: initialScenarios = [] }) {
                         const runningCount = Object.values(liveScenarioResults).filter(r => r.status === 'running').length;
                         return runningCount || 0;
                       })()} scenarios`}
-                      sx={{ fontSize: '0.7rem', height: '20px', bgcolor: 'rgba(255,152,0,0.2)', color: 'warning.dark' }}
+                      sx={{ fontSize: '0.7rem', height: '20px', bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,188,0,0.2)' : 'rgba(255,152,0,0.2)', color: 'warning.dark' }}
                     />
                     <Chip
                       size="small"
                       label={`Completed: ${Object.values(liveScenarioResults).filter(r => r.status === 'passed' || r.status === 'failed').length || 0}`}
-                      sx={{ fontSize: '0.7rem', height: '20px', bgcolor: 'rgba(76,175,80,0.2)', color: 'success.dark' }}
+                      sx={{ fontSize: '0.7rem', height: '20px', bgcolor: theme.palette.mode === 'dark' ? 'rgba(10,207,151,0.2)' : 'rgba(76,175,80,0.2)', color: 'success.dark' }}
                     />
                     {totalElapsedTime > 0 && (
                       <Chip
                         size="small"
                         label={`Elapsed: ${Math.floor(totalElapsedTime / 60)}m ${Math.floor(totalElapsedTime % 60)}s`}
-                        sx={{ fontSize: '0.7rem', height: '20px', bgcolor: 'rgba(255,255,255,0.2)', color: 'primary.dark' }}
+                        sx={{ fontSize: '0.7rem', height: '20px', bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)', color: 'primary.dark' }}
                       />
                     )}
                   </Box>
@@ -1738,15 +1738,15 @@ function TestRunner({ project, config, scenarios: initialScenarios = [] }) {
                   disablePadding
                   sx={{
                     border: '3px solid',
-                    borderColor: getStatusBorderColor(displayStatus || 'pending', isSelected),
+                    borderColor: getStatusBorderColor(displayStatus || 'pending', isSelected, theme),
                     borderRadius: '8px',
                     mb: 0.75,
-                    bgcolor: getStatusBackgroundColor(displayStatus || 'pending', isSelected),
+                    bgcolor: getStatusBackgroundColor(displayStatus || 'pending', isSelected, theme),
                     boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
                     opacity: isSelected ? 1 : 0.85, // Subtle selection indicator via opacity
                     '&:hover': {
-                      borderColor: getStatusBorderColor(displayStatus || 'pending', isSelected),
-                      bgcolor: getStatusBackgroundColor(displayStatus || 'pending', isSelected),
+                      borderColor: getStatusBorderColor(displayStatus || 'pending', isSelected, theme),
+                      bgcolor: getStatusBackgroundColor(displayStatus || 'pending', isSelected, theme),
                       transform: 'translateX(4px)',
                       boxShadow: '0 2px 6px rgba(0,0,0,0.15)',
                       opacity: 1,
@@ -1808,15 +1808,15 @@ function TestRunner({ project, config, scenarios: initialScenarios = [] }) {
                   sx={{ 
                     p: 2, 
                     border: '3px solid', 
-                    borderColor: getStatusBorderColor(displayStatus || 'pending', isSelected), 
+                    borderColor: getStatusBorderColor(displayStatus || 'pending', isSelected, theme), 
                     borderRadius: '8px', 
                     cursor: 'pointer', 
                     transition: 'all 0.2s ease',
-                    bgcolor: getStatusBackgroundColor(displayStatus || 'pending', isSelected),
+                    bgcolor: getStatusBackgroundColor(displayStatus || 'pending', isSelected, theme),
                     boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
                     opacity: isSelected ? 1 : 0.85, // Subtle selection indicator via opacity
                     '&:hover': { 
-                      borderColor: getStatusBorderColor(displayStatus || 'pending', isSelected),
+                      borderColor: getStatusBorderColor(displayStatus || 'pending', isSelected, theme),
                       transform: 'translateY(-2px)',
                       boxShadow: '0 4px 8px -2px rgba(0, 0, 0, 0.15)',
                       opacity: 1
@@ -1882,10 +1882,10 @@ function TestRunner({ project, config, scenarios: initialScenarios = [] }) {
                                        displayStatus === 'network_error' ? 'rgba(211, 47, 47, 0.1)' :
                                        displayStatus === 'running' ? 'rgba(255, 152, 0, 0.1)' :
                                        'background.default',
-                              color: displayStatus === 'passed' ? '#4caf50' :
-                                     displayStatus === 'failed' ? '#f44336' :
-                                     displayStatus === 'network_error' ? '#d32f2f' :
-                                     displayStatus === 'running' ? '#ff9800' :
+                              color: displayStatus === 'passed' ? 'success.main' :
+                                     displayStatus === 'failed' ? 'error.main' :
+                                     displayStatus === 'network_error' ? 'error.dark' :
+                                     displayStatus === 'running' ? 'warning.main' :
                                      'text.secondary',
                               fontWeight: 500,
                               '& .MuiChip-icon': { fontSize: '14px' }

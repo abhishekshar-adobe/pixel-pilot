@@ -38,6 +38,7 @@ import {
   ListItemIcon,
   ListItemSecondaryAction
 } from '@mui/material'
+import { useTheme } from '@mui/material/styles'
 import {
   Save,
   Add,
@@ -67,6 +68,7 @@ import {
 const API_BASE = 'http://localhost:5000/api'
 
 function ConfigEditor({ project, onConfigUpdate }) {
+  const theme = useTheme()
   const [config, setConfig] = useState(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -282,16 +284,22 @@ function ConfigEditor({ project, onConfigUpdate }) {
         <Grid container spacing={2} sx={{ mb: 3 }}>
           <Grid item xs={12} sm={6} md={3}>
             <Card sx={{ 
-              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-              color: 'white',
-              height: '100%'
+              bgcolor: 'primary.main',
+              color: 'primary.contrastText',
+              height: '100%',
+              boxShadow: 3,
+              '&:hover': {
+                boxShadow: 6,
+                transform: 'translateY(-2px)',
+              },
+              transition: 'all 0.2s ease-in-out'
             }}>
               <CardContent sx={{ textAlign: 'center', py: 2 }}>
-                <Settings sx={{ fontSize: 32, mb: 1 }} />
-                <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                <Settings sx={{ fontSize: 32, mb: 1, color: 'inherit' }} />
+                <Typography variant="h6" sx={{ fontWeight: 600, color: 'inherit' }}>
                   {safeConfig.id || 'Default'}
                 </Typography>
-                <Typography variant="body2" sx={{ opacity: 0.9 }}>
+                <Typography variant="body2" sx={{ color: 'inherit', opacity: 1 }}>
                   Project ID
                 </Typography>
               </CardContent>
@@ -300,16 +308,22 @@ function ConfigEditor({ project, onConfigUpdate }) {
           
           <Grid item xs={12} sm={6} md={3}>
             <Card sx={{ 
-              background: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
-              color: 'white',
-              height: '100%'
+              bgcolor: 'success.main',
+              color: 'success.contrastText',
+              height: '100%',
+              boxShadow: 3,
+              '&:hover': {
+                boxShadow: 6,
+                transform: 'translateY(-2px)',
+              },
+              transition: 'all 0.2s ease-in-out'
             }}>
               <CardContent sx={{ textAlign: 'center', py: 2 }}>
-                <MonitorOutlined sx={{ fontSize: 32, mb: 1 }} />
-                <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                <MonitorOutlined sx={{ fontSize: 32, mb: 1, color: 'inherit' }} />
+                <Typography variant="h6" sx={{ fontWeight: 600, color: 'inherit' }}>
                   {safeConfig.viewports?.length || 0}
                 </Typography>
-                <Typography variant="body2" sx={{ opacity: 0.9 }}>
+                <Typography variant="body2" sx={{ color: 'inherit', opacity: 1 }}>
                   Viewports Configured
                 </Typography>
               </CardContent>
@@ -318,18 +332,24 @@ function ConfigEditor({ project, onConfigUpdate }) {
           
           <Grid item xs={12} sm={6} md={3}>
             <Card sx={{ 
-              background: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
-              color: 'white',
-              height: '100%'
+              bgcolor: 'info.main',
+              color: 'info.contrastText',
+              height: '100%',
+              boxShadow: 3,
+              '&:hover': {
+                boxShadow: 6,
+                transform: 'translateY(-2px)',
+              },
+              transition: 'all 0.2s ease-in-out'
             }}>
               <CardContent sx={{ textAlign: 'center', py: 2 }}>
-                <Typography variant="h4" sx={{ mb: 1 }}>
+                <Typography variant="h4" sx={{ mb: 1, color: 'inherit' }}>
                   {getEngineIcon(safeConfig.engine)}
                 </Typography>
-                <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                <Typography variant="h6" sx={{ fontWeight: 600, color: 'inherit' }}>
                   {safeConfig.engine || 'Puppeteer'}
                 </Typography>
-                <Typography variant="body2" sx={{ opacity: 0.9 }}>
+                <Typography variant="body2" sx={{ color: 'inherit', opacity: 1 }}>
                   Testing Engine
                 </Typography>
               </CardContent>
@@ -338,22 +358,26 @@ function ConfigEditor({ project, onConfigUpdate }) {
           
           <Grid item xs={12} sm={6} md={3}>
             <Card sx={{ 
-              background: safeConfig.debug 
-                ? 'linear-gradient(135deg, #fa709a 0%, #fee140 100%)'
-                : 'linear-gradient(135deg, #a8edea 0%, #fed6e3 100%)',
-              color: safeConfig.debug ? 'white' : '#8B4513',
-              height: '100%'
+              bgcolor: safeConfig.debug ? 'warning.main' : 'secondary.main',
+              color: safeConfig.debug ? 'warning.contrastText' : 'secondary.contrastText',
+              height: '100%',
+              boxShadow: 3,
+              '&:hover': {
+                boxShadow: 6,
+                transform: 'translateY(-2px)',
+              },
+              transition: 'all 0.2s ease-in-out'
             }}>
               <CardContent sx={{ textAlign: 'center', py: 2 }}>
                 {safeConfig.debug ? (
-                  <BugReportOutlined sx={{ fontSize: 32, mb: 1 }} />
+                  <BugReportOutlined sx={{ fontSize: 32, mb: 1, color: 'inherit' }} />
                 ) : (
-                  <SpeedOutlined sx={{ fontSize: 32, mb: 1 }} />
+                  <SpeedOutlined sx={{ fontSize: 32, mb: 1, color: 'inherit' }} />
                 )}
-                <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                <Typography variant="h6" sx={{ fontWeight: 600, color: 'inherit' }}>
                   {safeConfig.debug ? 'Debug' : 'Production'}
                 </Typography>
-                <Typography variant="body2" sx={{ opacity: 0.8 }}>
+                <Typography variant="body2" sx={{ color: 'inherit', opacity: 1 }}>
                   Execution Mode
                 </Typography>
               </CardContent>
@@ -390,8 +414,8 @@ function ConfigEditor({ project, onConfigUpdate }) {
         <Box sx={{ 
           width: '20%', 
           minWidth: '300px',
-          bgcolor: 'rgba(25, 118, 210, 0.04)', 
-          border: '1px dashed rgba(25, 118, 210, 0.3)',
+          bgcolor: theme.palette.mode === 'dark' ? 'rgba(114, 124, 245, 0.08)' : 'rgba(25, 118, 210, 0.04)', 
+          border: theme.palette.mode === 'dark' ? '1px dashed rgba(114, 124, 245, 0.3)' : '1px dashed rgba(25, 118, 210, 0.3)',
           borderRadius: 2,
           p: 2
         }}>
@@ -399,7 +423,7 @@ function ConfigEditor({ project, onConfigUpdate }) {
             {/* Project Settings Card */}
             <Card sx={{ 
               borderRadius: 3,
-              boxShadow: '0 4px 20px rgba(0,0,0,0.1)',
+              boxShadow: theme.palette.mode === 'dark' ? '0 4px 20px rgba(0,0,0,0.3)' : '0 4px 20px rgba(0,0,0,0.1)',
               border: '1px solid',
               borderColor: 'divider'
             }}>
@@ -455,7 +479,13 @@ function ConfigEditor({ project, onConfigUpdate }) {
                     </MenuItem>
                   </TextField>
                   
-                  <Paper sx={{ p: 2, borderRadius: 2, bgcolor: 'grey.50' }}>
+                  <Paper sx={{ 
+                    p: 2, 
+                    borderRadius: 2, 
+                    bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.05)' : 'grey.50',
+                    border: '1px solid',
+                    borderColor: 'divider'
+                  }}>
                     <FormControlLabel
                       control={
                         <Switch
@@ -466,10 +496,10 @@ function ConfigEditor({ project, onConfigUpdate }) {
                       }
                       label={
                         <Box>
-                          <Typography variant="body1" fontWeight={500}>
+                          <Typography variant="body1" fontWeight={500} sx={{ color: 'text.primary' }}>
                             Debug Mode
                           </Typography>
-                          <Typography variant="caption" color="text.secondary">
+                          <Typography variant="caption" sx={{ color: 'text.secondary' }}>
                             Enable verbose logging and detailed error reporting
                           </Typography>
                         </Box>
@@ -483,7 +513,7 @@ function ConfigEditor({ project, onConfigUpdate }) {
             {/* Performance Settings Card */}
             <Card sx={{ 
               borderRadius: 3,
-              boxShadow: '0 4px 20px rgba(0,0,0,0.1)',
+              boxShadow: theme.palette.mode === 'dark' ? '0 4px 20px rgba(0,0,0,0.3)' : '0 4px 20px rgba(0,0,0,0.1)',
               border: '1px solid',
               borderColor: 'divider'
             }}>
@@ -557,14 +587,14 @@ function ConfigEditor({ project, onConfigUpdate }) {
         {/* Right Panel - Viewport Configuration */}
         <Box sx={{ 
           width: '80%', 
-          bgcolor: 'rgba(46, 125, 50, 0.04)', 
-          border: '1px dashed rgba(46, 125, 50, 0.3)',
+          bgcolor: theme.palette.mode === 'dark' ? 'rgba(10, 207, 151, 0.08)' : 'rgba(46, 125, 50, 0.04)', 
+          border: theme.palette.mode === 'dark' ? '1px dashed rgba(10, 207, 151, 0.3)' : '1px dashed rgba(46, 125, 50, 0.3)',
           borderRadius: 2,
           p: 2
         }}>
           <Card sx={{ 
             borderRadius: 3,
-            boxShadow: '0 4px 20px rgba(0,0,0,0.1)',
+            boxShadow: theme.palette.mode === 'dark' ? '0 4px 20px rgba(0,0,0,0.3)' : '0 4px 20px rgba(0,0,0,0.1)',
             border: '1px solid',
             borderColor: 'divider'
           }}>
@@ -712,12 +742,19 @@ function ConfigEditor({ project, onConfigUpdate }) {
                   
                   {(!safeConfig.viewports || safeConfig.viewports.length === 0) && (
                     <Grid item xs={12}>
-                      <Paper sx={{ p: 4, textAlign: 'center', borderRadius: 2, bgcolor: 'grey.50' }}>
+                      <Paper sx={{ 
+                        p: 4, 
+                        textAlign: 'center', 
+                        borderRadius: 2, 
+                        bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.05)' : 'grey.50',
+                        border: '1px solid',
+                        borderColor: 'divider'
+                      }}>
                         <MonitorOutlined sx={{ fontSize: 48, color: 'text.secondary', mb: 2 }} />
-                        <Typography variant="h6" color="text.secondary" sx={{ mb: 1 }}>
+                        <Typography variant="h6" sx={{ mb: 1, color: 'text.primary' }}>
                           No Viewports Configured
                         </Typography>
-                        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                        <Typography variant="body2" sx={{ mb: 2, color: 'text.secondary' }}>
                           Add viewports to test your application across different screen sizes
                         </Typography>
                         <Button
@@ -753,9 +790,9 @@ function ConfigEditor({ project, onConfigUpdate }) {
               borderRadius: 3,
               fontSize: '1.1rem',
               fontWeight: 600,
-              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+              background: 'primary.main',
               '&:hover': {
-                background: 'linear-gradient(135deg, #5a6fd8 0%, #6a4190 100%)',
+                background: 'primary.dark',
               }
             }}
           >
@@ -784,7 +821,7 @@ function ConfigEditor({ project, onConfigUpdate }) {
       <Card sx={{ 
         mt: 3,
         borderRadius: 3,
-        boxShadow: '0 4px 20px rgba(0,0,0,0.1)'
+        boxShadow: theme.palette.mode === 'dark' ? '0 4px 20px rgba(0,0,0,0.3)' : '0 4px 20px rgba(0,0,0,0.1)'
       }}>
         <Accordion 
           expanded={expandedAdvanced}

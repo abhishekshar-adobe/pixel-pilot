@@ -718,7 +718,8 @@ const Dashboard = ({ project, config }) => {
                       return (
                         <Box sx={{ 
                           bgcolor: 'background.paper', 
-                          border: '1px solid #ccc', 
+                          border: '1px solid', 
+                          borderColor: 'divider',
                           borderRadius: 1, 
                           p: 1,
                           boxShadow: 2
