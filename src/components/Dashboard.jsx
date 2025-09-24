@@ -507,53 +507,213 @@ const Dashboard = ({ project, config }) => {
                 </PieChart>
               </ResponsiveContainer>
             </Box>
-            {/* Combined Results Bar Chart */}
-            <Box mb={2}>
-              <Typography variant="subtitle1" color="textSecondary" gutterBottom>
-                Combined Results Breakdown
-              </Typography>
-              <ResponsiveContainer width="100%" height={250}>
-                <BarChart
-                  data={[{
-                    status: 'Passed', value: combinedSummary.passed, fill: '#4caf50'
-                  }, {
-                    status: 'Failed', value: combinedSummary.failed, fill: '#f44336'
-                  }]}
-                  margin={{ top: 20, right: 30, left: 20, bottom: 40 }}
-                >
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" />
-                  <XAxis 
-                    dataKey="status" 
-                    tick={{ fontSize: 12, fill: '#666' }}
-                    axisLine={{ stroke: '#e0e0e0' }}
-                    tickLine={{ stroke: '#e0e0e0' }}
-                  />
-                  <YAxis 
-                    allowDecimals={false} 
-                    tick={{ fontSize: 12, fill: '#666' }}
-                    axisLine={{ stroke: '#e0e0e0' }}
-                    tickLine={{ stroke: '#e0e0e0' }}
-                  />
-                  <RechartsTooltip 
-                    formatter={(value) => [value, 'Tests']}
-                    labelFormatter={(label) => `${label}`}
-                    contentStyle={{
-                      backgroundColor: '#f5f5f5',
-                      border: '1px solid #ddd',
-                      borderRadius: '4px'
-                    }}
-                  />
-                  <Bar 
-                    dataKey="value" 
-                    radius={[4, 4, 0, 0]}
-                    shape={(props) => {
-                      const { ...rest } = props;
-                      return <Rectangle {...rest} fill={props.payload.fill} />;
-                    }}
-                  />
-                </BarChart>
-              </ResponsiveContainer>
-            </Box>
+            {/* Combined Results and Batch Performance Charts */}
+            {batchData && batchData.runs && batchData.runs.length > 0 ? (
+              <Box sx={{ 
+                mb: 2,
+                display: { xs: 'block', lg: 'flex' },
+                gap: 3,
+                width: '100%'
+              }}>
+                {/* Combined Results Bar Chart - Left Side */}
+                <Box sx={{ 
+                  flex: { lg: '1 1 50%' },
+                  width: { xs: '100%', lg: 'calc(50% - 12px)' },
+                  mb: { xs: 3, lg: 0 }
+                }}>
+                  <Typography variant="subtitle1" color="textSecondary" gutterBottom>
+                    Combined Results Breakdown
+                  </Typography>
+                  <Box sx={{ width: '100%', height: 350, overflow: 'hidden' }}>
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart
+                        data={[{
+                          status: 'Passed', value: combinedSummary.passed, fill: '#4caf50'
+                        }, {
+                          status: 'Failed', value: combinedSummary.failed, fill: '#f44336'
+                        }]}
+                        margin={{ top: 20, right: 30, left: 20, bottom: 40 }}
+                      >
+                        <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" />
+                        <XAxis 
+                          dataKey="status" 
+                          tick={{ fontSize: 12, fill: '#666' }}
+                          axisLine={{ stroke: '#e0e0e0' }}
+                          tickLine={{ stroke: '#e0e0e0' }}
+                        />
+                        <YAxis 
+                          allowDecimals={false} 
+                          tick={{ fontSize: 12, fill: '#666' }}
+                          axisLine={{ stroke: '#e0e0e0' }}
+                          tickLine={{ stroke: '#e0e0e0' }}
+                        />
+                        <RechartsTooltip 
+                          formatter={(value) => [value, 'Tests']}
+                          labelFormatter={(label) => `${label}`}
+                          contentStyle={{
+                            backgroundColor: '#f5f5f5',
+                            border: '1px solid #ddd',
+                            borderRadius: '4px'
+                          }}
+                        />
+                        <Bar 
+                          dataKey="value" 
+                          radius={[4, 4, 0, 0]}
+                          shape={(props) => {
+                            const { ...rest } = props;
+                            return <Rectangle {...rest} fill={props.payload.fill} />;
+                          }}
+                        />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </Box>
+                </Box>
+                
+                {/* Batch Performance Comparison - Right Side */}
+                <Box sx={{ 
+                  flex: { lg: '1 1 50%' },
+                  width: { xs: '100%', lg: 'calc(50% - 12px)' }
+                }}>
+                  <Typography variant="subtitle1" color="textSecondary" gutterBottom>
+                    Batch Performance Comparison
+                  </Typography>
+                  <Box sx={{ width: '100%', height: 350, overflow: 'hidden' }}>
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart
+                        data={batchData?.runs?.slice(0, 8).reverse().map(run => {
+                          const chartData = {
+                            runId: run.runId.split('_')[2]?.substring(0, 6) || run.runId.substring(-6),
+                            timestamp: formatTimestamp(run.meta?.timestamp),
+                            total: run.combinedReportInfo?.totalScenarios || 0,
+                            passed: run.combinedReportInfo?.passed || 0,
+                            failed: run.combinedReportInfo?.failed || 0
+                          };
+                          return chartData;
+                        })}
+                        margin={{
+                          top: 20,
+                          right: 30,
+                          left: 20,
+                          bottom: 80
+                        }}
+                      >
+                        <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                        <XAxis 
+                          dataKey="runId" 
+                          angle={-45}
+                          textAnchor="end"
+                          height={80}
+                          fontSize={11}
+                        />
+                        <YAxis />
+                        <RechartsTooltip 
+                          content={({ active, payload, label }) => {
+                            if (active && payload && payload.length) {
+                              const data = payload[0].payload;
+                              return (
+                                <Box sx={{ 
+                                  bgcolor: 'background.paper', 
+                                  border: '1px solid', 
+                                  borderColor: 'divider',
+                                  borderRadius: 1, 
+                                  p: 1,
+                                  boxShadow: 2
+                                }}>
+                                  <Typography variant="body2" fontWeight="bold">
+                                    Run: {label}
+                                  </Typography>
+                                  <Typography variant="body2" color="text.secondary">
+                                    {data.timestamp}
+                                  </Typography>
+                                  <Typography variant="body2" color="success.main">
+                                    Passed: {data.passed}
+                                  </Typography>
+                                  <Typography variant="body2" color="error.main">
+                                    Failed: {data.failed}
+                                  </Typography>
+                                  <Typography variant="body2" fontWeight="bold">
+                                    Total: {data.total}
+                                  </Typography>
+                                </Box>
+                              );
+                            }
+                            return null;
+                          }}
+                        />
+                        <Legend />
+                        <Bar 
+                          dataKey="passed" 
+                          stackId="a"
+                          fill="#4caf50" 
+                          name="Passed"
+                          shape={(props) => {
+                            const { ...rest } = props;
+                            return <Rectangle {...rest} fill="#4caf50" />;
+                          }}
+                        />
+                        <Bar 
+                          dataKey="failed" 
+                          stackId="a"
+                          fill="#f44336" 
+                          name="Failed"
+                          shape={(props) => {
+                            const { ...rest } = props;
+                            return <Rectangle {...rest} fill="#f44336" />;
+                          }}
+                        />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </Box>
+                </Box>
+              </Box>
+            ) : (
+              <Box mb={2}>
+                <Typography variant="subtitle1" color="textSecondary" gutterBottom>
+                  Combined Results Breakdown
+                </Typography>
+                <ResponsiveContainer width="100%" height={250}>
+                  <BarChart
+                    data={[{
+                      status: 'Passed', value: combinedSummary.passed, fill: '#4caf50'
+                    }, {
+                      status: 'Failed', value: combinedSummary.failed, fill: '#f44336'
+                    }]}
+                    margin={{ top: 20, right: 30, left: 20, bottom: 40 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" />
+                    <XAxis 
+                      dataKey="status" 
+                      tick={{ fontSize: 12, fill: '#666' }}
+                      axisLine={{ stroke: '#e0e0e0' }}
+                      tickLine={{ stroke: '#e0e0e0' }}
+                    />
+                    <YAxis 
+                      allowDecimals={false} 
+                      tick={{ fontSize: 12, fill: '#666' }}
+                      axisLine={{ stroke: '#e0e0e0' }}
+                      tickLine={{ stroke: '#e0e0e0' }}
+                    />
+                    <RechartsTooltip 
+                      formatter={(value) => [value, 'Tests']}
+                      labelFormatter={(label) => `${label}`}
+                      contentStyle={{
+                        backgroundColor: '#f5f5f5',
+                        border: '1px solid #ddd',
+                        borderRadius: '4px'
+                      }}
+                    />
+                    <Bar 
+                      dataKey="value" 
+                      radius={[4, 4, 0, 0]}
+                      shape={(props) => {
+                        const { ...rest } = props;
+                        return <Rectangle {...rest} fill={props.payload.fill} />;
+                      }}
+                    />
+                  </BarChart>
+                </ResponsiveContainer>
+              </Box>
+            )}
           </>
         ) : testSummary ? (
           <>
@@ -666,111 +826,6 @@ const Dashboard = ({ project, config }) => {
           </>
         ) : null}
       </Box>
-
-      {/* Batch Performance Comparison Chart */}
-      {batchData && batchData.runs && batchData.runs.length > 0 && (
-        <Box
-          sx={{
-            mb: 4,
-            p: { xs: 2, md: 3 },
-            borderRadius: '1rem',
-            bgcolor: 'background.paper',
-            boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)',
-          }}
-        >
-          <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
-            Batch Performance Comparison
-          </Typography>
-          <Box sx={{ height: 400 }}>
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart
-                data={batchData?.runs?.slice(0, 10).reverse().map(run => {
-                  const chartData = {
-                    runId: run.runId.split('_')[2]?.substring(0, 6) || run.runId.substring(-6),
-                    timestamp: formatTimestamp(run.meta?.timestamp),
-                    total: run.combinedReportInfo?.totalScenarios || 0,
-                    passed: run.combinedReportInfo?.passed || 0,
-                    failed: run.combinedReportInfo?.failed || 0
-                  };
-                  console.log('Chart data for run:', run.runId, chartData);
-                  return chartData;
-                })}
-                margin={{
-                  top: 20,
-                  right: 30,
-                  left: 20,
-                  bottom: 80
-                }}
-              >
-                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                <XAxis 
-                  dataKey="runId" 
-                  angle={-45}
-                  textAnchor="end"
-                  height={80}
-                  fontSize={12}
-                />
-                <YAxis />
-                <RechartsTooltip 
-                  content={({ active, payload, label }) => {
-                    if (active && payload && payload.length) {
-                      const data = payload[0].payload;
-                      return (
-                        <Box sx={{ 
-                          bgcolor: 'background.paper', 
-                          border: '1px solid', 
-                          borderColor: 'divider',
-                          borderRadius: 1, 
-                          p: 1,
-                          boxShadow: 2
-                        }}>
-                          <Typography variant="body2" fontWeight="bold">
-                            Run: {label}
-                          </Typography>
-                          <Typography variant="body2" color="text.secondary">
-                            {data.timestamp}
-                          </Typography>
-                          <Typography variant="body2" color="success.main">
-                            Passed: {data.passed}
-                          </Typography>
-                          <Typography variant="body2" color="error.main">
-                            Failed: {data.failed}
-                          </Typography>
-                          <Typography variant="body2" fontWeight="bold">
-                            Total: {data.total}
-                          </Typography>
-                        </Box>
-                      );
-                    }
-                    return null;
-                  }}
-                />
-                <Legend />
-                <Bar 
-                  dataKey="passed" 
-                  stackId="a"
-                  fill="#4caf50" 
-                  name="Passed"
-                  shape={(props) => {
-                    const { ...rest } = props;
-                    return <Rectangle {...rest} fill="#4caf50" />;
-                  }}
-                />
-                <Bar 
-                  dataKey="failed" 
-                  stackId="a"
-                  fill="#f44336" 
-                  name="Failed"
-                  shape={(props) => {
-                    const { ...rest } = props;
-                    return <Rectangle {...rest} fill="#f44336" />;
-                  }}
-                />
-              </BarChart>
-            </ResponsiveContainer>
-          </Box>
-        </Box>
-      )}
 
       {/* Recent Batch Runs Section */}
       {batchData && batchData.runs && batchData.runs.length > 0 && (
