@@ -725,6 +725,13 @@ app.post('/api/projects/:projectId/config', async (req, res) => {
       }
     };
     
+    // Generate custom scripts if scenarios have customScript or customBeforeScript
+    if (config.scenarios && config.scenarios.length > 0) {
+      console.log('🔧 Generating custom onBefore and onReady scripts...');
+      await generateCustomScripts(config);
+      console.log('✅ Custom scripts generated successfully');
+    }
+    
     await fs.writeJson(configPath, config, { spaces: 2 });
     res.json({ message: 'Configuration updated successfully' });
   } catch (err) {
@@ -769,6 +776,12 @@ app.post('/api/projects/:projectId/scenarios', async (req, res) => {
     const { configPath } = await validateProject(projectId);
     const config = await fs.readJson(configPath);
     config.scenarios = req.body.scenarios;
+    
+    // Generate custom scripts for scenarios with customScript or customBeforeScript
+    console.log('🔧 Generating custom onBefore and onReady scripts for saved scenarios...');
+    await generateCustomScripts(config);
+    console.log('✅ Custom scripts generated successfully');
+    
     await fs.writeJson(configPath, config, { spaces: 2 });
     res.json({ message: 'Scenarios saved successfully' });
   } catch (err) {
@@ -1186,6 +1199,9 @@ app.post('/api/projects/:projectId/test', async (req, res) => {
       await fs.writeJson(tempConfigPath, filteredConfig, { spaces: 2 });
       configToUse = tempConfigPath;
       
+      // IMPORTANT: Update validScenarios to use filtered scenarios for batch processing
+      validScenarios = filteredValidScenarios;
+      
       // IMPORTANT: When filtering, we need to include ALL invalid scenarios in the report
       // Not just the ones that match the filter, because users should see all network issues
       // But we'll mark which ones match the filter vs which ones don't
@@ -1199,9 +1215,18 @@ app.post('/api/projects/:projectId/test', async (req, res) => {
         item.matchedFilter = filterScenarios.includes(item.scenario.label);
       });
       
-      console.log(`✅ Filter applied - BackstopJS will test ${filteredValidScenarios.length} valid scenarios`);
+      console.log(`✅ Filter applied - BackstopJS will test ${validScenarios.length} valid scenarios`);
       console.log(`📝 Report will include ${invalidScenarios.length} total network error scenarios`);
     }
+
+    // Generate custom scripts before running tests
+    console.log('🔧 Generating custom onBefore and onReady scripts...');
+    await generateCustomScripts(config);
+    console.log('✅ Custom scripts generated successfully');
+    
+    // Save the updated config with onBeforeScript/onReadyScript properties
+    await fs.writeJson(configPath, config, { spaces: 2 });
+    console.log('📝 Updated config saved with script references');
 
     // Check for missing reference images and auto-generate if needed
     const bitmapsRefDir = config.paths.bitmaps_reference;
@@ -1307,14 +1332,16 @@ app.post('/api/projects/:projectId/test', async (req, res) => {
     if (result && result.tests) {
       for (const test of result.tests) {
         const scenarioName = test.pair.label;
-        const viewport = test.pair.viewport;
+        // BackstopJS stores viewport info in viewportSize and viewportLabel
+        const viewportSize = test.pair.viewportSize || test.pair.viewport || {};
+        const viewportLabel = test.pair.viewportLabel || viewportSize.label || 'default';
         const status = test.status === 'pass' ? 'passed' : 'failed';
         const mismatchPercentage = test.diff ? parseFloat(test.diff.misMatchPercentage || 0) : 0;
         
         // Extract additional test details
         const testDetails = {
           executionTime: test.duration || null,
-          dimensions: test.pair.viewportSize || viewport,
+          dimensions: viewportSize,
           selector: test.pair.selector || 'document',
           engineOptions: test.pair.engineOptions || {},
           hasInteractions: !!(test.pair.clickSelector || test.pair.hoverSelector),
@@ -1328,13 +1355,13 @@ app.post('/api/projects/:projectId/test', async (req, res) => {
           scenarioStatus: status,
           mismatchPercentage,
           viewport: {
-            width: viewport.width,
-            height: viewport.height,
-            label: viewport.label
+            width: viewportSize.width || 0,
+            height: viewportSize.height || 0,
+            label: viewportLabel
           },
           testDetails,
           timestamp: new Date().toISOString(),
-          message: `${scenarioName} (${viewport.width}x${viewport.height}) - ${status === 'passed' ? 'Passed' : `Failed (${mismatchPercentage}% mismatch)`}`
+          message: `${scenarioName} (${viewportSize.width || '?'}x${viewportSize.height || '?'}) - ${status === 'passed' ? 'Passed' : `Failed (${mismatchPercentage}% mismatch)`}`
         });
       }
     }
@@ -1699,6 +1726,15 @@ app.post('/api/projects/:projectId/reference', async (req, res) => {
     
     // Ensure reference paths exist
     await fs.ensureDir(config.paths.bitmaps_reference);
+    
+    // Generate custom scripts before running reference
+    console.log('🔧 Generating custom onBefore and onReady scripts...');
+    await generateCustomScripts(config);
+    console.log('✅ Custom scripts generated successfully');
+    
+    // Save the updated config with onBeforeScript/onReadyScript properties
+    await fs.writeJson(configPath, config, { spaces: 2 });
+    console.log('📝 Updated config saved with script references');
     
     const result = await backstop('reference', { 
       config: configPath,
@@ -3210,57 +3246,63 @@ async function initializeServer() {
 // Generate custom onReady and onBefore scripts for scenarios
 async function generateCustomScripts(config) {
   try {
-    const scriptsDir = path.join(configDir, 'engine_scripts', 'puppet');
+    // Determine scripts directory from config paths or use default
+    let scriptsDir;
+    if (config.paths && config.paths.engine_scripts) {
+      scriptsDir = path.join(config.paths.engine_scripts, 'puppet');
+    } else {
+      // Fallback to legacy configDir if paths not specified
+      scriptsDir = path.join(configDir, 'engine_scripts', 'puppet');
+    }
+    
+    console.log(`📁 Scripts directory: ${scriptsDir}`);
     await fs.ensureDir(scriptsDir);
     
     // Helper function to process custom script code
     const processCustomScript = (customCode) => {
       if (!customCode || !customCode.trim()) return '';
       
-      const lines = customCode.split('\n');
-      let result = '';
-      let inBrowserContext = false;
-
-      for (const line of lines) {
-        const trimmed = line.trim();
-        
-        // Handle empty lines and comments
-        if (!trimmed || trimmed.startsWith('//')) {
-          if (inBrowserContext) {
-            result += '      ' + line + '\n'; // Comments inside browser context get extra indented
-          } else {
-            result += '    ' + line + '\n'; // Comments outside browser context get base indented
-          }
-          continue;
-        }
-
-        // Detect browser APIs vs Node.js APIs
-        const hasBrowserAPI = /\b(document|window|localStorage|sessionStorage|console\.log|alert)\b/.test(trimmed);
-        const hasNodeAPI = /\b(page\.|await page|context\(\)|addCookies|setExtraHTTPHeaders|waitFor|click|type|keyboard|mouse)\b/.test(trimmed);
-
-        if (hasBrowserAPI && !hasNodeAPI) {
-          // Browser API - needs to run in page.evaluate()
-          if (!inBrowserContext) {
-            result += '    await page.evaluate(async () => {\n';
-            inBrowserContext = true;
-          }
-          result += '      ' + line + '\n';
-        } else {
-          // Node.js API or mixed - close browser context if open
-          if (inBrowserContext) {
-            result += '    });\n';
-            inBrowserContext = false;
-          }
-          result += '    ' + line + '\n';
-        }
+      let codeToProcess = customCode.trim();
+      
+      // IMPORTANT: Strip module.exports wrapper if present
+      // Users might paste complete module.exports code, but we need just the inner logic
+      const moduleExportsPattern = /^module\.exports\s*=\s*async\s*\(.*?\)\s*=>\s*\{([\s\S]*)\};?\s*$/;
+      const moduleExportsMatch = codeToProcess.match(moduleExportsPattern);
+      
+      if (moduleExportsMatch) {
+        console.log('🔧 Detected module.exports wrapper in customScript - extracting inner code');
+        codeToProcess = moduleExportsMatch[1].trim();
       }
-
-      // Close any remaining browser context
-      if (inBrowserContext) {
-        result += '    });\n';
+      
+      // Also handle function declarations
+      const functionPattern = /^async\s+function\s*\(.*?\)\s*\{([\s\S]*)\}\s*$/;
+      const functionMatch = codeToProcess.match(functionPattern);
+      
+      if (functionMatch) {
+        console.log('🔧 Detected function wrapper in customScript - extracting inner code');
+        codeToProcess = functionMatch[1].trim();
       }
-
-      return result.trim();
+      
+      // If the code already contains page.evaluate() calls, use it as-is with proper indentation
+      // Don't try to be smart about auto-wrapping - trust the user's code structure
+      if (codeToProcess.includes('page.evaluate')) {
+        console.log('📝 Code contains page.evaluate() - using as-is with indentation');
+        // Just add consistent indentation (4 spaces for each line)
+        const lines = codeToProcess.split('\n');
+        return lines.map(line => '    ' + line).join('\n');
+      }
+      
+      // LEGACY: For simple code without page.evaluate, auto-wrap in page.evaluate
+      // This handles old-style scripts that just have browser code
+      console.log('📝 Code does not contain page.evaluate() - auto-wrapping in page.evaluate()');
+      const lines = codeToProcess.split('\n');
+      let result = '    await page.evaluate(async () => {\n';
+      lines.forEach(line => {
+        result += '      ' + line + '\n';
+      });
+      result += '    });';
+      
+      return result;
     };
     
     // Base onReady script template
@@ -3308,14 +3350,22 @@ async function generateCustomScripts(config) {
         const onReadyScriptName = `onReady_${scenarioName}.js`;
         const onReadyScriptPath = path.join(scriptsDir, onReadyScriptName);
         
+        console.log(`🔧 Processing customScript for scenario "${scenario.label}"`);
+        console.log(`📝 Original customScript (first 200 chars): ${scenario.customScript.trim().substring(0, 200)}...`);
+        
         // Process custom script with intelligent context detection
         const processedReadyCode = processCustomScript(scenario.customScript.trim());
         
+        console.log(`✅ Processed code (first 200 chars): ${processedReadyCode.substring(0, 200)}...`);
+        
         const finalOnReadyScript = baseOnReadyScript.replace('CUSTOM_SCRIPT_PLACEHOLDER', processedReadyCode);
+        
+        console.log(`💾 Writing script to: ${onReadyScriptPath}`);
         promises.push(fs.writeFile(onReadyScriptPath, finalOnReadyScript));
         
         // Update scenario to use the custom script
         scenario.onReadyScript = `puppet/${onReadyScriptName}`;
+        console.log(`🎯 Set onReadyScript to: ${scenario.onReadyScript}`);
       } else {
         // Ensure scenario has default onReady script if no custom script
         if (!scenario.onReadyScript) {
