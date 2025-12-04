@@ -30,7 +30,11 @@ import {
   ListItemButton,
   ListItemIcon,
   ListItemText,
-  Checkbox
+  Checkbox,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions
 } from '@mui/material'
 import { useTheme } from '@mui/material/styles'
 import {
@@ -52,7 +56,9 @@ import {
   PhoneIphone,
   Error,
   WarningAmber,
-  Clear
+  Clear,
+  Edit,
+  Code
 } from '@mui/icons-material'
 import axios from 'axios'
 import io from 'socket.io-client'
@@ -131,6 +137,95 @@ function TestRunner({ project, config, scenarios: initialScenarios = [] }) {
   const [searchTerm, setSearchTerm] = useState('')
   const [showSelectedOnly, setShowSelectedOnly] = useState(false)
   const [socketConnected, setSocketConnected] = useState(false)
+  const [useDummyData, setUseDummyData] = useState(false)
+  const [showDummyScriptEditor, setShowDummyScriptEditor] = useState(false)
+  const [customDummyScript, setCustomDummyScript] = useState(`console.log('🟢 START: Backstop ready script');
+
+// Wait for network idle
+try {
+  await page.waitForNetworkIdle({ idleTime: 1000, timeout: 15000 });
+} catch (e) {
+  console.log("⚠ Network idle timeout - continuing");
+}
+
+// Scroll the entire page (returns a Promise)
+await page.evaluate(() => {
+  return new Promise(resolve => {
+    let total = 0;
+    let distance = 400;
+
+    const timer = setInterval(() => {
+      window.scrollBy(0, distance);
+      total += distance;
+
+      if (total >= document.body.scrollHeight) {
+        clearInterval(timer);
+        resolve();
+      }
+    }, 100);
+  });
+});
+
+// Freeze all CSS animations/transitions
+await page.addStyleTag({
+  content: \`
+    * {
+      animation: none !important;
+      transition: none !important;
+    }
+  \`
+});
+
+// DOM Manipulation
+await page.evaluate(() => {
+  const VALID_EXT = ['.png', '.jpg', '.jpeg', '.webp', '.svg'];
+  const PLACEHOLDER = "https://fastly.picsum.photos/id/866/200/300.jpg?hmac=rcadCENKh4rD6MAp6V_ma-AyWv641M4iiOpe1RyFHeI";
+
+  const isValidImgURL = (url) => {
+    if (!url) return false;
+    let lower = url.split("?")[0].toLowerCase();
+    return VALID_EXT.some(ext => lower.endsWith(ext));
+  };
+
+  // Replace IMGs
+  document.querySelectorAll("img").forEach(img => {
+    if (img.src && isValidImgURL(img.src)) img.src = PLACEHOLDER;
+  });
+
+  // Replace <source>
+  document.querySelectorAll("source").forEach(src => {
+    const url = src.srcset || src.src;
+    if (url && isValidImgURL(url)) {
+      src.srcset = PLACEHOLDER;
+      src.src = PLACEHOLDER;
+    }
+  });
+
+  // Replace text nodes - FIXED VERSION
+  function walk(node) {
+    if (node.nodeType === Node.TEXT_NODE) {
+      if (node.textContent.trim().length > 0) {
+        node.textContent = "X";
+      }
+      return; // Text nodes don't have children
+    }
+
+    let child = node.firstChild;
+    while (child) {
+      const next = child.nextSibling; // Save reference BEFORE recursion
+      walk(child);
+      child = next; // Use saved reference
+    }
+  }
+  walk(document.body);
+
+  console.log('🟢 DOM manipulation complete');
+});
+
+// Final guaranteed wait (Backstop will respect this)
+await page.waitForTimeout(1500);
+
+console.log('🟢 END: Ready script finished fully');`)
 
   // Pagination and virtualization state for large datasets
   const [currentPage, setCurrentPage] = useState(1)
@@ -509,11 +604,13 @@ function TestRunner({ project, config, scenarios: initialScenarios = [] }) {
       const batchConfig = {
         filter,
         batchSize: scenarioCount > 1000 ? 25 : scenarioCount > 500 ? 50 : scenarioCount > 100 ? 100 : scenarioCount,
-        maxConcurrent: scenarioCount > 1000 ? 2 : scenarioCount > 500 ? 3 : scenarioCount > 100 ? 5 : 10
+        maxConcurrent: scenarioCount > 1000 ? 2 : scenarioCount > 500 ? 3 : scenarioCount > 100 ? 5 : 10,
+        useDummyData, // Pass the dummy data option to the backend
+        customDummyScript: useDummyData ? customDummyScript : undefined // Pass custom script if dummy data is enabled
       }
 
       // Always show batch message, even for small runs
-      setMessage(`🚀 Starting batch test: ${scenarioCount} scenarios (${batchConfig.batchSize} per batch, ${batchConfig.maxConcurrent} concurrent)`)
+      setMessage(`🚀 Starting batch test: ${scenarioCount} scenarios${useDummyData ? ' with dummy data' : ''} (${batchConfig.batchSize} per batch, ${batchConfig.maxConcurrent} concurrent)`)
 
       // Initialize batch progress immediately with known values
       setBatchProgress({
@@ -767,6 +864,41 @@ function TestRunner({ project, config, scenarios: initialScenarios = [] }) {
             {/* Test Actions */}
             <Grid item xs={12} lg={9}>
               <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap', alignItems: 'center' }}>
+                {/* Dummy Data Toggle with Edit Button */}
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, px: 1.5, py: 0.5, borderRadius: '8px', border: '1px solid', borderColor: useDummyData ? 'primary.main' : 'divider', bgcolor: useDummyData ? 'primary.lighter' : 'transparent', transition: 'all 0.2s' }}>
+                    <Checkbox
+                      checked={useDummyData}
+                      onChange={(e) => setUseDummyData(e.target.checked)}
+                      size="small"
+                      disabled={testRunning}
+                      sx={{ p: 0 }}
+                    />
+                    <Tooltip title="Replace all text with 'X' and images with placeholders for privacy/faster testing">
+                      <Typography variant="body2" sx={{ fontWeight: useDummyData ? 600 : 400, color: useDummyData ? 'primary.main' : 'text.primary', cursor: 'pointer', userSelect: 'none' }} onClick={() => !testRunning && setUseDummyData(!useDummyData)}>
+                        Use Dummy Data
+                      </Typography>
+                    </Tooltip>
+                  </Box>
+                  {useDummyData && (
+                    <Tooltip title="Edit dummy data script">
+                      <IconButton
+                        size="small"
+                        onClick={() => setShowDummyScriptEditor(true)}
+                        disabled={testRunning}
+                        sx={{ 
+                          bgcolor: 'primary.lighter',
+                          '&:hover': { bgcolor: 'primary.light' },
+                          width: 32,
+                          height: 32
+                        }}
+                      >
+                        <Edit sx={{ fontSize: 16 }} />
+                      </IconButton>
+                    </Tooltip>
+                  )}
+                </Box>
+                
                 <Button
                   variant="contained"
                   size="medium"
@@ -1959,6 +2091,55 @@ function TestRunner({ project, config, scenarios: initialScenarios = [] }) {
           )}
         </CardContent>
       </Card>
+
+      {/* Dummy Data Script Editor Dialog */}
+      <Dialog 
+        open={showDummyScriptEditor} 
+        onClose={() => setShowDummyScriptEditor(false)}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Code />
+            <span>Edit Dummy Data Script</span>
+          </Box>
+        </DialogTitle>
+        <DialogContent>
+          <TextField
+            multiline
+            fullWidth
+            rows={20}
+            value={customDummyScript}
+            onChange={(e) => setCustomDummyScript(e.target.value)}
+            variant="outlined"
+            sx={{
+              mt: 1,
+              fontFamily: 'monospace',
+              '& .MuiInputBase-input': {
+                fontFamily: 'monospace',
+                fontSize: '13px',
+              }
+            }}
+            placeholder="Enter your custom Puppeteer script here..."
+          />
+          <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+            This script will be executed on each page to replace content with dummy data. 
+            Use standard Puppeteer page methods inside page.evaluate().
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setShowDummyScriptEditor(false)}>
+            Cancel
+          </Button>
+          <Button 
+            onClick={() => setShowDummyScriptEditor(false)} 
+            variant="contained"
+          >
+            Save
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   )
 }

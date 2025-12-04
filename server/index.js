@@ -951,12 +951,17 @@ app.post('/api/projects/:projectId/test', async (req, res) => {
   let invalidScenarios = []; // Move outside try block for catch block access
   let config = null; // Move outside try block for catch block access
   const { projectId } = req.params; // Move projectId outside try block
-  const { filter, batchSize = 50, maxConcurrent = 5 } = req.body; // Enhanced batch configuration
+  const { filter, batchSize = 50, maxConcurrent = 5, useDummyData = false, customDummyScript } = req.body; // Enhanced batch configuration
   
   console.log(`\n🚀 === ENHANCED BATCH TEST REQUEST ===`);
   console.log(`📝 Project ID: ${projectId}`);
   console.log(`🔍 Filter: ${filter || 'none'}`);
   console.log(`📊 Batch Configuration: ${batchSize} scenarios per batch, ${maxConcurrent} concurrent`);
+  console.log(`🎭 Use Dummy Data: ${useDummyData ? 'YES' : 'NO'}`);
+  if (customDummyScript) {
+    console.log(`📜 Custom Dummy Script Length: ${customDummyScript.length} characters`);
+    console.log(`📜 Custom Dummy Script Preview: ${customDummyScript.substring(0, 100)}...`);
+  }
   console.log(`📋 Request body:`, req.body);
   
   try {
@@ -1103,13 +1108,15 @@ app.post('/api/projects/:projectId/test', async (req, res) => {
       scenarios: validScenarios
     };
     
-    // Create temporary config file with only valid scenarios
+    // Prepare temporary config path for valid scenarios (will be written after applying dummy data)
     const validConfigPath = path.join(path.dirname(configPath), 'temp-valid-scenarios-config.json');
-    await fs.writeJson(validConfigPath, validConfig, { spaces: 2 });
     configToUse = validConfigPath;
     tempConfigPath = validConfigPath; // For cleanup
+    
+    // Update config reference to use validConfig for subsequent operations
+    config = validConfig;
 
-    console.log(`✅ Filtered config created: ${validScenarios.length} valid scenarios will be tested`);
+    console.log(`✅ Valid scenarios prepared: ${validScenarios.length} valid scenarios will be tested`);
     console.log(`🔄 BackstopJS will run without interruptions from network issues`);
 
     // Emit test start event
@@ -1194,10 +1201,12 @@ app.post('/api/projects/:projectId/test', async (req, res) => {
         scenarios: filteredValidScenarios
       };
       // console.log(filteredConfig, "+++++++++++++++++++++++++++++++##########");
-      // Update the temp config path
+      // Update the temp config path (but don't write it yet - we'll write after applying dummy data)
       tempConfigPath = path.join(path.dirname(configPath), 'temp-filtered-valid-config.json');
-      await fs.writeJson(tempConfigPath, filteredConfig, { spaces: 2 });
       configToUse = tempConfigPath;
+      
+      // Update config reference to use filtered config for subsequent operations
+      config = filteredConfig;
       
       // IMPORTANT: Update validScenarios to use filtered scenarios for batch processing
       validScenarios = filteredValidScenarios;
@@ -1219,44 +1228,73 @@ app.post('/api/projects/:projectId/test', async (req, res) => {
       console.log(`📝 Report will include ${invalidScenarios.length} total network error scenarios`);
     }
 
+    // Apply dummy data script if requested (applies to current config, which may be filtered)
+    if (useDummyData) {
+      console.log('🎭 Applying dummy data script to scenarios...');
+      const scriptToUse = customDummyScript;
+      console.log(`   📝 Using ${customDummyScript ? 'custom' : 'default'} dummy data script`);
+      console.log(`   📊 Applying to ${config.scenarios.length} scenario(s)`);
+      
+      config.scenarios.forEach(scenario => {
+        // Store the raw script - generateCustomScripts will wrap it properly
+        scenario.customScript = scriptToUse;
+        console.log(`   ✅ Applied dummy data script to "${scenario.label}"`);
+      });
+      console.log(`✅ Dummy data script applied to ${config.scenarios.length} scenarios`);
+    }
+
     // Generate custom scripts before running tests
     console.log('🔧 Generating custom onBefore and onReady scripts...');
     await generateCustomScripts(config);
     console.log('✅ Custom scripts generated successfully');
     
     // Save the updated config with onBeforeScript/onReadyScript properties
-    await fs.writeJson(configPath, config, { spaces: 2 });
-    console.log('📝 Updated config saved with script references');
+    // If using filtered config, save to temp path; otherwise save to original config
+    const saveConfigPath = configToUse === tempConfigPath ? tempConfigPath : configPath;
+    await fs.writeJson(saveConfigPath, config, { spaces: 2 });
+    console.log(`📝 Updated config saved to: ${saveConfigPath}`);
+    
+    // Update configToUse to point to the saved config
+    configToUse = saveConfigPath;
 
-    // Check for missing reference images and auto-generate if needed
-    const bitmapsRefDir = config.paths.bitmaps_reference;
-    let missingReference = false;
-    if (Array.isArray(config.scenarios)) {
-      for (const scenario of config.scenarios) {
-        // Build expected reference image filename (BackstopJS default convention)
-        // Example: backstop_default_<label>_<index>_<scenarioLabel>_<breakpoint>.png
-        // We'll check for each scenario label and viewport
-        if (scenario.referenceUrl && scenario.label && Array.isArray(config.viewports)) {
-          for (let v = 0; v < config.viewports.length; v++) {
-            const viewport = config.viewports[v];
-            const refName = `backstop_default_${scenario.label}_${v}_${scenario.label}_${viewport.label}.png`;
-            const refPath = path.join(bitmapsRefDir, refName);
-            if (!await fs.pathExists(refPath)) {
-              missingReference = true;
-              break;
+    // Check if we need to regenerate references
+    // ALWAYS regenerate when useDummyData is enabled to ensure reference and test use same script
+    let needsReferenceGeneration = useDummyData;
+    
+    // If not using dummy data, check for missing reference images
+    if (!useDummyData) {
+      const bitmapsRefDir = config.paths.bitmaps_reference;
+      let missingReference = false;
+      if (Array.isArray(config.scenarios)) {
+        for (const scenario of config.scenarios) {
+          // Build expected reference image filename (BackstopJS default convention)
+          // Example: backstop_default_<label>_<index>_<scenarioLabel>_<breakpoint>.png
+          // We'll check for each scenario label and viewport
+          if (scenario.referenceUrl && scenario.label && Array.isArray(config.viewports)) {
+            for (let v = 0; v < config.viewports.length; v++) {
+              const viewport = config.viewports[v];
+              const refName = `backstop_default_${scenario.label}_${v}_${scenario.label}_${viewport.label}.png`;
+              const refPath = path.join(bitmapsRefDir, refName);
+              if (!await fs.pathExists(refPath)) {
+                missingReference = true;
+                break;
+              }
             }
           }
+          if (missingReference) break;
         }
-        if (missingReference) break;
       }
+      needsReferenceGeneration = missingReference;
     }
-    if (missingReference) {
+    
+    if (needsReferenceGeneration) {
       // Auto-generate reference images before running test
-      console.log('🔧 Generating missing reference images...');
+      const reason = useDummyData ? 'dummy data script enabled' : 'missing reference images';
+      console.log(`🔧 Generating reference images (${reason})...`);
       io.emit('test-progress', {
         status: 'running',
         percent: 10,
-        message: 'Generating reference images...'
+        message: useDummyData ? 'Generating reference images with dummy data...' : 'Generating missing reference images...'
       });
       await backstop('reference', { config: configToUse });
     }
@@ -1519,8 +1557,6 @@ app.post('/api/projects/:projectId/test', async (req, res) => {
     try {
       const { configPath } = await validateProject(projectId);
       const config = await fs.readJson(configPath);
-      const reportPath = path.join(config.paths.html_report, 'index.html');
-      const reportExists = await fs.pathExists(reportPath);
       
       // Emit completion with differences
       io.emit('test-complete', {
@@ -1535,7 +1571,7 @@ app.post('/api/projects/:projectId/test', async (req, res) => {
       res.status(200).json({ 
         success: false, 
         error: error.message,
-        reportPath: reportExists ? `/api/projects/${projectId}/report/index.html` : null,
+        reportPath: `/api/projects/${projectId}/report/index.html`, // Always return report path - file will be generated shortly
         message: 'Test completed with visual differences detected',
         enhancedReport: invalidScenarios.length > 0,
         totalScenarios: (validScenarios?.length || 0) + (invalidScenarios?.length || 0),
@@ -1723,9 +1759,23 @@ app.post('/api/projects/:projectId/reference', async (req, res) => {
     const { projectId } = req.params;
     const { configPath } = await validateProject(projectId);
     const config = await fs.readJson(configPath);
+    const { useDummyData = false, customDummyScript, filter } = req.body;
     
     // Ensure reference paths exist
     await fs.ensureDir(config.paths.bitmaps_reference);
+    
+    // Apply dummy data script if enabled
+    if (useDummyData && customDummyScript) {
+      console.log('📜 Applying custom dummy data script to scenarios for reference generation...');
+      
+      // Apply script to all scenarios (or filtered scenarios if filter is provided)
+      config.scenarios.forEach(scenario => {
+        if (!filter || scenario.label.includes(filter)) {
+          scenario.customScript = customDummyScript;
+          console.log(`   ✅ Applied to scenario: ${scenario.label}`);
+        }
+      });
+    }
     
     // Generate custom scripts before running reference
     console.log('🔧 Generating custom onBefore and onReady scripts...');
@@ -1738,7 +1788,7 @@ app.post('/api/projects/:projectId/reference', async (req, res) => {
     
     const result = await backstop('reference', { 
       config: configPath,
-      filter: req.body.filter || undefined
+      filter: filter || undefined
     });
     
     res.json({ 
@@ -4110,14 +4160,11 @@ app.post('/api/test', async (req, res) => {
       const configPath = path.join(configDir, 'backstop.json');
       const config = await fs.readJson(configPath);
       // Get report path for frontend - strip backstop_data prefix from config path
-      const htmlReportPath = config.paths.html_report.replace('backstop_data/', '');
-      const reportPath = path.join(configDir, htmlReportPath, 'index.html');
-      const reportExists = await fs.pathExists(reportPath);
       
       res.status(200).json({ 
         success: false, 
         error: error.message,
-        reportPath: reportExists ? `/report/index.html` : null,
+        reportPath: `/report/index.html`, // Always return report path - file will be generated shortly
         message: 'Test completed with visual differences detected',
         networkErrorCount: invalidScenarios.length,
         hasNetworkErrors: invalidScenarios.length > 0
@@ -9012,8 +9059,33 @@ class BatchTestProcessor {
 
     // Generate HTML combined report
     await this.generateCombinedHtmlReport(mergedReport, runHtmlReportDir);
+    
+    // Copy the generated index.html, config.js, and essential assets to the main html_report directory for easy access
+    const mainHtmlReportDir = this.config.paths.html_report;
+    
+    // Copy main files
+    await Promise.all([
+      fs.copy(path.join(runHtmlReportDir, 'index.html'), path.join(mainHtmlReportDir, 'index.html')),
+      fs.copy(path.join(runHtmlReportDir, 'config.js'), path.join(mainHtmlReportDir, 'config.js'))
+    ]);
+    
+    // Copy BackstopJS core files to main directory if they exist in the run directory
+    const coreFiles = ['index_bundle.js', 'index_bundle.js.LICENSE.txt', 'diff.js', 'diverged.js', 'divergedWorker.js'];
+    for (const file of coreFiles) {
+      const srcPath = path.join(runHtmlReportDir, file);
+      const destPath = path.join(mainHtmlReportDir, file);
+      if (await fs.pathExists(srcPath)) {
+        await fs.copy(srcPath, destPath);
+      }
+    }
+    
+    // Copy assets directory to main html_report if it exists
+    if (await fs.pathExists(path.join(runHtmlReportDir, 'assets'))) {
+      await fs.copy(path.join(runHtmlReportDir, 'assets'), path.join(mainHtmlReportDir, 'assets'));
+    }
 
     console.log(`✅ Final combined report generated: ${passCount} passed, ${failCount} failed, ${mergedReport.tests.length} total tests`);
+    console.log(`📄 Report available at: ${mainHtmlReportDir}/index.html`);
     
     return mergedReport;
   }
